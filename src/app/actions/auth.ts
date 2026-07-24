@@ -76,7 +76,16 @@ export async function signUpAction(
 export async function signOutAction() {
   const supabase = await createSupabaseServerClient();
   if (supabase) {
-    await supabase.auth.signOut();
+    try {
+      await Promise.race([
+        supabase.auth.signOut(),
+        new Promise<never>((_, reject) => {
+          setTimeout(() => reject(new Error("signOut timeout")), 5_000);
+        }),
+      ]);
+    } catch {
+      // Always clear local auth cookies even if Supabase is unreachable or hangs.
+    }
   }
 
   const cookieStore = await cookies();

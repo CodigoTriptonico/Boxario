@@ -2,8 +2,10 @@
 
 import { useEffect } from "react";
 import {
+  DEV_SERVICE_WORKER_RELOAD_FLAG,
   shouldRegisterServiceWorker,
   shouldReloadAfterDevelopmentCleanup,
+  shouldReloadOnceAfterDevelopmentCleanup,
 } from "@/lib/pwa/service-worker-policy";
 
 export function ServiceWorkerRegister() {
@@ -38,6 +40,7 @@ export function ServiceWorkerRegister() {
               registrationCount: appRegistrations.length,
               hasController: hasAppController,
             })) {
+              sessionStorage.removeItem(DEV_SERVICE_WORKER_RELOAD_FLAG);
               return;
             }
 
@@ -52,9 +55,21 @@ export function ServiceWorkerRegister() {
               );
             }
 
-            if (hasAppController) {
+            const alreadyReloaded =
+              sessionStorage.getItem(DEV_SERVICE_WORKER_RELOAD_FLAG) === "1";
+
+            if (
+              shouldReloadOnceAfterDevelopmentCleanup({
+                hasController: hasAppController,
+                alreadyReloaded,
+              })
+            ) {
+              sessionStorage.setItem(DEV_SERVICE_WORKER_RELOAD_FLAG, "1");
               window.location.reload();
+              return;
             }
+
+            sessionStorage.removeItem(DEV_SERVICE_WORKER_RELOAD_FLAG);
           })
           .catch(() => undefined);
       }

@@ -21,10 +21,12 @@ describe("sale unknown day eval", () => {
     assert.match(decisionSource, /return "Día y ruta pendientes"/);
   });
 
-  it("keeps the unknown-day choice visible before route planning controls", () => {
+  it("keeps the unknown-day choice on the day wizard step", () => {
     assert.match(saleSource, /allowPendingDay/);
     assert.match(saleSource, /pendingDayLabel="No sé el día"/);
     assert.match(panelSource, /CalendarOff/);
+    assert.match(panelSource, /showPendingDay/);
+    assert.match(panelSource, /step === "day"/);
     assert.match(panelSource, /No sé el día deja todo pendiente/);
   });
 

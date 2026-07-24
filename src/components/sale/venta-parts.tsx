@@ -28,7 +28,7 @@ import { formatScheduleAtDisplay, scheduleTimeComplete } from "@/lib/sale/schedu
 export function SaleBoxCartQtyBadge({ quantity }: { quantity: number }) {
   return (
     <span
-      className="mt-2 inline-flex h-8 min-w-[2.75rem] items-center justify-center rounded-lg border border-amber-500/90 bg-gradient-to-b from-amber-300 via-amber-400 to-orange-500 px-2.5 text-lg font-black leading-none tabular-nums tracking-tight text-slate-950 shadow-[0_6px_18px_rgba(251,146,60,0.42)] ring-1 ring-inset ring-amber-100/50"
+      className="inline-flex h-8 min-w-[2.75rem] items-center justify-center rounded-lg border border-amber-500/90 bg-gradient-to-b from-amber-300 via-amber-400 to-orange-500 px-2.5 text-lg font-black leading-none tabular-nums tracking-tight text-slate-950 shadow-[0_6px_18px_rgba(251,146,60,0.42)] ring-1 ring-inset ring-amber-100/50"
       aria-label={`${quantity} en carrito`}
     >
       ×{quantity}

@@ -1515,25 +1515,10 @@ const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
 
   return (
     <div className="mb-3 shrink-0 rounded-xl border border-black bg-surface-card-header p-2">
-      {workspaceTabs ? (
-        <div className="mb-2 flex w-full items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-          {workspaceTabs}
-          <div className="ml-auto shrink-0">
-            <EnviosReadinessActions
-              mode={mode}
-              readinessFilter={readinessFilter}
-              onReadinessFilterChange={onReadinessFilterChange}
-              totalCount={totalCount}
-              listosCount={listosCount}
-              pendientesCount={pendientesCount}
-              canManageSales={canManageSales}
-              isConductor={isConductor}
-            />
-          </div>
-        </div>
-      ) : null}
-      <div className="flex flex-wrap items-center gap-2">
-        <label className="min-w-0 w-full basis-full sm:w-auto sm:min-w-[14rem] sm:max-w-[20rem] sm:flex-[1_1_16rem]">
+      <div className="flex w-full items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {workspaceTabs}
+
+        <label className="min-w-[12rem] flex-[1_1_12rem] max-w-[20rem]">
           <span className="sr-only">Buscar envíos</span>
           <span className={`${insetShellClass} flex h-9 min-w-0 items-center gap-2 rounded-lg border border-black bg-surface-inset px-3`}>
             <Search className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
@@ -1548,7 +1533,7 @@ const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
         </label>
 
         {canManageShipmentOwners ? (
-          <label className="w-full shrink-0 sm:w-[12rem]">
+          <label className="w-[12rem] shrink-0">
             <span className="sr-only">Filtrar por vendedor</span>
             <select
               className="h-9 w-full rounded-lg border border-black bg-surface-inset px-2.5 pr-8 text-sm font-black text-[#f8fafc] outline-none"
@@ -1567,7 +1552,7 @@ const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
         ) : null}
 
         <InlineSearchPicker
-          className="w-full sm:w-[8rem]"
+          className="w-[8rem] shrink-0"
           minWidthClass="w-full min-w-0"
           value={country}
           onChange={onCountryChange}
@@ -1579,33 +1564,31 @@ const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
         />
 
         {!isHistoryMode ? (
-        <InlineSearchPicker
-          className="w-full min-w-0 sm:min-w-[11rem] sm:w-[13rem]"
-          minWidthClass="w-full min-w-0"
-          value={statusFilter}
-          onChange={onStatusFilterChange}
-          options={statusFilterOptions}
-          placeholder="Estado"
-          searchPlaceholder="Buscar estado..."
-          emptyLabel="Sin estados"
-          ariaLabel="Filtrar por estado de envío"
-        />
+          <InlineSearchPicker
+            className="w-[11rem] shrink-0"
+            minWidthClass="w-full min-w-0"
+            value={statusFilter}
+            onChange={onStatusFilterChange}
+            options={statusFilterOptions}
+            placeholder="Estado"
+            searchPlaceholder="Buscar estado..."
+            emptyLabel="Sin estados"
+            ariaLabel="Filtrar por estado de envío"
+          />
         ) : null}
 
-        {!workspaceTabs ? (
-          <div className="flex w-full flex-wrap items-center gap-2 sm:ml-auto sm:w-auto">
-            <EnviosReadinessActions
-              mode={mode}
-              readinessFilter={readinessFilter}
-              onReadinessFilterChange={onReadinessFilterChange}
-              totalCount={totalCount}
-              listosCount={listosCount}
-              pendientesCount={pendientesCount}
-              canManageSales={canManageSales}
-              isConductor={isConductor}
-            />
-          </div>
-        ) : null}
+        <div className="ml-auto shrink-0">
+          <EnviosReadinessActions
+            mode={mode}
+            readinessFilter={readinessFilter}
+            onReadinessFilterChange={onReadinessFilterChange}
+            totalCount={totalCount}
+            listosCount={listosCount}
+            pendientesCount={pendientesCount}
+            canManageSales={canManageSales}
+            isConductor={isConductor}
+          />
+        </div>
       </div>
     </div>
   );

@@ -1,3 +1,5 @@
+export const DEV_SERVICE_WORKER_RELOAD_FLAG = "boxario:sw-dev-cleanup-reload";
+
 export function shouldRegisterServiceWorker(input: {
   nodeEnv: string | undefined;
   protocol: string;
@@ -19,4 +21,12 @@ export function shouldReloadAfterDevelopmentCleanup(input: {
   hasController: boolean;
 }) {
   return input.registrationCount > 0 || input.hasController;
+}
+
+/** Avoid infinite reload loops when a controlling SW survives one unregister+reload cycle. */
+export function shouldReloadOnceAfterDevelopmentCleanup(input: {
+  hasController: boolean;
+  alreadyReloaded: boolean;
+}) {
+  return input.hasController && !input.alreadyReloaded;
 }

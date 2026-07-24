@@ -99,7 +99,7 @@ async function ensureApp(config) {
   if (await isReachable(config.appUrl)) {
     log(
       "next",
-      `ya responde en ${config.appUrl} — si es preview/produccion, los cambios no se ven al guardar; usa npm run phone o npm run dev:kill y corre npm run up`,
+      `ya responde en ${config.appUrl} — si es preview/produccion, los cambios no se ven al guardar; usa npm run dev:kill y corre npm run up`,
     );
     openApp(config.appUrl);
     return;

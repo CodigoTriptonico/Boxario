@@ -56,24 +56,23 @@ describe("envios page layout eval", () => {
     assert.equal(enviosSource.includes('id={`envios-detail-${row.id}`}'), true);
     assert.equal(enviosSource.includes("lg:flex-row lg:items-start lg:gap-4"), true);
     assert.equal(enviosSource.includes("flex shrink-0 flex-wrap items-center gap-1.5"), true);
-    assert.equal(enviosSource.includes('sm:w-[12rem]'), true);
+    assert.equal(enviosSource.includes('w-[12rem] shrink-0'), true);
     assert.equal(enviosSource.includes('>Todos vendedores</option>'), true);
     assert.equal(enviosSource.includes("pr-8 text-sm font-black"), true);
     assert.equal(enviosSource.includes(">Vista</span>"), false);
     assert.equal(enviosSource.includes('isHistoryMode ? "entregados" : "total"'), true);
     const toolbarSearchIndex = enviosSource.indexOf('aria-label="Buscar envíos"');
-    const workspaceRowIndex = enviosSource.indexOf("{workspaceTabs ? (");
-    const workspaceTabsIndex = enviosSource.indexOf("{workspaceTabs}", workspaceRowIndex);
+    const toolbarRowIndex = enviosSource.indexOf(
+      'className="flex w-full items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"',
+    );
+    const workspaceTabsIndex = enviosSource.indexOf("{workspaceTabs}", toolbarRowIndex);
     const workspaceReadinessIndex = enviosSource.indexOf("<EnviosReadinessActions", workspaceTabsIndex);
     assert.equal(toolbarSearchIndex > -1, true);
-    assert.equal(workspaceRowIndex > -1 && workspaceTabsIndex > workspaceRowIndex, true);
+    assert.equal(toolbarRowIndex > -1 && workspaceTabsIndex > toolbarRowIndex, true);
     assert.equal(workspaceReadinessIndex > workspaceTabsIndex, true);
-    assert.equal(
-      enviosSource.includes(
-        'className="mb-2 flex w-full items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"',
-      ),
-      true,
-    );
+    assert.equal(toolbarSearchIndex > workspaceTabsIndex && toolbarSearchIndex < workspaceReadinessIndex, true);
+    assert.equal(enviosSource.includes("basis-full"), false);
+    assert.equal(enviosSource.includes('className="flex flex-wrap items-center gap-2"'), false);
     assert.equal(enviosSource.includes("readinessFilter"), true);
     assert.equal(enviosSource.includes("EnviosBulkSelectionBar"), true);
     assert.equal(enviosSource.includes("useEnviosShipmentSelection"), true);

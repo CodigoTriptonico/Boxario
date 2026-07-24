@@ -28,7 +28,8 @@ describe("quick empty-box route workflow", () => {
     assert.match(modalSource, /Elegir día y ruta/);
     assert.doesNotMatch(modalSource, /DateInput|ScheduleTimeField/);
     assert.match(saleSource, /openRoutePlanner\("quickEmptyBox"\)/);
-    assert.match(saleSource, /routePlannerLeg === "fullBox" \? "Programar recolección" : "Programar entrega"/);
+    assert.match(saleSource, /routePlannerLeg === "fullBox" \? "Aceptar recolección" : "Aceptar entrega"/);
+    assert.match(saleSource, /confirmLabel="Aceptar"/);
     assert.match(saleSource, /enabledDays=\{routeCatalog\.enabledDays\}/);
     assert.match(saleSource, /defaultDriverByWeekday=\{routeCatalog\.defaultDriverByWeekday\}/);
   });

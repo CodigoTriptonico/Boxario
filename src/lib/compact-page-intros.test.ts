@@ -31,7 +31,7 @@ describe("compact page introductions", () => {
     assert.match(envios, /workspaceTabs=\{[\s\S]*?<EnviosWorkspaceTabs/);
     assert.match(envios, /function EnviosWorkspaceTabs[\s\S]*?className="flex shrink-0"/);
     assert.match(envios, /role="tablist" aria-label="Vista de envíos"/);
-    assert.match(envios, /mb-2 flex w-full items-center gap-2 overflow-x-auto/);
+    assert.match(envios, /flex w-full items-center gap-2 overflow-x-auto/);
     assert.match(envios, /<span className="sm:hidden">Nuevo<\/span>/);
   });
 

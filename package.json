@@ -1,5 +1,5 @@
 {
-  "name": "paqueteria-saas",
+  "name": "boxario",
   "version": "0.1.0",
   "private": true,
   "scripts": {
@@ -7,11 +7,7 @@
     "dev:kill": "node scripts/kill-dev-server.mjs",
     "dev:open": "powershell -ExecutionPolicy Bypass -File scripts/start-dev-server.ps1",
     "up": "node scripts/dev-up.mjs",
-    "phone": "powershell -ExecutionPolicy Bypass -File scripts/start-dev-tunnel.ps1",
-    "preview": "powershell -ExecutionPolicy Bypass -File scripts/start-public-tunnel.ps1",
     "dev:up": "npm run up",
-    "host:dev": "npm run phone",
-    "host:pc": "npm run preview",
     "build": "next build",
     "start": "next start",
     "lint": "eslint",

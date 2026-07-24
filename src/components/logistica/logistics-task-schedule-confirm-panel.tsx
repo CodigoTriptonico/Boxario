@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CalendarCheck2, CalendarOff, Route, Truck } from "lucide-react";
+import { CalendarCheck2, CalendarOff, Check, ChevronLeft, Route, Truck } from "lucide-react";
 import { ensureLogisticsDayRouteTemplateAction } from "@/app/actions/logistics-routes";
 import { DateInput } from "@/components/date-input";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
@@ -9,6 +9,7 @@ import { LogisticsWeekdayPicker } from "@/components/logistica/logistics-weekday
 import { TimePickerInput } from "@/components/time-picker-input";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
+import { formatDateInputDisplay } from "@/lib/date-picker";
 import { logisticsWeekdayKeys, type LogisticsWeekdayKey } from "@/lib/logistics-route-catalog";
 import {
   dayAsRouteHint,
@@ -32,6 +33,19 @@ import { isoToPlanScheduleAt } from "@/lib/shipment-schedule-history";
 type RouteTemplate = { id: string; weekday: number; name: string };
 type Driver = { id: string; label: string; roleSlug: string };
 type SelectionOrder = "date-first" | "route-first";
+type DateFirstStep = "day" | "date" | "route" | "time";
+type RouteFirstStep = "route" | "date" | "time";
+type WizardStep = DateFirstStep | RouteFirstStep;
+
+const DATE_FIRST_STEPS: DateFirstStep[] = ["day", "date", "route", "time"];
+const ROUTE_FIRST_STEPS: RouteFirstStep[] = ["route", "date", "time"];
+
+const STEP_LABELS: Record<WizardStep, string> = {
+  day: "Día",
+  date: "Fecha",
+  route: "Ruta",
+  time: "Hora",
+};
 
 function scheduleDraft(scheduledAt: string | null) {
   if (!scheduledAt) {
@@ -45,6 +59,30 @@ function scheduleDraft(scheduledAt: string | null) {
 function templateLabel(template: RouteTemplate) {
   const day = logisticsWeekdayKeys[template.weekday] || `Día ${template.weekday}`;
   return `${day} · ${template.name}`;
+}
+
+function initialWizardStep(routeFirst: boolean): WizardStep {
+  return routeFirst ? "route" : "day";
+}
+
+function wizardStepTileClass(status: "done" | "active" | "upcoming") {
+  if (status === "active") {
+    return "border-2 border-emerald-600 bg-emerald-600/35 text-emerald-50 shadow-[0_8px_18px_rgba(16,185,129,0.2)] ring-1 ring-emerald-400/45";
+  }
+
+  if (status === "done") {
+    return "border-emerald-800/80 bg-[#1c2822] text-[#f8fafc] hover:border-emerald-700 hover:bg-[#223028]";
+  }
+
+  return "cursor-default border-black/80 bg-surface-inset text-slate-600";
+}
+
+function wizardStepBadgeClass(status: "done" | "active" | "upcoming") {
+  if (status === "active" || status === "done") {
+    return "border-emerald-300 bg-emerald-400 text-slate-950";
+  }
+
+  return "border-black bg-surface-card text-slate-500";
 }
 
 export function LogisticsTaskScheduleConfirmPanel({
@@ -106,6 +144,7 @@ export function LogisticsTaskScheduleConfirmPanel({
 }) {
   const notify = useNotify();
   const routeFirst = selectionOrder === "route-first";
+  const wizardSteps = routeFirst ? ROUTE_FIRST_STEPS : DATE_FIRST_STEPS;
   const availableWeekdays = useMemo(
     () => enabledWeekdayIndexes(enabledDays),
     [enabledDays],
@@ -157,6 +196,7 @@ export function LogisticsTaskScheduleConfirmPanel({
       : resolvedTemplateId;
   });
   const [ensuringDayRoute, setEnsuringDayRoute] = useState(false);
+  const [step, setStep] = useState<WizardStep>(() => initialWizardStep(routeFirst));
   const selectedTemplate = useMemo(
     () => templates.find((template) => template.id === routeTemplateId) || null,
     [routeTemplateId, templates],
@@ -207,6 +247,16 @@ export function LogisticsTaskScheduleConfirmPanel({
     : availableWeekdays;
   const weekdayLabel = logisticsWeekdayKeys[weekday] || "";
   const dateHint = nextWeekdayScheduleHint(draft.date);
+  const stepIndex = Math.max(0, wizardSteps.indexOf(step as never));
+  const stepCount = wizardSteps.length;
+  const canGoBack = stepIndex > 0;
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setStep(initialWizardStep(routeFirst));
+  }, [open, routeFirst]);
 
   useEffect(() => {
     if (!open || saving) {
@@ -222,6 +272,25 @@ export function LogisticsTaskScheduleConfirmPanel({
     window.addEventListener("keydown", closeFromEscape);
     return () => window.removeEventListener("keydown", closeFromEscape);
   }, [open, saving, onCancel]);
+
+  function goToStep(nextStep: WizardStep) {
+    setStep(nextStep);
+  }
+
+  function goBack() {
+    if (stepIndex <= 0) {
+      return;
+    }
+    goToStep(wizardSteps[stepIndex - 1] as WizardStep);
+  }
+
+  function goNextFrom(current: WizardStep) {
+    const index = wizardSteps.indexOf(current as never);
+    if (index < 0 || index >= wizardSteps.length - 1) {
+      return;
+    }
+    goToStep(wizardSteps[index + 1] as WizardStep);
+  }
 
   function selectRouteTemplate(nextTemplateId: string) {
     setRouteTemplateId(nextTemplateId);
@@ -239,7 +308,11 @@ export function LogisticsTaskScheduleConfirmPanel({
           ? current.date
           : nextDateForLogisticsWeekday(nextWeekday, minScheduleDateInput()),
       }));
+      goToStep("date");
+      return;
     }
+
+    goToStep("time");
   }
 
   function routeTemplateForWeekday(nextWeekday: number, currentTemplateId?: string) {
@@ -257,6 +330,7 @@ export function LogisticsTaskScheduleConfirmPanel({
   function selectDate(date: string) {
     if (routeFirst) {
       setDraft((current) => ({ ...current, date }));
+      goToStep("time");
       return;
     }
 
@@ -264,6 +338,7 @@ export function LogisticsTaskScheduleConfirmPanel({
     setDraft((current) => ({ ...current, date }));
     setDriverId(defaultDriverByWeekday[nextWeekday] || "");
     setRouteTemplateId((current) => routeTemplateForWeekday(nextWeekday, current));
+    goToStep("route");
   }
 
   function selectWeekday(nextWeekday: number) {
@@ -271,6 +346,7 @@ export function LogisticsTaskScheduleConfirmPanel({
     setDraft((current) => ({ ...current, date }));
     setDriverId(defaultDriverByWeekday[nextWeekday] || "");
     setRouteTemplateId((current) => routeTemplateForWeekday(nextWeekday, current));
+    goToStep("date");
   }
 
   if (!open) return null;
@@ -290,8 +366,77 @@ export function LogisticsTaskScheduleConfirmPanel({
     /^\d{4}-\d{2}-\d{2}$/.test(draft.date) && availableWeekdays.includes(weekday),
   );
   const showTimeField = Boolean(dayAsRoute || routeTemplateId);
+  const isFinalStep = step === "time";
+  const showPendingDay = Boolean(
+    !routeFirst && step === "day" && allowPendingDay && onConfirmPendingDay,
+  );
+  const showPendingRoute = Boolean(
+    step === "route" && allowPendingRoute && onConfirmPendingRoute,
+  );
 
-  const routeField = (
+  const dayStepField = (
+    <div className="grid gap-1">
+      <span className="text-[10px] font-black uppercase text-slate-500">Día</span>
+      <LogisticsWeekdayPicker
+        value={weekday}
+        availableWeekdays={availableWeekdays}
+        disabled={availableWeekdays.length === 0}
+        onChange={selectWeekday}
+        ariaLabel="Día de entrega"
+      />
+      {availableWeekdays.length === 0 ? (
+        <span className="text-[11px] font-bold text-amber-200">
+          No hay días disponibles en el calendario de rutas.
+        </span>
+      ) : (
+        <span className="text-[11px] font-bold text-slate-500">
+          Elige el día de la semana; después eliges la fecha.
+        </span>
+      )}
+    </div>
+  );
+
+  const dateStepField = routeFirst ? (
+    <div className="grid gap-1">
+      <span className="text-[10px] font-black uppercase text-slate-500">Qué día de esa ruta</span>
+      <DateInput
+        value={draft.date}
+        min={minScheduleDateInput()}
+        allowedWeekdays={allowedWeekdays}
+        disabled={!selectedTemplate}
+        onChange={selectDate}
+        ariaLabel="Día de la ruta"
+        className="w-full"
+      />
+      {weekdayLabel ? (
+        <span className="text-[11px] font-bold text-slate-500">{weekdayLabel}</span>
+      ) : null}
+    </div>
+  ) : (
+    <div className="grid gap-1">
+      <span className="text-[10px] font-black uppercase text-slate-500">Fecha</span>
+      <DateInput
+        value={draft.date}
+        min={minScheduleDateInput()}
+        allowedWeekdays={
+          availableWeekdays.includes(weekday) ? [weekday] : availableWeekdays
+        }
+        disabled={availableWeekdays.length === 0}
+        onChange={selectDate}
+        ariaLabel="Fecha de entrega"
+        className="w-full"
+      />
+      {availableWeekdays.length === 0 ? null : dateHint ? (
+        <span className="text-[11px] font-bold text-slate-500">{dateHint}</span>
+      ) : weekdayLabel ? (
+        <span className="text-[11px] font-bold text-slate-500">
+          Solo fechas de {weekdayLabel}.
+        </span>
+      ) : null}
+    </div>
+  );
+
+  const routeStepField = (
     <div className="grid gap-1">
       <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-slate-500">
         <Route className="h-3.5 w-3.5" /> {routeFirst ? "Ruta" : "Ruta del día"}
@@ -333,107 +478,203 @@ export function LogisticsTaskScheduleConfirmPanel({
     </div>
   );
 
-  const dateField = routeFirst ? (
-    <div className="grid gap-1">
-      <span className="text-[10px] font-black uppercase text-slate-500">Qué día de esa ruta</span>
-      <DateInput
-        value={draft.date}
-        min={minScheduleDateInput()}
-        allowedWeekdays={allowedWeekdays}
-        disabled={!selectedTemplate}
-        onChange={selectDate}
-        ariaLabel="Día de la ruta"
-        className="w-full"
-      />
-      {weekdayLabel ? (
-        <span className="text-[11px] font-bold text-slate-500">{weekdayLabel}</span>
+  const timeStepField = (
+    <div className="grid gap-4">
+      {showTimeField ? (
+        <div className="grid gap-1">
+          <span className="text-[10px] font-black uppercase text-slate-500">Hora</span>
+          <TimePickerInput
+            value={draft.time}
+            onChange={(time) => setDraft((current) => ({ ...current, time }))}
+            ariaLabel="Hora confirmada"
+          />
+        </div>
+      ) : (
+        <p className="text-sm font-bold text-amber-200">
+          Falta elegir una ruta antes de confirmar.
+        </p>
+      )}
+
+      {showDriverPicker ? (
+        <label className="grid gap-1">
+          <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-slate-500">
+            <Truck className="h-3.5 w-3.5" /> Conductor
+          </span>
+          <InlineSearchPicker
+            value={driverId}
+            onChange={setDriverId}
+            options={driverOptions}
+            placeholder="Sin conductor todavía"
+            searchPlaceholder="Buscar conductor..."
+            emptyLabel="Sin conductores"
+            ariaLabel="Conductor confirmado"
+          />
+          {defaultDriverByWeekday[weekday] ? (
+            <span className="text-[11px] font-bold text-slate-500">
+              Se seleccionó el conductor predeterminado de este día; puedes cambiarlo o dejarlo vacío.
+            </span>
+          ) : (
+            <span className="text-[11px] font-bold text-slate-500">
+              Opcional. Puedes asignar el conductor después filtrando por ruta.
+            </span>
+          )}
+        </label>
       ) : null}
-    </div>
-  ) : (
-    <div className="grid gap-3">
-      <div className="grid gap-1">
-        <span className="text-[10px] font-black uppercase text-slate-500">Día</span>
-        <LogisticsWeekdayPicker
-          value={weekday}
-          availableWeekdays={availableWeekdays}
-          disabled={availableWeekdays.length === 0}
-          onChange={selectWeekday}
-          ariaLabel="Día de entrega"
-        />
-        {availableWeekdays.length === 0 ? (
-          <span className="text-[11px] font-bold text-amber-200">
-            No hay días disponibles en el calendario de rutas.
-          </span>
-        ) : (
-          <span className="text-[11px] font-bold text-slate-500">
-            Elige el día de la semana; abajo eliges cuál fecha.
-          </span>
-        )}
-      </div>
-      <div className="grid gap-1">
-        <span className="text-[10px] font-black uppercase text-slate-500">Fecha</span>
-        <DateInput
-          value={draft.date}
-          min={minScheduleDateInput()}
-          allowedWeekdays={
-            availableWeekdays.includes(weekday) ? [weekday] : availableWeekdays
-          }
-          disabled={availableWeekdays.length === 0}
-          onChange={selectDate}
-          ariaLabel="Fecha de entrega"
-          className="w-full"
-        />
-        {availableWeekdays.length === 0 ? null : dateHint ? (
-          <span className="text-[11px] font-bold text-slate-500">{dateHint}</span>
-        ) : weekdayLabel ? (
-          <span className="text-[11px] font-bold text-slate-500">
-            Solo fechas de {weekdayLabel}.
-          </span>
-        ) : null}
-      </div>
     </div>
   );
 
-  const timeField = (
-    <div className="grid gap-1">
-      <span className="text-[10px] font-black uppercase text-slate-500">Hora</span>
-      <TimePickerInput
-        value={draft.time}
-        onChange={(time) => setDraft((current) => ({ ...current, time }))}
-        ariaLabel="Hora confirmada"
-      />
-    </div>
+  let stepContent = null;
+  if (step === "day") {
+    stepContent = dayStepField;
+  } else if (step === "date") {
+    stepContent = dateStepField;
+  } else if (step === "route") {
+    stepContent = routeStepField;
+  } else {
+    stepContent = timeStepField;
+  }
+
+  const canContinueFromDate = Boolean(
+    /^\d{4}-\d{2}-\d{2}$/.test(draft.date) &&
+      (routeFirst ? selectedTemplate : availableWeekdays.includes(weekday)),
   );
+  const canContinueFromRoute = Boolean(dayAsRoute || routeTemplateId);
+  const showContinuePrimary =
+    (!isFinalStep && step === "date" && canContinueFromDate) ||
+    (!isFinalStep && step === "route" && dayAsRoute && canContinueFromRoute);
+  const showConfirmPrimary = isFinalStep;
+  const showPrimary = showContinuePrimary || showConfirmPrimary;
+
+  const summaryChips: Array<{ label: string; value: string }> = [];
+  if (!routeFirst && stepIndex > 0 && weekdayLabel) {
+    summaryChips.push({ label: "Día", value: weekdayLabel });
+  }
+  if (
+    (routeFirst ? step === "time" : stepIndex > 1) &&
+    /^\d{4}-\d{2}-\d{2}$/.test(draft.date)
+  ) {
+    summaryChips.push({ label: "Fecha", value: formatDateInputDisplay(draft.date) });
+  }
+  if (step === "time" && (dayAsRoute || selectedTemplate || routeTemplateId)) {
+    summaryChips.push({
+      label: "Ruta",
+      value: dayAsRoute
+        ? weekdayLabel || "Día"
+        : selectedTemplate?.name || "Ruta elegida",
+    });
+  }
+
+  async function confirmSchedule() {
+    if (!scheduledTimestamp || !routeTemplateId) {
+      return;
+    }
+
+    let resolvedTemplateId = routeTemplateId;
+    if (isDayAsRouteTemplateId(resolvedTemplateId)) {
+      setEnsuringDayRoute(true);
+      const ensured = await ensureLogisticsDayRouteTemplateAction({
+        weekday: getLogisticsWeekdayIndex(draft.date),
+      });
+      setEnsuringDayRoute(false);
+      if (!ensured.ok) {
+        notify.error(ensured.error);
+        return;
+      }
+      resolvedTemplateId = ensured.data.id;
+    }
+    await onConfirm({
+      scheduledAt: scheduledTimestamp,
+      driverId: resolvedDriverId,
+      routeTemplateId: resolvedTemplateId,
+    });
+  }
 
   return (
     <div className="app-modal-overlay fixed inset-0 z-[145] flex justify-center bg-black/70 p-3 sm:p-4">
       <div
-        className="app-modal-content w-full max-w-lg rounded-xl border border-black bg-surface-panel p-4 shadow-2xl sm:p-5"
+        className="app-modal-content flex w-full max-w-md flex-col overflow-hidden rounded-xl border border-black bg-surface-panel shadow-2xl"
         role="dialog"
         aria-modal="true"
         aria-labelledby="confirm-task-schedule-title"
       >
-        <div className="flex items-start gap-3">
-          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-emerald-700 bg-emerald-400 text-slate-950">
+        <div className="flex items-start gap-3 border-b border-black px-4 py-4 sm:px-5">
+          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-emerald-600 bg-emerald-400 text-slate-950">
             <CalendarCheck2 className="h-5 w-5" />
           </span>
           <div className="min-w-0">
-            <p id="confirm-task-schedule-title" className="text-xl font-black text-[#f8fafc]">
+            <p className="text-xs font-black uppercase text-slate-500">{taskTypeLabel}</p>
+            <p id="confirm-task-schedule-title" className="text-2xl font-black text-[#f8fafc]">
               {title}
             </p>
-            <p className="mt-1 break-words text-sm font-bold text-slate-400">
-              {shipmentCode} - {customerName}
+            <p className="mt-0.5 break-words text-sm font-bold text-slate-400">
+              {shipmentCode} · {customerName}
             </p>
-            <p className="mt-1 text-xs font-black uppercase text-emerald-300">{taskTypeLabel}</p>
           </div>
         </div>
 
-        <div className="mt-5 grid gap-4">
-          {allowPendingDay && onConfirmPendingDay ? (
+        <div className="px-4 pt-3 sm:px-5">
+          <nav aria-label={`Paso ${stepIndex + 1} de ${stepCount}`} className="w-full">
+            <ol className="grid gap-1.5" style={{ gridTemplateColumns: `repeat(${stepCount}, minmax(0, 1fr))` }}>
+              {wizardSteps.map((entry, index) => {
+                const status =
+                  index < stepIndex ? "done" : index === stepIndex ? "active" : "upcoming";
+                const canJump = index < stepIndex;
+
+                return (
+                  <li key={entry}>
+                    <button
+                      type="button"
+                      disabled={!canJump}
+                      onClick={() => {
+                        if (canJump) {
+                          goToStep(entry);
+                        }
+                      }}
+                      aria-current={status === "active" ? "step" : undefined}
+                      className={`flex w-full flex-col items-center gap-1 rounded-lg border px-1 py-2 transition ${wizardStepTileClass(status)} ${
+                        canJump ? "cursor-pointer" : ""
+                      }`}
+                    >
+                      <span
+                        className={`inline-flex h-6 w-6 items-center justify-center rounded-md border text-[11px] font-black tabular-nums ${wizardStepBadgeClass(status)}`}
+                      >
+                        {status === "done" ? (
+                          <Check className="h-3.5 w-3.5" aria-hidden />
+                        ) : (
+                          index + 1
+                        )}
+                      </span>
+                      <span className="text-[10px] font-black uppercase tracking-wide">
+                        {STEP_LABELS[entry]}
+                      </span>
+                    </button>
+                  </li>
+                );
+              })}
+            </ol>
+          </nav>
+
+          {summaryChips.length ? (
+            <dl className="mt-3 flex flex-wrap gap-1.5">
+              {summaryChips.map((chip) => (
+                <div
+                  key={chip.label}
+                  className="inline-flex max-w-full items-center gap-1.5 rounded-lg border border-black/70 bg-[#26322e] px-2.5 py-1.5"
+                >
+                  <dt className="text-[10px] font-black uppercase text-slate-500">{chip.label}</dt>
+                  <dd className="truncate text-xs font-black text-[#f8fafc]">{chip.value}</dd>
+                </div>
+              ))}
+            </dl>
+          ) : null}
+        </div>
+
+        <div className="grid flex-1 gap-4 px-4 py-4 sm:px-5">
+          {showPendingDay ? (
             <button
               type="button"
               disabled={saving || ensuringDayRoute}
-              onClick={() => void onConfirmPendingDay()}
+              onClick={() => void onConfirmPendingDay?.()}
               className="flex min-h-12 w-full items-center gap-3 rounded-lg border border-black bg-surface-inset px-3 py-2.5 text-left transition hover:bg-surface-card-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 disabled:opacity-40"
             >
               <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-300">
@@ -450,59 +691,34 @@ export function LogisticsTaskScheduleConfirmPanel({
             </button>
           ) : null}
 
-          {routeFirst ? (
-            <>
-              {routeField}
-              {dateField}
-              {timeField}
-            </>
-          ) : (
-            <>
-              {dateField}
-              {routeField}
-              {showTimeField ? timeField : null}
-            </>
-          )}
-
-          {showDriverPicker ? (
-            <label className="grid gap-1">
-              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-slate-500">
-                <Truck className="h-3.5 w-3.5" /> Conductor
-              </span>
-              <InlineSearchPicker
-                value={driverId}
-                onChange={setDriverId}
-                options={driverOptions}
-                placeholder="Sin conductor todavía"
-                searchPlaceholder="Buscar conductor..."
-                emptyLabel="Sin conductores"
-                ariaLabel="Conductor confirmado"
-              />
-              {defaultDriverByWeekday[weekday] ? (
-                <span className="text-[11px] font-bold text-slate-500">
-                  Se seleccionó el conductor predeterminado de este día; puedes cambiarlo o dejarlo vacío.
-                </span>
-              ) : (
-                <span className="text-[11px] font-bold text-slate-500">
-                  Opcional. Puedes asignar el conductor después filtrando por ruta.
-                </span>
-              )}
-            </label>
-          ) : null}
+          {stepContent}
         </div>
 
-        <div className="mt-5 grid gap-3">
-          {allowPendingRoute && onConfirmPendingRoute ? (
+        <div className="grid gap-3 border-t border-black px-4 py-4 sm:px-5">
+          {showPendingRoute ? (
             <button
               type="button"
               disabled={saving || ensuringDayRoute || !canLeavePendingRoute}
-              onClick={() => void onConfirmPendingRoute({ routeDate: draft.date })}
+              onClick={() => void onConfirmPendingRoute?.({ routeDate: draft.date })}
               className={`${secondaryButtonClass} h-11 w-full text-sm font-black disabled:opacity-40`}
             >
               {pendingRouteLabel}
             </button>
           ) : null}
-          <div className="grid gap-3 sm:grid-cols-2">
+
+          {canGoBack ? (
+            <button
+              type="button"
+              onClick={goBack}
+              disabled={saving || ensuringDayRoute}
+              className="inline-flex h-9 w-fit items-center gap-1 rounded-lg px-1.5 text-sm font-black text-slate-400 transition hover:bg-white/5 hover:text-emerald-300 disabled:opacity-40"
+            >
+              <ChevronLeft className="h-4 w-4" aria-hidden />
+              Atrás
+            </button>
+          ) : null}
+
+          <div className={`grid gap-3 ${showPrimary ? "sm:grid-cols-2" : ""}`}>
             <button
               type="button"
               onClick={onCancel}
@@ -511,40 +727,31 @@ export function LogisticsTaskScheduleConfirmPanel({
             >
               Cancelar
             </button>
-            <button
-              type="button"
-              disabled={saving || ensuringDayRoute || !canConfirm}
-              onClick={() => {
-                if (!scheduledTimestamp || !routeTemplateId) {
-                  return;
-                }
-                void (async () => {
-                  let resolvedTemplateId = routeTemplateId;
-                  if (isDayAsRouteTemplateId(resolvedTemplateId)) {
-                    setEnsuringDayRoute(true);
-                    const ensured = await ensureLogisticsDayRouteTemplateAction({
-                      weekday: getLogisticsWeekdayIndex(draft.date),
-                    });
-                    setEnsuringDayRoute(false);
-                    if (!ensured.ok) {
-                      notify.error(ensured.error);
-                      return;
-                    }
-                    resolvedTemplateId = ensured.data.id;
-                  }
-                  await onConfirm({
-                    scheduledAt: scheduledTimestamp,
-                    driverId: resolvedDriverId,
-                    routeTemplateId: resolvedTemplateId,
-                  });
-                })();
-              }}
-              className={`${primaryButtonClass} h-11 text-sm font-black disabled:opacity-40`}
-            >
-              {saving || ensuringDayRoute ? "Confirmando..." : confirmLabel}
-            </button>
+
+            {showContinuePrimary ? (
+              <button
+                type="button"
+                disabled={saving || ensuringDayRoute}
+                onClick={() => goNextFrom(step)}
+                className={`${primaryButtonClass} h-11 text-sm font-black disabled:opacity-40`}
+              >
+                Siguiente
+              </button>
+            ) : null}
+
+            {showConfirmPrimary ? (
+              <button
+                type="button"
+                disabled={saving || ensuringDayRoute || !canConfirm}
+                onClick={() => void confirmSchedule()}
+                className={`${primaryButtonClass} h-11 text-sm font-black disabled:opacity-40`}
+              >
+                {saving || ensuringDayRoute ? "Confirmando..." : confirmLabel}
+              </button>
+            ) : null}
           </div>
-          {allowPendingRoute ? (
+
+          {allowPendingRoute && (step === "day" || step === "route") ? (
             <p className="text-center text-[11px] font-bold text-slate-500">
               {allowPendingDay
                 ? "No sé el día deja todo pendiente. No sé la ruta conserva el día elegido."

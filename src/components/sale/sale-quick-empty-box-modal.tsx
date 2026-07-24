@@ -185,6 +185,11 @@ export function SaleQuickEmptyBoxModal({
                       aria-label={`${box[0]}, ${box[1]}${selected ? `, ${boxCount} en carrito` : ""}. Clic agrega; clic derecho resta`}
                       title={`${box[0]}: clic izquierdo agrega, clic derecho resta`}
                       onClick={() => updateBoxSelection(box[0], "add")}
+                      onMouseDown={(event) => {
+                        if (event.button === 0) {
+                          event.preventDefault();
+                        }
+                      }}
                       onContextMenu={(event) => {
                         event.preventDefault();
                         event.stopPropagation();

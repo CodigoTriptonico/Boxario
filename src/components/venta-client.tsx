@@ -4770,8 +4770,8 @@ export function VentaClient({ initialData }: { initialData?: VentaBootstrapData 
           enabledDays={routeCatalog.enabledDays}
           defaultDriverByWeekday={routeCatalog.defaultDriverByWeekday}
           routeMembers={[]}
-          title={routePlannerLeg === "fullBox" ? "Programar recolección" : "Programar entrega"}
-          confirmLabel="Asignar ruta"
+          title={routePlannerLeg === "fullBox" ? "Aceptar recolección" : "Aceptar entrega"}
+          confirmLabel="Aceptar"
           selectionOrder="date-first"
           showDriverPicker={false}
           allowPendingDay

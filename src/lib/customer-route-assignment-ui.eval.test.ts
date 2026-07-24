@@ -57,7 +57,7 @@ test("seguimiento wires program-route into logistics approval flow", () => {
   assert.match(panel, /nextWeekdayScheduleHint/);
   assert.match(panel, /availableWeekdays|enabledWeekdayIndexes/);
   assert.match(panel, /ariaLabel="Fecha de entrega"/);
-  assert.match(panel, /Elige el día de la semana; abajo eliges cuál fecha/);
+  assert.match(panel, /Elige el día de la semana; después eliges la fecha/);
   assert.match(panel, /className="w-full"/);
   assert.match(panel, /minWidthClass="w-full"/);
   assert.equal(
@@ -110,13 +110,16 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.ok(dayIdx < routeIdx && routeIdx < timeIdx && timeIdx < driverIdx);
     assert.equal(approval.includes("grid gap-3 sm:grid-cols-2"), false);
   }
-  // date-first confirm panel: Día → Ruta → Hora → Conductor
+  // date-first confirm panel wizard: Día → Fecha → Ruta → Hora
   {
-    const dateFieldIdx = panel.indexOf("const dateField =");
-    const routeFieldIdx = panel.indexOf("const routeField =");
-    const timeFieldIdx = panel.indexOf("const timeField =");
-    assert.ok(dateFieldIdx > -1 && routeFieldIdx > -1 && timeFieldIdx > -1);
-    assert.match(panel, /dateField[\s\S]*routeField[\s\S]*timeField/);
+    const dayStepIdx = panel.indexOf("const dayStepField =");
+    const dateStepIdx = panel.indexOf("const dateStepField =");
+    const routeStepIdx = panel.indexOf("const routeStepField =");
+    const timeStepIdx = panel.indexOf("const timeStepField =");
+    assert.ok(dayStepIdx > -1 && dateStepIdx > -1 && routeStepIdx > -1 && timeStepIdx > -1);
+    assert.ok(dayStepIdx < dateStepIdx && dateStepIdx < routeStepIdx && routeStepIdx < timeStepIdx);
+    assert.match(panel, /DATE_FIRST_STEPS/);
+    assert.match(panel, /\["day", "date", "route", "time"\]/);
     assert.equal(panel.includes("dateTimeFields"), false);
   }
   assert.equal(approval.includes("Solo días con rutas"), false);

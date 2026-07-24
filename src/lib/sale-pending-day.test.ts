@@ -12,14 +12,20 @@ const saleSource = readFileSync(
 );
 
 describe("sale pending day", () => {
-  it("offers one explicit action before the day, date and route controls", () => {
-    const pendingDayIndex = panelSource.indexOf("{pendingDayLabel}");
-    const dateFieldsIndex = panelSource.indexOf("{routeFirst ? (", pendingDayIndex);
-
-    assert.ok(pendingDayIndex >= 0);
-    assert.ok(dateFieldsIndex > pendingDayIndex);
-    assert.match(panelSource, /onClick=\{\(\) => void onConfirmPendingDay\(\)\}/);
+  it("offers one explicit action on the day wizard step before date and route", () => {
+    assert.match(panelSource, /\{pendingDayLabel\}/);
+    assert.match(panelSource, /showPendingDay/);
+    assert.match(panelSource, /step === "day"/);
+    assert.match(panelSource, /const dayStepField =/);
+    assert.match(panelSource, /const dateStepField =/);
+    assert.match(panelSource, /const routeStepField =/);
+    assert.match(panelSource, /onClick=\{\(\) => void onConfirmPendingDay\?\.\(\)\}/);
     assert.match(panelSource, /Deja día, fecha, ruta y conductor pendientes\./);
+
+    const dayStepIndex = panelSource.indexOf("const dayStepField =");
+    const dateStepIndex = panelSource.indexOf("const dateStepField =");
+    const routeStepIndex = panelSource.indexOf("const routeStepField =");
+    assert.ok(dayStepIndex >= 0 && dateStepIndex > dayStepIndex && routeStepIndex > dateStepIndex);
   });
 
   it("clears date and route state for every sale delivery leg", () => {

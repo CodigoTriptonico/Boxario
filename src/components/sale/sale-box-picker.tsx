@@ -1,7 +1,7 @@
 "use client";
 
 import { Package } from "lucide-react";
-import type { MouseEvent } from "react";
+import { useEffect, useRef, type MouseEvent } from "react";
 import {
   flowPersonRowListFrameClass,
   flowPersonRowListInnerClass,
@@ -32,6 +32,13 @@ function boxInteractionProps(
   return {
     type: "button" as const,
     onClick: () => onChoose(box),
+    onMouseDown: (event: MouseEvent<HTMLElement>) => {
+      // Evita que el clic deje el foco (y el caret parpadeante) en la fila.
+      // El teclado sigue pudiendo enfocar con Tab.
+      if (event.button === 0) {
+        event.preventDefault();
+      }
+    },
     onContextMenu: (event: MouseEvent<HTMLElement>) => {
       event.preventDefault();
       event.stopPropagation();
@@ -68,7 +75,7 @@ function SaleBoxCard({
     <button
       {...boxInteractionProps(box, onChoose, onRemove)}
       data-onboarding-target={coachTarget}
-      className={`group flex w-full flex-col gap-3 rounded-xl border border-black bg-[#3f4b46] p-4 text-center shadow-[0_8px_18px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5 hover:bg-[#46544e] ${className}`}
+      className={`group flex w-full select-none flex-col gap-3 rounded-xl border border-black bg-[#3f4b46] p-4 text-center shadow-[0_8px_18px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5 hover:bg-[#46544e] ${className}`}
     >
       <div className="flex min-w-0 flex-col items-center gap-2">
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400 text-slate-950 shadow-[0_8px_14px_rgba(16,185,129,0.2)]">
@@ -91,11 +98,9 @@ function SaleBoxCard({
             {promoCount} promo
           </p>
         ) : null}
-        {cartQuantity ? (
-          <div className="mt-1 flex justify-center">
-            <SaleBoxCartQtyBadge quantity={cartQuantity} />
-          </div>
-        ) : null}
+        <div className="mt-1 flex h-8 items-center justify-center">
+          {cartQuantity ? <SaleBoxCartQtyBadge quantity={cartQuantity} /> : null}
+        </div>
       </div>
     </button>
   );
@@ -122,7 +127,7 @@ function SaleBoxRow({
     <button
       {...boxInteractionProps(box, onChoose, onRemove)}
       data-onboarding-target={coachTarget}
-      className={`${listRowBaseClass} group relative grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 overflow-hidden px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_3px_10px_rgba(0,0,0,0.12)] outline-none hover:border-emerald-950 focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202926] sm:px-4 ${listRowHoverClass}${className ? ` ${className}` : ""}`}
+      className={`${listRowBaseClass} group relative grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 overflow-hidden px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_3px_10px_rgba(0,0,0,0.12)] outline-none select-none hover:border-emerald-950 focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202926] sm:px-4 ${listRowHoverClass}${className ? ` ${className}` : ""}`}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-300/40 bg-emerald-400 text-slate-950 shadow-[0_5px_12px_rgba(16,185,129,0.18)] transition-transform motion-safe:group-hover:scale-105">
         <Package className="h-4 w-4" aria-hidden />
@@ -146,7 +151,9 @@ function SaleBoxRow({
         <p className="whitespace-nowrap rounded-lg border border-white/[0.06] bg-black/15 px-2.5 py-1 text-sm font-black tabular-nums text-slate-100 shadow-inner">
           {box[1]}
         </p>
-        {cartQuantity ? <SaleBoxCartQtyBadge quantity={cartQuantity} /> : null}
+        <div className="flex h-8 min-w-[2.75rem] items-center justify-end">
+          {cartQuantity ? <SaleBoxCartQtyBadge quantity={cartQuantity} /> : null}
+        </div>
       </div>
     </button>
   );
@@ -162,9 +169,24 @@ export function SaleBoxPicker({
   onRemove,
   firstBoxCoachTarget,
 }: SaleBoxPickerProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const root = rootRef.current;
+    const active = document.activeElement;
+    if (
+      root &&
+      active instanceof HTMLElement &&
+      root.contains(active) &&
+      active.matches("button")
+    ) {
+      active.blur();
+    }
+  }, []);
+
   if (viewLayout === "rows") {
     return (
-      <div className={flowPersonRowListFrameClass}>
+      <div ref={rootRef} className={flowPersonRowListFrameClass}>
         <div className={flowPersonRowListInnerClass}>
           {boxes.map((box, boxIndex) => (
             <SaleBoxRow
@@ -184,7 +206,7 @@ export function SaleBoxPicker({
   }
 
   return (
-    <div className={`${saleBoxCardGridClass} items-start`}>
+    <div ref={rootRef} className={`${saleBoxCardGridClass} items-start`}>
       {boxes.map((box, boxIndex) => (
         <SaleBoxCard
           key={box[0]}

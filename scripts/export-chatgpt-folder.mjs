@@ -31,7 +31,6 @@ const rootFiles = [
   "next.config.ts",
   ".env.example",
   ".env.local.template",
-  ".env.remote.example",
 ];
 
 const dirs = ["docs", "src", "scripts", "supabase", "tests", "public"];
@@ -76,7 +75,7 @@ Copia del proyecto **sin secretos ni carpetas generadas**, lista para subir a un
 - Documentación: \`README.md\`, \`AGENTS.md\`, \`DESARROLLO-LOCAL.md\`, \`BASE-LOCAL.md\`, \`SETUP.md\`, \`UI-STYLE.md\`, \`docs/\`
 - Código: \`src/\`, \`scripts/\`, \`supabase/\`, \`tests/\`, \`public/\`
 - Config: \`package.json\`, \`tsconfig.json\`, \`next.config.ts\`, etc.
-- Plantillas de entorno: \`.env.example\`, \`.env.local.template\`, \`.env.remote.example\`
+- Plantillas de entorno: \`.env.example\`, \`.env.local.template\`
 
 ## Qué NO incluye (a propósito)
 

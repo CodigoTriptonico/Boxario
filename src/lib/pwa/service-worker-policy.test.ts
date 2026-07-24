@@ -3,6 +3,7 @@ import { describe, it } from "node:test";
 import {
   shouldRegisterServiceWorker,
   shouldReloadAfterDevelopmentCleanup,
+  shouldReloadOnceAfterDevelopmentCleanup,
 } from "./service-worker-policy";
 
 describe("service worker policy", () => {
@@ -47,6 +48,21 @@ describe("service worker policy", () => {
     );
     assert.equal(
       shouldReloadAfterDevelopmentCleanup({ registrationCount: 0, hasController: false }),
+      false,
+    );
+  });
+
+  it("reloads at most once while a stale controller remains after cleanup", () => {
+    assert.equal(
+      shouldReloadOnceAfterDevelopmentCleanup({ hasController: true, alreadyReloaded: false }),
+      true,
+    );
+    assert.equal(
+      shouldReloadOnceAfterDevelopmentCleanup({ hasController: true, alreadyReloaded: true }),
+      false,
+    );
+    assert.equal(
+      shouldReloadOnceAfterDevelopmentCleanup({ hasController: false, alreadyReloaded: false }),
       false,
     );
   });

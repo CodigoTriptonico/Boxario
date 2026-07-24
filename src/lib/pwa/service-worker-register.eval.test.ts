@@ -16,5 +16,7 @@ describe("service worker registration eval", () => {
     assert.match(source, /new URL\(controllerUrl\)\.pathname === "\/sw\.js"/);
     assert.match(source, /name\.startsWith\("boxario-static-"\)/);
     assert.match(source, /window\.location\.reload\(\)/);
+    assert.match(source, /DEV_SERVICE_WORKER_RELOAD_FLAG/);
+    assert.match(source, /shouldReloadOnceAfterDevelopmentCleanup/);
   });
 });

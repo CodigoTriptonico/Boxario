@@ -7,7 +7,7 @@ test("allows credential scripts only with explicit local development scope", () 
     localCredentialGuardError({
       nodeEnv: "development",
       enabled: "1",
-      supabaseUrl: "http://127.0.0.1:55021",
+      supabaseUrl: "http://127.0.0.1:54321",
     }),
     null,
   );
@@ -18,7 +18,7 @@ test("rejects production even when the explicit flag is present", () => {
     localCredentialGuardError({
       nodeEnv: "production",
       enabled: "1",
-      supabaseUrl: "http://127.0.0.1:55021",
+      supabaseUrl: "http://127.0.0.1:54321",
     }),
     /NODE_ENV=development/,
   );
@@ -40,7 +40,7 @@ test("rejects a missing explicit flag", () => {
     localCredentialGuardError({
       nodeEnv: "development",
       enabled: "0",
-      supabaseUrl: "http://localhost:55021",
+      supabaseUrl: "http://localhost:54321",
     }),
     /habilitarse explícitamente/,
   );
