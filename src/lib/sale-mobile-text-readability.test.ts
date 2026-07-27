@@ -7,7 +7,14 @@ const boxPickerSource = readFileSync(new URL("../components/sale/sale-box-picker
 
 describe("venta mobile text readability", () => {
   it("bounds each step value inside its own mobile tile", () => {
-    assert.match(stepBarSource, /w-full min-w-0 max-w-full truncate text-center leading-snug/);
+    assert.match(
+      stepBarSource,
+      /w-full min-w-0 max-w-full break-words text-center text-\[10px\].*sm:truncate/,
+    );
+    assert.match(
+      stepBarSource,
+      /hidden min-h-\[1rem\] w-full min-w-0 max-w-full items-center justify-center.*lg:flex/,
+    );
     assert.match(stepBarSource, /line-clamp-2 max-w-full break-words/);
   });
 

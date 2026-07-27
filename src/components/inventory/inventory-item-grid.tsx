@@ -4,10 +4,12 @@ import {
   Box,
   Check,
   ChevronLeft,
+  MapPin,
   Plus,
   Search,
   X,
 } from "lucide-react";
+import { listWarehouseInventoryBinPlacementsAction } from "@/app/actions/inventory-bins";
 import { type MouseEvent, useEffect, useRef, useState } from "react";
 import {
   InventoryEmptyContextMenu,
@@ -24,6 +26,10 @@ import {
   type InventoryStockItem,
 } from "@/lib/inventory-stock";
 import { formatInventoryStockLabel } from "@/lib/inventory-units";
+import {
+  formatBinPlacementSummary,
+  type InventoryItemBinPlacement,
+} from "@/lib/inventory-bins";
 import {
   addBtnClass,
   iconBtnClass,
@@ -53,6 +59,7 @@ type InventoryItemCardProps = {
   ) => void;
   onSaveItem: (categoryName: string, itemId: string) => void;
   coachTarget?: boolean;
+  binPlacementSummary?: string;
 };
 
 function InventoryItemCard({
@@ -67,6 +74,7 @@ function InventoryItemCard({
   onContextMenu,
   onSaveItem,
   coachTarget = false,
+  binPlacementSummary = "",
 }: InventoryItemCardProps) {
   const editing = editingItemId === item.id;
   const leafItems = inventoryItemsForLeaf(
@@ -148,6 +156,15 @@ function InventoryItemCard({
                 {item.name}
               </p>
             )}
+            {!editing && binPlacementSummary ? (
+              <p
+                className="mt-1 flex items-center justify-center gap-1 truncate text-[10px] font-black text-cyan-300"
+                title={binPlacementSummary}
+              >
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{binPlacementSummary}</span>
+              </p>
+            ) : null}
           </div>
 
           {editing ? (
@@ -190,6 +207,7 @@ function InventoryItemRow({
   setEditingItemId,
   onContextMenu,
   onSaveItem,
+  binPlacementSummary = "",
 }: Omit<InventoryItemCardProps, "coachTarget">) {
   const editing = editingItemId === item.id;
   const leafItems = inventoryItemsForLeaf(
@@ -238,7 +256,18 @@ function InventoryItemRow({
           autoFocus
         />
       ) : (
-        <p className="min-w-0 truncate text-sm font-black text-[#f8fafc]">{item.name}</p>
+        <div className="min-w-0">
+          <p className="truncate text-sm font-black text-[#f8fafc]">{item.name}</p>
+          {binPlacementSummary ? (
+            <p
+              className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-black text-cyan-300"
+              title={binPlacementSummary}
+            >
+              <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+              <span className="truncate">{binPlacementSummary}</span>
+            </p>
+          ) : null}
+        </div>
       )}
 
       {editing ? (
@@ -269,6 +298,7 @@ function InventoryItemRow({
 }
 
 export type InventoryItemGridProps = {
+  warehouseId?: string;
   embedded: boolean;
   selectedCategoryData: CategoryConfig | null;
   selectedSubcategory: InventoryTreeItem | null;
@@ -308,6 +338,7 @@ export type InventoryItemGridProps = {
 };
 
 export function InventoryItemGrid({
+  warehouseId,
   embedded,
   selectedCategoryData,
   selectedSubcategory,
@@ -338,6 +369,53 @@ export function InventoryItemGrid({
 }: InventoryItemGridProps) {
   const [emptyContextMenu, setEmptyContextMenu] =
     useState<InventoryEmptyContextMenuState | null>(null);
+  const [binPlacements, setBinPlacements] = useState<InventoryItemBinPlacement[]>([]);
+
+  useEffect(() => {
+    if (!warehouseId) {
+      return;
+    }
+
+    let active = true;
+    const loadPlacements = async () => {
+      const result = await listWarehouseInventoryBinPlacementsAction({ warehouseId });
+      if (active && result.ok) {
+        setBinPlacements(result.data);
+      }
+    };
+    const handlePlacementChange = () => void loadPlacements();
+
+    void loadPlacements();
+    window.addEventListener("inventory-bin-placements-changed", handlePlacementChange);
+    return () => {
+      active = false;
+      window.removeEventListener("inventory-bin-placements-changed", handlePlacementChange);
+    };
+  }, [warehouseId]);
+
+  const binSummaryByItemId = new Map(
+    inventoryItems.map((stockItem) => [
+      stockItem.id,
+      formatBinPlacementSummary(
+        warehouseId
+          ? binPlacements.filter((placement) => placement.itemId === stockItem.id)
+          : [],
+      ),
+    ]),
+  );
+  const placementSummaryForItem = (item: InventoryTreeItem) => {
+    if (!selectedCategoryData) {
+      return "";
+    }
+
+    const stockItem = stockItemForTreeItem(
+      inventoryItems,
+      selectedCategoryData.name,
+      item,
+      selectedSubcategory?.name,
+    );
+    return binSummaryByItemId.get(stockItem.id) || "";
+  };
   const onItemContextMenuRef = useRef(onItemContextMenu);
   const contextMenuDataRef = useRef({
     filteredItems,
@@ -566,6 +644,7 @@ export function InventoryItemGrid({
                           setEditingItemId={setEditingItemId}
                           onContextMenu={onItemContextMenu}
                           onSaveItem={onSaveItem}
+                          binPlacementSummary={placementSummaryForItem(item)}
                         />
                       ) : null,
                     )}
@@ -585,6 +664,7 @@ export function InventoryItemGrid({
                         setEditingItemId={setEditingItemId}
                         onContextMenu={onItemContextMenu}
                         onSaveItem={onSaveItem}
+                        binPlacementSummary={placementSummaryForItem(item)}
                         coachTarget={itemIndex === 0}
                       />
                     ))}

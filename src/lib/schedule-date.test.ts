@@ -44,6 +44,14 @@ describe("schedule date helpers", () => {
         scheduledAtToLocalDateInput("2026-07-12T17:00:00.000Z"),
         "2026-07-12",
       );
+      assert.equal(
+        scheduledAtToLocalDateInput("2026-07-12T-10:00"),
+        "2026-07-12",
+      );
+      assert.equal(
+        scheduledAtToLocalDateInput("2026-07-12T14:00-17:00"),
+        "2026-07-12",
+      );
       assert.equal(scheduledAtToLocalDateInput(null), "");
     } finally {
       if (originalTz === undefined) {
@@ -68,6 +76,9 @@ describe("schedule date picker eval", () => {
     assert.match(schedulePanelSource, /DateInput[\s\S]*?min=\{minScheduleDateInput\(\)\}/);
     assert.match(schedulePanelSource, /selectDate/);
     assert.match(schedulePanelSource, /ariaLabel="Fecha de entrega"/);
-    assert.match(schedulePanelSource, /allowedWeekdays=\{\s*availableWeekdays\.includes\(weekday\) \? \[weekday\] : availableWeekdays\s*\}/);
+    assert.match(
+      schedulePanelSource,
+      /weekdayChosen !== null\s*\? \[weekdayChosen\][\s\S]*?: availableWeekdays/,
+    );
   });
 });

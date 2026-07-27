@@ -16,7 +16,10 @@ import {
 } from "@/lib/customers/load";
 import type { ListCustomersParams } from "@/lib/customers/list-params";
 import { assertSameOrgCustomerIds } from "@/lib/security/org-scope";
-import { normalizePersonName } from "@/lib/person-name";
+import {
+  normalizePersonName,
+  personNameValidationMessage,
+} from "@/lib/person-name";
 import { customerZoneKeyFromParts } from "@/lib/customer-route-verification";
 import { revokeCustomerRouteVerificationsForZoneChange } from "@/lib/customer-route-verifications-mutate";
 
@@ -117,6 +120,12 @@ export async function createCustomerAction(input: {
     const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
     const firstName = normalizePersonName(input.firstName);
     const lastName = normalizePersonName(input.lastName);
+    const nameError =
+      personNameValidationMessage(input.firstName, "nombre") ||
+      personNameValidationMessage(input.lastName, "apellido");
+    if (nameError) {
+      return fail(nameError);
+    }
     if (!phones.length) {
       return fail("Agrega al menos un telefono");
     }
@@ -207,6 +216,12 @@ export async function updateCustomerAction(input: {
     const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
     const firstName = normalizePersonName(input.firstName);
     const lastName = normalizePersonName(input.lastName);
+    const nameError =
+      personNameValidationMessage(input.firstName, "nombre") ||
+      personNameValidationMessage(input.lastName, "apellido");
+    if (nameError) {
+      return fail(nameError);
+    }
     if (!phones.length) {
       return fail("Agrega al menos un telefono");
     }
@@ -507,6 +522,12 @@ export async function createRecipientAction(input: {
     const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
     const firstName = normalizePersonName(input.firstName);
     const lastName = normalizePersonName(input.lastName);
+    const nameError =
+      personNameValidationMessage(input.firstName, "nombre") ||
+      personNameValidationMessage(input.lastName, "apellido");
+    if (nameError) {
+      return fail(nameError);
+    }
 
     const { data, error } = await supabase
       .from("customer_recipients")
@@ -605,6 +626,12 @@ export async function updateRecipientAction(input: {
     const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
     const firstName = normalizePersonName(input.firstName);
     const lastName = normalizePersonName(input.lastName);
+    const nameError =
+      personNameValidationMessage(input.firstName, "nombre") ||
+      personNameValidationMessage(input.lastName, "apellido");
+    if (nameError) {
+      return fail(nameError);
+    }
 
     const { data, error } = await supabase
       .from("customer_recipients")

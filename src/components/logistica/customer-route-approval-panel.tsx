@@ -9,10 +9,7 @@ import {
   reviewCustomerRouteAssignmentRequestAction,
   type CustomerRouteAssignmentRequestRow,
 } from "@/app/actions/customer-route-assignments";
-import {
-  ensureLogisticsDayRouteTemplateAction,
-  type LogisticsRouteTemplateRow,
-} from "@/app/actions/logistics-routes";
+import type { LogisticsRouteTemplateRow } from "@/app/actions/logistics-routes";
 import type { RouteMemberRow } from "@/app/actions/shipments";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import { LogisticsWeekdayPicker } from "@/components/logistica/logistics-weekday-picker";
@@ -306,21 +303,10 @@ export function CustomerRouteApprovalPanel({
     }
 
     startTransition(async () => {
-      let routeTemplateId = replaceDraft.routeTemplateId;
-      let templateName =
-        templates.find((template) => template.id === routeTemplateId)?.name || "ruta";
-
-      if (isDayAsRouteTemplateId(routeTemplateId)) {
-        const ensured = await ensureLogisticsDayRouteTemplateAction({
-          weekday: getLogisticsWeekdayIndex(replaceDraft.date),
-        });
-        if (!ensured.ok) {
-          notify.error(ensured.error);
-          return;
-        }
-        routeTemplateId = ensured.data.id;
-        templateName = ensured.data.name;
-      }
+      const routeTemplateId = replaceDraft.routeTemplateId;
+      const templateName = isDayAsRouteTemplateId(routeTemplateId)
+        ? "ruta general del día"
+        : templates.find((template) => template.id === routeTemplateId)?.name || "ruta";
 
       const result = await replaceCustomerRouteAssignmentRequestAction({
         requestId: request.id,

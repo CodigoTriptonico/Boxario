@@ -57,7 +57,8 @@ test("seguimiento wires program-route into logistics approval flow", () => {
   assert.match(panel, /nextWeekdayScheduleHint/);
   assert.match(panel, /availableWeekdays|enabledWeekdayIndexes/);
   assert.match(panel, /ariaLabel="Fecha de entrega"/);
-  assert.match(panel, /Elige el día de la semana; después eliges la fecha/);
+  assert.match(panel, /Primero elige el día de la semana; después la fecha/);
+  assert.match(panel, /Elige un día arriba para desbloquear la fecha/);
   assert.match(panel, /className="w-full"/);
   assert.match(panel, /minWidthClass="w-full"/);
   assert.equal(
@@ -71,7 +72,10 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     "schedule confirm must only offer enabledDays, never template weekdays as fallback",
   );
   assert.match(panel, /dayAsRoute/);
-  assert.match(panel, /ensureLogisticsDayRouteTemplateAction/);
+  assert.match(panel, /const routeStepField = dayAsRoute \? null : \(/);
+  assert.doesNotMatch(panel, /dayAsRouteHint/);
+  assert.doesNotMatch(panel, /ensureLogisticsDayRouteTemplateAction/);
+  assert.match(panel, /routeTemplateId,/);
   assert.match(panel, /resolveDayRouteTemplateId/);
   assert.match(logistics, /CustomerRouteApprovalPanel/);
   assert.match(logistics, /templates=\{routeCatalog\?\.templates/);
@@ -93,7 +97,7 @@ test("seguimiento wires program-route into logistics approval flow", () => {
   assert.match(approval, /nextWeekdayScheduleHint/);
   assert.match(approval, /enabledWeekdayIndexes/);
   assert.match(approval, /dayAsRoute/);
-  assert.match(approval, /ensureLogisticsDayRouteTemplateAction/);
+  assert.doesNotMatch(approval, /ensureLogisticsDayRouteTemplateAction/);
   assert.match(approval, /Ruta del día/);
   assert.match(approval, /nextDateForAvailableWeekdays/);
   assert.equal(approval.includes('from "@/components/date-input"'), false);
@@ -110,7 +114,7 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.ok(dayIdx < routeIdx && routeIdx < timeIdx && timeIdx < driverIdx);
     assert.equal(approval.includes("grid gap-3 sm:grid-cols-2"), false);
   }
-  // date-first confirm panel wizard: Día → Fecha → Ruta → Hora
+  // Date-first confirm panel wizard: Día y hora → Ruta (fecha bloqueada hasta elegir día).
   {
     const dayStepIdx = panel.indexOf("const dayStepField =");
     const dateStepIdx = panel.indexOf("const dateStepField =");
@@ -119,12 +123,28 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.ok(dayStepIdx > -1 && dateStepIdx > -1 && routeStepIdx > -1 && timeStepIdx > -1);
     assert.ok(dayStepIdx < dateStepIdx && dateStepIdx < routeStepIdx && routeStepIdx < timeStepIdx);
     assert.match(panel, /DATE_FIRST_STEPS/);
-    assert.match(panel, /\["day", "date", "route", "time"\]/);
+    assert.match(panel, /const DATE_FIRST_STEPS:[^=]+ = \["day", "route"\]/);
+    assert.match(panel, /day: "Día y hora"/);
+    assert.match(panel, /step === "day"[\s\S]*?\{timeField\}/);
+    assert.match(panel, /ScheduleTimeField/);
+    assert.match(panel, /scheduleTimeComplete/);
+    assert.doesNotMatch(panel, /\{shipmentCode\} · \{customerName\}/);
+    assert.doesNotMatch(panel, /id="confirm-task-schedule-title"/);
+    assert.match(panel, /routeFirst \? step === "time" : step === "route"/);
+    assert.match(panel, /weekdayChosen/);
+    assert.match(panel, /Elige un día arriba para desbloquear la fecha/);
     assert.equal(panel.includes("dateTimeFields"), false);
   }
   assert.equal(approval.includes("Solo días con rutas"), false);
   assert.equal(panel.includes("Solo días con rutas"), false);
-  assert.match(read("src/app/actions/logistics-routes.ts"), /ensureLogisticsDayRouteTemplateAction/);
+  assert.doesNotMatch(
+    read("src/app/actions/logistics-routes.ts"),
+    /ensureLogisticsDayRouteTemplateAction/,
+  );
+  assert.match(
+    read("src/app/actions/logistics-routes.ts"),
+    /dayAsRoute[\s\S]*?route_template_id: template\.id/,
+  );
   assert.match(read("src/lib/logistics-day-route.ts"), /DAY_AS_ROUTE_TEMPLATE_ID/);
   assert.match(read("src/lib/logistics-day-route.ts"), /selectWeekdayDate/);
   assert.match(read("src/lib/logistics-day-route.ts"), /nextWeekdayScheduleHint/);

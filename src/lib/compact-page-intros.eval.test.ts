@@ -15,7 +15,7 @@ const sources = {
   platform: component("platform/platform-console.tsx"),
   warehouse: component("warehouse/warehouse-client.tsx"),
 };
-const uiStyle = readFileSync(new URL("../../UI-STYLE.md", import.meta.url), "utf8");
+const uiStyle = readFileSync(new URL("../../docs/GUIA_ESTILO_UI.md", import.meta.url), "utf8");
 
 describe("compact page introductions eval", () => {
   it("removes static title cards from operational workspaces", () => {

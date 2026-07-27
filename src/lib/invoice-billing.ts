@@ -19,6 +19,45 @@ export type InvoiceBillingConfig = LogisticsFeeConfig & {
   logisticsFeeMode: LogisticsFeeMode;
 };
 
+export type LogisticsAdditionalCharge = {
+  enabled: boolean;
+  amount: string;
+  reason: string;
+};
+
+export type LogisticsAdditionalCharges = {
+  emptyBoxDelivery: LogisticsAdditionalCharge;
+  fullBoxPickup: LogisticsAdditionalCharge;
+};
+
+export const disabledLogisticsAdditionalCharge = (): LogisticsAdditionalCharge => ({
+  enabled: false,
+  amount: "$0",
+  reason: "",
+});
+
+export function logisticsAdditionalChargeRequiresReason(
+  charge: LogisticsAdditionalCharge,
+  suggestion: string,
+) {
+  return charge.enabled && parseMoneyValue(charge.amount) !== parseMoneyValue(suggestion);
+}
+
+export function logisticsAdditionalChargeIsValid(
+  charge: LogisticsAdditionalCharge,
+  suggestion: string,
+) {
+  if (!charge.enabled) {
+    return true;
+  }
+  const amount = parseMoneyValue(charge.amount);
+  return (
+    Number.isFinite(amount) &&
+    amount >= 0 &&
+    (!logisticsAdditionalChargeRequiresReason(charge, suggestion) || Boolean(charge.reason.trim()))
+  );
+}
+
 export type InvoiceBillingCartLine = ComboCartLine & {
   label: string;
   unitCost?: string;
@@ -74,6 +113,7 @@ export function computeInvoiceBilling(input: {
   cartLines?: InvoiceBillingCartLine[];
   promotions?: PricingPromotionConfig[];
   selectedPromotionId?: string;
+  additionalCharges?: Partial<LogisticsAdditionalCharges>;
 }): InvoiceBillingSnapshot {
   const fallbackCartLine: InvoiceBillingCartLine = {
     label: "Caja",
@@ -111,8 +151,16 @@ export function computeInvoiceBilling(input: {
   const promotionDiscount = promotion ? parseMoneyValue(promotion.discountTotal) : 0;
   const boxSubtotal = Math.max(boxSubtotalBeforeDiscount - promotionDiscount, 0);
   const mode = input.fees.logisticsFeeMode;
-  const emptyBoxDelivery = 0;
-  const fullBoxPickup = 0;
+  const emptyBoxCharge = input.additionalCharges?.emptyBoxDelivery;
+  const fullBoxCharge = input.additionalCharges?.fullBoxPickup;
+  const emptyBoxDelivery =
+    input.emptyBoxDriver && emptyBoxCharge?.enabled
+      ? Math.max(parseMoneyValue(emptyBoxCharge.amount), 0)
+      : 0;
+  const fullBoxPickup =
+    input.fullBoxDriver && fullBoxCharge?.enabled
+      ? Math.max(parseMoneyValue(fullBoxCharge.amount), 0)
+      : 0;
   const logisticsSubtotal = emptyBoxDelivery + fullBoxPickup;
   const quotedTotal = boxSubtotal + logisticsSubtotal;
 

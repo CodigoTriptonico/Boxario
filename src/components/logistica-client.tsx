@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import {
   AlertTriangle,
@@ -16,12 +17,15 @@ import {
   Pencil,
   Phone,
   Boxes,
+  BookOpen,
   PlusCircle,
   Route,
   Search,
   SlidersHorizontal,
+  Settings2,
   Trash2,
   Truck,
+  Users,
   X,
   XCircle,
 } from "lucide-react";
@@ -62,6 +66,8 @@ import { LogisticsTaskEditPanel } from "@/components/logistica/logistics-task-ed
 import { LogisticsTaskReprogramPanel } from "@/components/logistica/logistics-task-reprogram-panel";
 import { LogisticsTaskScheduleConfirmPanel } from "@/components/logistica/logistics-task-schedule-confirm-panel";
 import { LogisticsSectionNav } from "@/components/logistica/logistics-section-nav";
+import { LogisticsSettingsPanel } from "@/components/settings/logistics-settings-panel";
+import type { LogisticsAxisSettings } from "@/app/actions/axis-settings";
 import { AgencyLogisticsPanel } from "@/components/logistica/agency-logistics-panel";
 import { CustomerRouteApprovalPanel } from "@/components/logistica/customer-route-approval-panel";
 import { LogisticsTaskStatusBadge } from "@/components/logistica/logistics-task-status-badge";
@@ -118,6 +124,7 @@ import { buildLogisticsCalendarDayTones, buildLogisticsWeekdayTones } from "@/li
 import { getLogisticsWeekdayIndex } from "@/lib/logistics-route-week";
 import { quoteFromShipment, readShipmentBoxLines, type ShipmentQuote } from "@/lib/shipment-display";
 import { ShipmentBoxLinesTrigger } from "@/components/shipment-box-lines-trigger";
+import { ShipmentJournalDialog } from "@/components/shipment-journal-dialog";
 import { formatScheduleDateInput, scheduledAtToLocalDateInput } from "@/lib/schedule-date";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { WarehouseRow } from "@/lib/auth/types";
@@ -382,6 +389,8 @@ export function LogisticaClient({
   initialTaskAddresses,
   initialRouteCatalog,
   canManageRoutes = false,
+  canManageLogisticsSettings = false,
+  initialLogisticsSettings,
   agencyModuleEnabled = false,
 }: {
   initialShipments?: ShipmentRow[];
@@ -391,12 +400,16 @@ export function LogisticaClient({
   initialTaskAddresses?: LogisticsTaskAddressRow[];
   initialRouteCatalog?: LogisticsRouteCatalogData;
   canManageRoutes?: boolean;
+  canManageLogisticsSettings?: boolean;
+  initialLogisticsSettings?: LogisticsAxisSettings;
   agencyModuleEnabled?: boolean;
 }) {
   const notify = useNotify();
   const { layout: viewLayout } = usePageViewLayout("logistics.tasks");
   const searchParams = useSearchParams();
   const isRoutesView = searchParams.get("view") === "rutas";
+  const isSettingsView =
+    searchParams.get("view") === "configuracion" && canManageLogisticsSettings;
   const isWideLayout = useWideLogisticsLayout();
   const appliedDeepLinkRef = useRef(false);
   const supabaseReady = isSupabaseConfigured();
@@ -426,6 +439,7 @@ export function LogisticaClient({
   const [selectedRouteId, setSelectedRouteId] = useState<string>("");
   const [routeDetailDrawerOpen, setRouteDetailDrawerOpen] = useState(false);
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
+  const [journalShipmentId, setJournalShipmentId] = useState<string | null>(null);
   const [loaded, setLoaded] = useState(
     !supabaseReady ||
       Boolean(
@@ -442,6 +456,10 @@ export function LogisticaClient({
   const [reprogrammingTask, setReprogrammingTask] = useState<ReprogrammingTaskState | null>(null);
   const [confirmingScheduleTask, setConfirmingScheduleTask] = useState<ConfirmingScheduleTaskState | null>(null);
   const [pendingRouteConfirm, setPendingRouteConfirm] = useState<PendingRouteConfirm | null>(null);
+  const journalShipment = useMemo(
+    () => shipments.find((shipment) => shipment.id === journalShipmentId) || null,
+    [journalShipmentId, shipments],
+  );
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [routeAssignmentOpen, setRouteAssignmentOpen] = useState(false);
 
@@ -1800,6 +1818,16 @@ export function LogisticaClient({
                 <span className="truncate">{item.shipment.customerPhone}</span>
               </p>
             ) : null}
+            {canManageLogisticsSettings ? (
+              <button
+                type="button"
+                onClick={() => setJournalShipmentId(item.shipment.id)}
+                className="mt-1 inline-flex h-7 items-center gap-1 rounded-md border border-black bg-surface-inset px-2 text-[10px] font-black text-emerald-300"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                Bitácora
+              </button>
+            ) : null}
             <div className="mt-2 flex flex-wrap items-center justify-center gap-1.5">
               <CountryName name={item.shipment.country} size="xs" labelClassName={textMutedClass} />
               {missingGeo ? (
@@ -2041,6 +2069,17 @@ export function LogisticaClient({
           </div>
 
           <div className="flex shrink-0 flex-wrap items-center gap-1.5 lg:justify-end">
+            {canManageLogisticsSettings ? (
+              <button
+                type="button"
+                onClick={() => setJournalShipmentId(item.shipment.id)}
+                className={`${secondaryButtonClass} h-8 shrink-0 gap-1 px-2 text-[10px]`}
+                title="Abrir Bitácora"
+              >
+                <BookOpen className="h-3.5 w-3.5 text-emerald-300" />
+                Bitácora
+              </button>
+            ) : null}
             {isFailed && task ? (
               <button
                 type="button"
@@ -2381,6 +2420,23 @@ export function LogisticaClient({
     return <PageLoading inline />;
   }
 
+  if (isSettingsView && initialLogisticsSettings) {
+    return (
+      <Panel title="Logistica" hideHeader clipContent={false}>
+        <div className="grid gap-4">
+          <div className={`${panelToolbarClass} flex flex-wrap items-center justify-between gap-3`}>
+            <div className="px-1">
+              <p className="text-sm font-black text-[#f8fafc]">Configuración</p>
+              <p className="mt-0.5 text-xs font-bold text-slate-500">Horarios, rangos y cargos sugeridos.</p>
+            </div>
+            <LogisticsSectionNav active="settings" showSettings className="ml-auto" />
+          </div>
+          <LogisticsSettingsPanel initialSettings={initialLogisticsSettings} />
+        </div>
+      </Panel>
+    );
+  }
+
   if (isRoutesView) {
     return (
       <Panel title="Logistica" hideHeader clipContent={false}>
@@ -2394,7 +2450,7 @@ export function LogisticaClient({
                 <p className="text-sm font-black text-[#f8fafc]">Rutas semanales</p>
                 <p className="mt-0.5 text-xs font-bold text-slate-500">Disponibilidad y recorridos recurrentes.</p>
               </div>
-              <LogisticsSectionNav active="routes" className="ml-auto" />
+              <LogisticsSectionNav active="routes" showSettings={canManageLogisticsSettings} className="ml-auto" />
             </div>
             <LogisticsRouteCatalog
               initialCatalog={routeCatalog}
@@ -2422,14 +2478,14 @@ export function LogisticaClient({
 
       {supabaseReady ? (
         <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-          <div className={panelToolbarClass}>
-            <div className="flex flex-wrap items-center gap-2">
-              <div className="flex h-9 shrink-0 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black">
+          <div className={`${panelToolbarClass} pb-2 lg:pb-3`}>
+            <div className="flex min-w-0 flex-wrap items-center gap-2">
+              {agencyModuleEnabled ? <div className="order-1 !hidden h-9 shrink-0 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black lg:order-none lg:!flex">
                 <button type="button" className={`rounded-md px-2.5 ${operationScope === "domicilios" ? "bg-emerald-400 text-slate-950" : "text-slate-300"}`} onClick={() => setOperationScope("domicilios")}>Domicilios</button>
                 {agencyModuleEnabled ? <button type="button" className={`rounded-md px-2.5 ${operationScope === "agencias" ? "bg-emerald-400 text-slate-950" : "text-slate-300"}`} onClick={() => setOperationScope("agencias")}>Agencias</button> : null}
-              </div>
+              </div> : null}
               {operationScope === "domicilios" ? (
-                <div className="flex h-9 shrink-0 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black">
+                <div className="order-1 !hidden h-9 shrink-0 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black lg:order-none lg:!flex">
                   <button
                     type="button"
                     className={`rounded-md px-2.5 ${!showRouteHistory ? "bg-emerald-400 text-slate-950" : "text-slate-300"}`}
@@ -2455,7 +2511,7 @@ export function LogisticaClient({
                 emptyLabel="Sin tareas"
                 ariaLabel="Buscar tareas de logistica"
                 leadingIcon={<Search className="h-4 w-4" aria-hidden />}
-                className="min-w-[14rem] flex-[1_1_24rem]"
+                className="order-2 min-w-0 flex-[1_1_calc(100%-3.5rem)] lg:order-none lg:min-w-[14rem] lg:flex-[1_1_24rem]"
                 minWidthClass="w-full min-w-0"
                 onSelectOption={(option) => {
                   const item = invoiceItems.find((entry) => entry.shipment.id === option.value);
@@ -2465,7 +2521,7 @@ export function LogisticaClient({
                 }}
               />
 
-              <div className="flex shrink-0 items-center gap-1">
+              <div className="order-3 !hidden w-full min-w-0 grid-cols-2 items-center gap-1 lg:order-none lg:!flex lg:w-auto lg:shrink-0">
                 {weekdayFilter != null ? (
                   <>
                     <LogisticsWeekdayFilterSelect
@@ -2474,10 +2530,10 @@ export function LogisticaClient({
                       tones={weekdayTones}
                       onChange={selectWeekdayFilter}
                       ariaLabel="Filtrar por día"
-                      className="min-w-[10.5rem]"
+                      className="min-w-0 lg:min-w-[10.5rem]"
                     />
                     <InlineSearchPicker
-                      className="w-[11rem] shrink-0"
+                      className="min-w-0 lg:w-[11rem] lg:shrink-0"
                       minWidthClass="w-full min-w-0"
                       value={routeTemplateFilter}
                       onChange={setRouteTemplateFilter}
@@ -2489,7 +2545,7 @@ export function LogisticaClient({
                       leadingIcon={<Route className="h-4 w-4 text-emerald-300" aria-hidden />}
                     />
                     <DateInput
-                      className="w-[11.5rem] shrink-0 border-emerald-500 bg-emerald-950/50"
+                      className="!hidden w-[11.5rem] shrink-0 border-emerald-500 bg-emerald-950/50 lg:!flex"
                       value={dateFilter || filterAnchorDate}
                       allowedWeekdays={weekdayFilter == null ? availableFilterWeekdays : [weekdayFilter]}
                       dayTones={calendarDayTones}
@@ -2504,7 +2560,7 @@ export function LogisticaClient({
                     />
                     <button
                       type="button"
-                      className={`${secondaryButtonClass} h-9 w-9 shrink-0 p-0`}
+                      className={`${secondaryButtonClass} !hidden h-9 w-9 shrink-0 p-0 lg:!inline-flex`}
                       aria-label="Quitar filtro de día"
                       title="Ver todos los días"
                       onClick={() => selectWeekdayFilter(null)}
@@ -2515,7 +2571,7 @@ export function LogisticaClient({
                 ) : (
                   <button
                     type="button"
-                    className={`${primaryButtonClass} !h-9 shrink-0 gap-1.5 px-2.5 text-xs font-black`}
+                    className={`${primaryButtonClass} col-span-2 !h-9 w-full shrink-0 gap-1.5 px-2.5 text-xs font-black lg:w-auto`}
                     aria-label="Mostrando tareas de todos los días"
                     title="Mostrando todos los días"
                     onClick={() => selectWeekdayFilter(defaultWeekdayFilter)}
@@ -2527,7 +2583,7 @@ export function LogisticaClient({
               </div>
 
               <select
-                className={`box-border h-9 min-w-[12rem] shrink-0 rounded-lg border px-2.5 pr-8 text-sm font-black leading-none outline-none ${
+                className={`hidden box-border h-9 min-w-[12rem] shrink-0 rounded-lg border px-2.5 pr-8 text-sm font-black leading-none outline-none lg:block ${
                   typeFilter
                     ? "border-emerald-500 bg-emerald-950/50 text-emerald-100"
                     : "border-black bg-surface-inset text-[#f8fafc]"
@@ -2543,7 +2599,7 @@ export function LogisticaClient({
 
               {routeTemplateFilter && toolbarRoute && canManageRoutes ? (
                 <div
-                  className="flex h-9 shrink-0 items-stretch overflow-hidden rounded-lg border border-emerald-500 bg-emerald-950/55 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)]"
+                  className="order-4 flex h-9 min-w-0 flex-1 items-stretch overflow-hidden rounded-lg border border-emerald-500 bg-emerald-950/55 shadow-[inset_0_0_0_1px_rgba(16,185,129,0.15)] lg:order-none lg:flex-none"
                   title={`Asigna un conductor a todas las guías de ${toolbarRoute.name}`}
                 >
                   <span className="inline-flex items-center gap-1 border-r border-emerald-500/60 bg-emerald-500/15 px-2.5 text-[10px] font-black uppercase tracking-wide text-emerald-200">
@@ -2551,7 +2607,7 @@ export function LogisticaClient({
                     Asignar
                   </span>
                   <InlineSearchPicker
-                    className="w-[11.5rem] shrink-0"
+                    className="min-w-0 flex-1 lg:w-[11.5rem] lg:shrink-0"
                     minWidthClass="w-full min-w-0"
                     shellClassName="box-border inline-flex h-full w-full min-w-0 items-center gap-1.5 rounded-none border-0 bg-transparent px-2"
                     value={toolbarRoute.assignedTo || ""}
@@ -2577,7 +2633,7 @@ export function LogisticaClient({
               {selectedTasks.length ? (
                 <button
                   type="button"
-                  className={`${primaryButtonClass} !h-9 shrink-0 px-3 text-xs`}
+                  className={`${primaryButtonClass} order-4 !h-9 shrink-0 px-3 text-xs lg:order-none`}
                   onClick={() => setRouteAssignmentOpen(true)}
                 >
                   <Route className="h-4 w-4" />
@@ -2585,21 +2641,136 @@ export function LogisticaClient({
                 </button>
               ) : null}
 
-              <div className="relative shrink-0">
+              <div className="relative order-2 shrink-0 lg:order-none">
                 <button
                   type="button"
                   className={`${filtersOpen || hasFilters ? primaryButtonClass : secondaryButtonClass} !h-9 shrink-0 px-2.5 text-xs`}
                   aria-expanded={filtersOpen}
+                  aria-label="Abrir filtros adicionales"
                   onClick={() => setFiltersOpen((current) => !current)}
                 >
                   <SlidersHorizontal className="h-4 w-4" />
-                  Filtros
+                  <span className="hidden sm:inline">Filtros</span>
                 </button>
 
                 {filtersOpen ? (
-                  <div className="absolute left-0 top-full z-[120] mt-2 flex w-max max-w-[calc(100vw-2rem)] flex-wrap items-center gap-2 rounded-xl border border-black bg-surface-card p-2 shadow-[0_16px_36px_rgba(0,0,0,0.45)]">
+                  <div className="absolute right-0 top-full z-[120] mt-2 grid w-[min(22rem,calc(100vw-2.5rem))] grid-cols-2 gap-2 rounded-xl border border-black bg-surface-card p-2 shadow-[0_16px_36px_rgba(0,0,0,0.45)] lg:left-0 lg:right-auto lg:flex lg:w-max lg:max-w-[calc(100vw-2rem)] lg:flex-wrap lg:items-center">
+              <div className={`col-span-2 grid gap-1 lg:!hidden ${canManageLogisticsSettings ? "grid-cols-5" : "grid-cols-4"}`} aria-label="Secciones de logística">
+                <Link href="/logistica" className={`${primaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                  <ClipboardList className="h-3.5 w-3.5" aria-hidden />
+                  Tareas
+                </Link>
+                <Link href="/logistica/conductores" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                  <Users className="h-3.5 w-3.5" aria-hidden />
+                  Choferes
+                </Link>
+                <Link href="/logistica/vehiculos" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                  <Truck className="h-3.5 w-3.5" aria-hidden />
+                  Flota
+                </Link>
+                <Link href="/logistica?view=rutas" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                  <Route className="h-3.5 w-3.5" aria-hidden />
+                  Rutas
+                </Link>
+                {canManageLogisticsSettings ? (
+                  <Link href="/logistica?view=configuracion" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                    <Settings2 className="h-3.5 w-3.5" aria-hidden />
+                    Config.
+                  </Link>
+                ) : null}
+              </div>
+
+              {agencyModuleEnabled ? (
+                <div className="col-span-2 grid h-9 grid-cols-2 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black lg:!hidden">
+                  <button type="button" className={`rounded-md px-2.5 ${operationScope === "domicilios" ? "bg-emerald-400 text-slate-950" : "text-slate-300"}`} onClick={() => setOperationScope("domicilios")}>Domicilios</button>
+                  <button type="button" className="rounded-md px-2.5 text-slate-300" onClick={() => setOperationScope("agencias")}>Agencias</button>
+                </div>
+              ) : null}
+
+              <div className="col-span-2 grid h-9 grid-cols-2 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black lg:!hidden">
+                <button
+                  type="button"
+                  className={`rounded-md px-2.5 ${!showRouteHistory ? "bg-emerald-400 text-slate-950" : "text-slate-300"}`}
+                  onClick={() => setShowRouteHistory(false)}
+                >
+                  Activas
+                </button>
+                <button
+                  type="button"
+                  className={`rounded-md px-2.5 ${showRouteHistory ? "bg-emerald-400 text-slate-950" : "text-slate-300"}`}
+                  onClick={() => setShowRouteHistory(true)}
+                >
+                  Historial
+                </button>
+              </div>
+
+              {weekdayFilter != null ? (
+                <>
+                  <LogisticsWeekdayFilterSelect
+                    value={weekdayFilter}
+                    options={weekdayFilterOptions}
+                    tones={weekdayTones}
+                    onChange={selectWeekdayFilter}
+                    ariaLabel="Filtrar por día"
+                    className="min-w-0 lg:!hidden"
+                  />
+                  <InlineSearchPicker
+                    className="min-w-0 lg:!hidden"
+                    minWidthClass="w-full min-w-0"
+                    value={routeTemplateFilter}
+                    onChange={setRouteTemplateFilter}
+                    options={filterRoutePickerOptions}
+                    placeholder="Todas las rutas"
+                    searchPlaceholder="Buscar ruta…"
+                    emptyLabel="Sin rutas ese día"
+                    ariaLabel="Filtrar por ruta del día"
+                    leadingIcon={<Route className="h-4 w-4 text-emerald-300" aria-hidden />}
+                  />
+                </>
+              ) : (
+                <button
+                  type="button"
+                  className={`${primaryButtonClass} col-span-2 !h-9 w-full gap-1.5 px-2.5 text-xs font-black lg:!hidden`}
+                  onClick={() => selectWeekdayFilter(defaultWeekdayFilter)}
+                >
+                  <CalendarDays className="h-4 w-4" />
+                  Todos los días
+                </button>
+              )}
+
+              <select
+                className={`h-9 min-w-0 rounded-lg border px-2.5 pr-8 text-sm font-black leading-none outline-none lg:!hidden ${
+                  typeFilter
+                    ? "border-emerald-500 bg-emerald-950/50 text-emerald-100"
+                    : "border-black bg-surface-inset text-[#f8fafc]"
+                }`}
+                value={typeFilter}
+                onChange={(event) => setTypeFilter(event.target.value)}
+                aria-label="Filtrar tareas por acción"
+              >
+                <option value="">Todas las tareas</option>
+                <option value="deliver_empty_box">Dejar cajas</option>
+                <option value="pickup_full_box">Recoger cajas</option>
+              </select>
+
+              {weekdayFilter != null ? (
+                <DateInput
+                  className="min-w-0 border-emerald-500 bg-emerald-950/50 lg:!hidden"
+                  value={dateFilter || filterAnchorDate}
+                  allowedWeekdays={[weekdayFilter]}
+                  dayTones={calendarDayTones}
+                  showToneLegend
+                  ariaLabel="Filtrar por fecha"
+                  onChange={(nextDate) => {
+                    setDateFilter(nextDate);
+                    if (nextDate) {
+                      setWeekdayFilter(getLogisticsWeekdayIndex(nextDate));
+                    }
+                  }}
+                />
+              ) : null}
               <InlineSearchPicker
-                className="w-[9rem] shrink-0"
+                className="min-w-0 lg:w-[9rem] lg:shrink-0"
                 minWidthClass="w-full min-w-0"
                 value={driverFilter}
                 onChange={setDriverFilter}
@@ -2612,7 +2783,7 @@ export function LogisticaClient({
               />
 
               <select
-                className="h-9 w-[8rem] shrink-0 rounded-lg border border-black bg-surface-inset px-2.5 text-sm font-black text-[#f8fafc] outline-none"
+                className="h-9 min-w-0 rounded-lg border border-black bg-surface-inset px-2.5 text-sm font-black text-[#f8fafc] outline-none lg:w-[8rem] lg:shrink-0"
                 value={zoneFilter}
                 onChange={(event) => setZoneFilter(event.target.value)}
                 aria-label="Filtrar por zona"
@@ -2627,7 +2798,7 @@ export function LogisticaClient({
 
               <button
                 type="button"
-                className={`${failedFilter ? primaryButtonClass : secondaryButtonClass} h-9 shrink-0 px-2.5 text-xs`}
+                className={`${failedFilter ? primaryButtonClass : secondaryButtonClass} h-9 min-w-0 px-2.5 text-xs`}
                 onClick={() => setFailedFilter((current) => !current)}
               >
                 Fallidas
@@ -2640,7 +2811,7 @@ export function LogisticaClient({
 
               <button
                 type="button"
-                className={`${secondaryButtonClass} h-9 shrink-0 px-2.5 disabled:opacity-50`}
+                className={`${secondaryButtonClass} h-9 min-w-0 px-2.5 disabled:opacity-50`}
                 disabled={!hasFilters}
                 onClick={() => {
                   setQuery("");
@@ -2662,13 +2833,61 @@ export function LogisticaClient({
 
               <LogisticsSectionNav
                 active="tasks"
-                className="basis-full border-t border-black/70 pt-2 lg:ml-auto lg:basis-auto lg:border-t-0 lg:pt-0"
+                showSettings={canManageLogisticsSettings}
+                className="order-1 !hidden lg:order-none lg:ml-auto lg:!block"
               />
-              </> : <LogisticsSectionNav active="tasks" className="ml-auto" />}
+              </> : (
+                <>
+                  <div className="relative order-1 ml-auto lg:!hidden">
+                    <button
+                      type="button"
+                      className={`${primaryButtonClass} !h-9 px-2.5 text-xs`}
+                      aria-expanded={filtersOpen}
+                      onClick={() => setFiltersOpen((current) => !current)}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                      Opciones
+                    </button>
+                    {filtersOpen ? (
+                      <div className="absolute right-0 top-full z-[120] mt-2 grid w-[min(22rem,calc(100vw-2.5rem))] gap-2 rounded-xl border border-black bg-surface-card p-2 shadow-[0_16px_36px_rgba(0,0,0,0.45)]">
+                        <div className={`grid gap-1 ${canManageLogisticsSettings ? "grid-cols-5" : "grid-cols-4"}`} aria-label="Secciones de logística">
+                          <Link href="/logistica" className={`${primaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                            <ClipboardList className="h-3.5 w-3.5" aria-hidden />
+                            Tareas
+                          </Link>
+                          <Link href="/logistica/conductores" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                            <Users className="h-3.5 w-3.5" aria-hidden />
+                            Choferes
+                          </Link>
+                          <Link href="/logistica/vehiculos" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                            <Truck className="h-3.5 w-3.5" aria-hidden />
+                            Flota
+                          </Link>
+                          <Link href="/logistica?view=rutas" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                            <Route className="h-3.5 w-3.5" aria-hidden />
+                            Rutas
+                          </Link>
+                          {canManageLogisticsSettings ? (
+                            <Link href="/logistica?view=configuracion" className={`${secondaryButtonClass} !h-11 min-w-0 flex-col gap-0.5 px-1 text-[10px]`}>
+                              <Settings2 className="h-3.5 w-3.5" aria-hidden />
+                              Config.
+                            </Link>
+                          ) : null}
+                        </div>
+                        <div className="grid h-9 grid-cols-2 rounded-lg border border-black bg-surface-inset p-0.5 text-xs font-black">
+                          <button type="button" className="rounded-md px-2.5 text-slate-300" onClick={() => setOperationScope("domicilios")}>Domicilios</button>
+                          <button type="button" className="rounded-md bg-emerald-400 px-2.5 text-slate-950" onClick={() => setOperationScope("agencias")}>Agencias</button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                  <LogisticsSectionNav active="tasks" showSettings={canManageLogisticsSettings} className="order-1 !hidden lg:order-none lg:ml-auto lg:!block" />
+                </>
+              )}
             </div>
           </div>
 
-          <div className={`${panelListScrollClass} pt-3`}>
+          <div className={`${panelListScrollClass} pt-2 lg:pt-3`}>
             {agencyModuleEnabled && operationScope === "agencias" ? (
               <AgencyLogisticsPanel />
             ) : (
@@ -2771,6 +2990,16 @@ export function LogisticaClient({
         </div>
       ) : null}
 
+      {journalShipment ? (
+        <ShipmentJournalDialog
+          key={journalShipment.id}
+          open
+          shipment={journalShipment}
+          onClose={() => setJournalShipmentId(null)}
+          onError={(message) => notify.error(message)}
+        />
+      ) : null}
+
       {reprogrammingTask ? (
         <LogisticsTaskReprogramPanel
           key={reprogrammingTask.task.id}
@@ -2820,6 +3049,7 @@ export function LogisticaClient({
         templates={routeCatalog?.templates || []}
         enabledDays={routeCatalog?.enabledDays || []}
         defaultDriverByWeekday={routeCatalog?.defaultDriverByWeekday || Array<string | null>(7).fill(null)}
+        weekdayScheduleByWeekday={routeCatalog?.weekdayScheduleByWeekday}
         routeMembers={routeMembers}
         saving={Boolean(confirmingScheduleTask && busyId === `confirm:${confirmingScheduleTask.task.id}`)}
         onCancel={() => setConfirmingScheduleTask(null)}

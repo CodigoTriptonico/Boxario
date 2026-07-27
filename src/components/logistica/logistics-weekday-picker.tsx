@@ -9,7 +9,7 @@ export function LogisticsWeekdayPicker({
   disabled = false,
   ariaLabel,
 }: {
-  value: number;
+  value: number | null;
   availableWeekdays: ReadonlyArray<number>;
   onChange: (weekday: number) => void;
   disabled?: boolean;
@@ -25,7 +25,7 @@ export function LogisticsWeekdayPicker({
     >
       {logisticsWeekdayChipLabels.map((label, weekday) => {
         const enabled = available.has(weekday);
-        const selected = value === weekday;
+        const selected = value !== null && value === weekday;
         const chipDisabled = disabled || !enabled;
 
         return (

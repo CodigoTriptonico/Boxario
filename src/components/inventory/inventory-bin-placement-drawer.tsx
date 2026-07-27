@@ -145,6 +145,7 @@ export function InventoryBinPlacementDrawer({
     }
 
     setPlacements(result.data);
+    window.dispatchEvent(new Event("inventory-bin-placements-changed"));
     setDrafts(
       Object.fromEntries(result.data.map((row) => [row.binId, String(row.quantity)])),
     );
@@ -172,6 +173,7 @@ export function InventoryBinPlacementDrawer({
     }
 
     setPlacements(result.data);
+    window.dispatchEvent(new Event("inventory-bin-placements-changed"));
     setDrafts(
       Object.fromEntries(result.data.map((row) => [row.binId, String(row.quantity)])),
     );

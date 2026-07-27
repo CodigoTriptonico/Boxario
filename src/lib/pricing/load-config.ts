@@ -16,6 +16,9 @@ import type {
   PricingDistributorPrices,
   PricingRouteConfig,
 } from "@/lib/pricing/types";
+import {
+  normalizeScheduleSuggestionConfig,
+} from "@/lib/sale/schedule-suggestions";
 
 export const emptyRouteConfig: PricingRouteConfig = {
   deliveryDays: [],
@@ -29,6 +32,7 @@ export const emptyRouteConfig: PricingRouteConfig = {
   fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
   minimumDeposit: defaultInvoiceBillingConfig.minimumDeposit,
   logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,
+  scheduleSuggestions: normalizeScheduleSuggestionConfig(undefined),
 };
 
 type DbPricingCountryBox = {
@@ -69,7 +73,9 @@ function syncLinkedRouteSchedules(config: PricingRouteConfig): PricingRouteConfi
 export function canReadPricingSession(session: AppSession) {
   return (
     sessionHasPermission(session, "settings.manage") ||
-    sessionHasPermission(session, "sales.manage")
+    sessionHasPermission(session, "sales.manage") ||
+    sessionHasPermission(session, "sales.settings.manage") ||
+    sessionHasPermission(session, "logistics.settings.manage")
   );
 }
 
@@ -180,7 +186,7 @@ export async function loadPricingConfigForSession(
     supabase
       .from("organization_route_settings")
       .select(
-        "delivery_days, pickup_days, delivery_ranges, pickup_ranges, pending_allowed, route_lead_time, linked_route_schedules, empty_box_delivery_fee, full_box_pickup_fee, minimum_deposit, logistics_fee_mode",
+        "delivery_days, pickup_days, delivery_ranges, pickup_ranges, pending_allowed, route_lead_time, linked_route_schedules, empty_box_delivery_fee, full_box_pickup_fee, minimum_deposit, logistics_fee_mode, schedule_suggestions",
       )
       .eq("organization_id", orgId)
       .maybeSingle(),
@@ -299,20 +305,32 @@ export async function loadPricingConfigForSession(
           pendingAllowed: routeRow.pending_allowed,
           routeLeadTime: routeRow.route_lead_time || "",
           linkedRouteSchedules: routeRow.linked_route_schedules ?? false,
-          emptyBoxDeliveryFee: defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
-          fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
+          emptyBoxDeliveryFee:
+            routeRow.empty_box_delivery_fee || defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
+          fullBoxPickupFee:
+            routeRow.full_box_pickup_fee || defaultInvoiceBillingConfig.fullBoxPickupFee,
           minimumDeposit: routeRow.minimum_deposit || defaultInvoiceBillingConfig.minimumDeposit,
-          logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,
+          logisticsFeeMode: "per_trip",
+          scheduleSuggestions: normalizeScheduleSuggestionConfig(undefined),
         }
       : emptyRouteConfig,
   );
+
+  const scheduleSuggestions = normalizeScheduleSuggestionConfig(
+    routeRow?.schedule_suggestions,
+  );
+
+  const resolvedRouteConfig = {
+    ...routeConfig,
+    scheduleSuggestions,
+  };
 
   return {
     countries,
     promotions,
     distributors,
     distributorPrices,
-    routeConfig,
+    routeConfig: resolvedRouteConfig,
     catalogProducts,
   };
 }

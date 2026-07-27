@@ -55,6 +55,19 @@ function originFromUrl(url: string): string | null {
   }
 }
 
+function originFromDirectHost(request: Request): string | null {
+  const requestUrl = new URL(request.url);
+  const host = parseHostHeader(request.headers.get("host"));
+
+  if (!host || isLocalHostname(host.hostname)) {
+    return null;
+  }
+
+  const hostname = host.hostname.includes(":") ? `[${host.hostname}]` : host.hostname;
+  const portSuffix = host.port ? `:${host.port}` : "";
+  return `${requestUrl.protocol}//${hostname}${portSuffix}`;
+}
+
 function configuredOrigins(options?: { tunnelUrl?: string | null; readTunnelFile?: boolean }) {
   return [
     process.env.APP_ORIGIN,
@@ -92,10 +105,32 @@ function resolveForwardedOrigin(headers: Headers, allowedOrigins: string[]): str
 
 export function resolveRequestOrigin(
   request: Request,
-  options?: { tunnelUrl?: string | null; readTunnelFile?: boolean },
+  options?: {
+    tunnelUrl?: string | null;
+    readTunnelFile?: boolean;
+    preferRequestOrigin?: boolean;
+  },
 ): string {
   const allowedOrigins = configuredOrigins(options);
   const configuredOrigin = allowedOrigins[0];
+
+  const requestOrigin = new URL(request.url).origin;
+  const hasProxyOriginHints =
+    request.headers.has("forwarded") ||
+    request.headers.has("x-forwarded-host") ||
+    request.headers.has("x-forwarded-proto");
+  const directHostOrigin = hasProxyOriginHints ? null : originFromDirectHost(request);
+  const effectiveRequestOrigin = directHostOrigin ?? requestOrigin;
+  const requestHostname = new URL(effectiveRequestOrigin).hostname;
+
+  if (
+    options?.preferRequestOrigin &&
+    !isLocalHostname(requestHostname) &&
+    !hasProxyOriginHints
+  ) {
+    return effectiveRequestOrigin;
+  }
+
   if (configuredOrigin) {
     return configuredOrigin;
   }
@@ -105,14 +140,17 @@ export function resolveRequestOrigin(
     return forwardedOrigin;
   }
 
-  const requestOrigin = new URL(request.url).origin;
   return isLocalHostname(new URL(requestOrigin).hostname) ? requestOrigin : "http://localhost";
 }
 
 export function resolveRequestUrl(
   request: Request,
   pathname: string,
-  options?: { tunnelUrl?: string | null; readTunnelFile?: boolean },
+  options?: {
+    tunnelUrl?: string | null;
+    readTunnelFile?: boolean;
+    preferRequestOrigin?: boolean;
+  },
 ): URL {
   return new URL(pathname, resolveRequestOrigin(request, options));
 }

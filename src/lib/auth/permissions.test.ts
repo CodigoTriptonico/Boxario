@@ -139,6 +139,35 @@ describe("canAccessPath seller shipments", () => {
   });
 });
 
+describe("axis settings and shared tracking permissions", () => {
+  it("lets accounting consult tracking without granting sales", () => {
+    const session: AppSession = {
+      ...sellerSession(),
+      permissions: ["accounting.view"],
+      roleSlug: "finanzas",
+    };
+    assert.equal(canAccessPath(session, "/seguimiento"), true);
+    assert.equal(canAccessPath(session, "/venta"), false);
+  });
+
+  it("keeps logistics settings separate from conductor operations", () => {
+    const logistics: AppSession = {
+      ...sellerSession(),
+      permissions: ["routes.view", "routes.update_status", "logistics.settings.manage"],
+      roleSlug: "logistica",
+    };
+    const driver: AppSession = {
+      ...sellerSession(),
+      permissions: ["routes.view", "routes.update_status"],
+      roleSlug: "conductor",
+    };
+    assert.equal(canAccessPath(logistics, "/logistica"), true);
+    assert.equal(sessionHasPermission(logistics, "logistics.settings.manage"), true);
+    assert.equal(sessionHasPermission(driver, "logistics.settings.manage"), false);
+    assert.equal(canAccessPath(driver, "/seguimiento"), false);
+  });
+});
+
 describe("canAccessPath platform account", () => {
   it("only allows the platform console and never client operations", () => {
     const platform = {

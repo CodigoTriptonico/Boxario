@@ -33,7 +33,7 @@ const ROLE_CATALOG: RoleCatalogEntry[] = [
   {
     slug: "administrador",
     name: "Administrador",
-    hint: "Gestión completa de la paquetería.",
+    hint: "Gestión completa de la empresa.",
     base: true,
     permissions: ["all"],
   },
@@ -56,7 +56,7 @@ const ROLE_CATALOG: RoleCatalogEntry[] = [
     name: "Logística",
     hint: "Rutas, asignación y operaciones de entrega.",
     base: true,
-    permissions: ["routes.view", "routes.update_status"],
+    permissions: ["routes.view", "routes.update_status", "logistics.settings.manage"],
   },
   {
     slug: "bodega",

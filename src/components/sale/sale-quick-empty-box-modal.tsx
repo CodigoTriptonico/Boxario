@@ -86,7 +86,9 @@ export function SaleQuickEmptyBoxModal({
 
   const deliveryComplete =
     emptyBoxMode === "Cliente recoge caja vacia en oficina" ||
-    (emptyBoxMode === "Programar entrega de caja vacia" && Boolean(routeDecision));
+    (emptyBoxMode === "Programar entrega de caja vacia" &&
+      (routeDecision?.kind === "selected" ||
+        (routeDecision?.kind === "pending" && Boolean(routeDecision.routeDate))));
 
   const summary = deliverySummary(
     emptyBoxMode,
@@ -291,7 +293,7 @@ export function SaleQuickEmptyBoxModal({
               </span>
               <p className="mt-2 text-sm font-black">Programar ruta</p>
               <p className="mt-1 line-clamp-2 min-h-8 text-xs font-bold text-slate-400">
-                {routeSummary || "Elegir día y ruta"}
+                {routeSummary || "Elegir fecha (ruta opcional)"}
               </p>
             </button>
             </div>

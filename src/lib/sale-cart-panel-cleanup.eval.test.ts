@@ -11,7 +11,9 @@ const source = readFileSync(
 describe("sale cart panel cleanup eval", () => {
   it("keeps only the cart components used by venta", () => {
     assert.match(source, /export function SaleCartPanel\(/);
-    assert.match(source, /export function SaleStepCartTrigger\(/);
+    assert.match(source, /export function SaleHeaderCartTrigger\(/);
+    assert.match(source, /export function SaleHeaderCartPanel\(/);
+    assert.doesNotMatch(source, /SaleStepCartTrigger/);
     assert.doesNotMatch(
       source,
       /SaleCart(?:Drawer|Rail|MobileChip|BottomBar|Dock|IconButton|MobileDrawer|FloatingTrigger)/,
@@ -22,10 +24,11 @@ describe("sale cart panel cleanup eval", () => {
     assert.doesNotMatch(source, /createPortal|useEffect|useState/);
   });
 
-  it("keeps the step-bar cart label readable inside a mobile step tile", () => {
-    assert.match(source, /grid-cols-\[2rem_minmax\(0,1fr\)\]/);
-    assert.match(source, /truncate whitespace-nowrap text-\[9px\]/);
-    assert.match(source, /hidden shrink-0 text-xs font-black tabular-nums/);
-    assert.match(source, /hidden h-3\.5 w-3\.5 shrink-0/);
+  it("uses a compact header trigger and a floating cart panel", () => {
+    assert.match(source, /data-sale-header-cart=""/);
+    assert.match(source, /inline-flex h-8 w-8 shrink-0/);
+    assert.match(source, /data-sale-header-cart-panel=""/);
+    assert.match(source, /fixed inset-0 z-\[145\]/);
+    assert.match(source, /role="dialog"/);
   });
 });

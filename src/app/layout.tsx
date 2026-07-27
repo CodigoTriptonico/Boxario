@@ -6,7 +6,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Boxario",
-  description: "Cajas e inventario para paqueterías",
+  description: "Cajas, inventario y envíos para empresas",
 };
 
 export const viewport: Viewport = {

@@ -26,11 +26,18 @@ test("the completed sale prints one compact label per physical box", async () =>
   assert.match(invoiceSource, /invoiceBoxCode\(invoiceNumber, boxPosition\)/);
   assert.match(invoiceSource, /value=\{invoiceNumber\}/);
   assert.match(invoiceSource, /value=\{recipientQrValue\}/);
-  assert.match(saleSource, /<SaleDocumentActions/);
+  assert.match(saleSource, /<SaleFinishDocToolbar/);
+  assert.match(saleSource, /finishDocTab/);
   assert.match(saleSource, /<Share2/);
   assert.match(saleSource, /sale-print-single/);
+  assert.match(invoiceSource, /País/);
+  assert.match(invoiceSource, /mono/);
   assert.match(globalStyles, /html\.sale-print-single #sale-print-documents/);
   assert.match(globalStyles, /\.sale-document-print-selected/);
+  assert.match(
+    globalStyles,
+    /sale-document-print-selected:not\(:has\(~ \.sale-document-print-selected\)\)/,
+  );
 });
 
 test("field and warehouse screens use the individual box invoice, not only the sale number", async () => {
@@ -43,4 +50,37 @@ test("field and warehouse screens use the individual box invoice, not only the s
   assert.match(taskSource, /boxInvoiceCodes: invoiceBoxCodes\(shipment\.code, boxCount\)/);
   assert.match(conductorSource, /dialog\?\.task\.boxInvoiceCodes/);
   assert.match(warehouseSource, /Factura \{pkg\.invoiceCode\}/);
+});
+
+test("invoice and label parties can be corrected from finish with master + shipment sync and audit", async () => {
+  const [saleSource, invoiceSource, shipmentsSource] = await Promise.all([
+    readFile(new URL("../components/venta-client.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8"),
+    readFile(new URL("../app/actions/shipments.ts", import.meta.url), "utf8"),
+  ]);
+
+  assert.match(invoiceSource, /senderSaleContextProps/);
+  assert.match(invoiceSource, /recipientSaleContextProps/);
+  assert.match(invoiceSource, /contextProps=\{senderSaleContextProps\(sender\)\}/);
+  assert.match(invoiceSource, /contextProps=\{recipientSaleContextProps\(recipient\)\}/);
+  assert.match(invoiceSource, /\{\.\.\.senderSaleContextProps\(sender\)\}/);
+  assert.match(invoiceSource, /\{\.\.\.recipientSaleContextProps\(recipient\)\}/);
+  assert.match(invoiceSource, /recipientShipmentSnapshot/);
+
+  assert.match(saleSource, /shipmentId: string/);
+  assert.match(saleSource, /shipmentId: shipmentResult\.data\.id/);
+  assert.match(saleSource, /editingFromFinish/);
+  assert.match(saleSource, /documentEditKind/);
+  assert.match(saleSource, /SaleDocumentPartyEditDialog/);
+  assert.match(saleSource, /syncShipmentPartyAction/);
+  assert.match(saleSource, /syncCreatedInvoiceParty/);
+  assert.match(saleSource, /fromFinish/);
+  assert.match(saleSource, /setDocumentEditKind\("sender"\)/);
+  assert.match(saleSource, /setDocumentEditKind\("recipient"\)/);
+
+  assert.match(shipmentsSource, /export async function syncShipmentPartyAction/);
+  assert.match(shipmentsSource, /shipment\.party_corrected/);
+  assert.match(shipmentsSource, /recipient_snapshot/);
+  assert.match(shipmentsSource, /before:/);
+  assert.match(shipmentsSource, /after:/);
 });

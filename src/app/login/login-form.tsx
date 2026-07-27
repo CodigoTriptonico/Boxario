@@ -121,30 +121,34 @@ export function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
       setLoading(true);
       setError("");
 
-      const result = await fetch("/api/auth/sign-in", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({
-          email,
-          password,
-          nextPath: searchParams.get("next"),
-        }),
-      });
+      try {
+        const result = await fetch("/api/auth/sign-in", {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({
+            email,
+            password,
+            nextPath: searchParams.get("next"),
+          }),
+        });
 
-      const data = (await result.json().catch(() => null)) as
-        | { ok: true; redirectTo: string }
-        | { ok: false; error: string }
-        | null;
+        const data = (await result.json().catch(() => null)) as
+          | { ok: true; redirectTo: string }
+          | { ok: false; error: string }
+          | null;
 
-      setLoading(false);
+        if (!data?.ok) {
+          setError(data?.error || "No se pudo iniciar sesion");
+          return;
+        }
 
-      if (!data?.ok) {
-        setError(data?.error || "No se pudo iniciar sesion");
-        return;
+        router.replace(data.redirectTo);
+        router.refresh();
+      } catch {
+        setError("No se pudo conectar con el servidor. Intenta de nuevo.");
+      } finally {
+        setLoading(false);
       }
-
-      router.replace(data.redirectTo);
-      router.refresh();
       return;
     }
 
@@ -189,7 +193,7 @@ export function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
             <div className="grid gap-4">
               <p className="rounded-lg border border-black bg-surface-inset px-3 py-3 text-sm font-bold text-slate-300">
                 La recuperación por celular estará disponible pronto. El número se guarda al crear la
-                paquetería, pero por ahora no enviamos códigos SMS.
+                empresa, pero por ahora no enviamos códigos SMS.
               </p>
               <p className="text-sm font-bold text-slate-500">
                 Si olvidaste tu contraseña, pide ayuda al administrador de tu empresa o al soporte de
@@ -205,7 +209,16 @@ export function LoginForm({ allowSignup = false }: { allowSignup?: boolean }) {
               </button>
             </div>
           ) : (
-            <form className="grid gap-4" style={fallbackStyles.form} onSubmit={handleSubmit}>
+            <form
+              className="grid gap-4"
+              style={fallbackStyles.form}
+              action={mode === "login" ? "/api/auth/sign-in" : undefined}
+              method={mode === "login" ? "post" : undefined}
+              onSubmit={handleSubmit}
+            >
+              {mode === "login" ? (
+                <input type="hidden" name="nextPath" value={searchParams.get("next") || ""} />
+              ) : null}
               {mode === "signup" ? (
                 <>
                   <label className="grid gap-2" style={fallbackStyles.label}>

@@ -4,6 +4,7 @@ import {
   saleRouteDecisionSchedule,
   saleRouteDecisionSummary,
   saleRouteDecisionTask,
+  saleRouteDecisionTemplateId,
   type SaleRouteDecision,
 } from "@/lib/sale-route-decision";
 
@@ -31,6 +32,7 @@ describe("sale route decision", () => {
       scheduleMode: "scheduled",
       scheduleAt: "2026-07-27T10:00",
     });
+    assert.equal(saleRouteDecisionTemplateId(selected), "route-monday");
   });
 
   it("keeps the selected operating day when Logistics will choose the route later", () => {
@@ -50,6 +52,29 @@ describe("sale route decision", () => {
       scheduleMode: "pending",
       scheduleAt: "",
     });
+    assert.equal(saleRouteDecisionTemplateId(pending), null);
+  });
+
+  it("keeps a preferred route without inventing a delivery day", () => {
+    const preferred: SaleRouteDecision = {
+      kind: "route_preferred",
+      routeDate: null,
+      routeTemplateId: "tpl-van-nuys",
+      routeLabel: "Van Nuys",
+    };
+
+    assert.deepEqual(saleRouteDecisionTask(preferred), {
+      taskType: "deliver_empty_box",
+      status: "pending",
+      scheduledAt: null,
+      requestedRouteDate: null,
+    });
+    assert.equal(saleRouteDecisionSummary(preferred), "Van Nuys · día pendiente");
+    assert.deepEqual(saleRouteDecisionSchedule(preferred), {
+      scheduleMode: "pending",
+      scheduleAt: "",
+    });
+    assert.equal(saleRouteDecisionTemplateId(preferred), "tpl-van-nuys");
   });
 
   it("keeps an unknown day pending without date or route", () => {
@@ -66,5 +91,6 @@ describe("sale route decision", () => {
       scheduleMode: "pending",
       scheduleAt: "",
     });
+    assert.equal(saleRouteDecisionTemplateId(undated), null);
   });
 });

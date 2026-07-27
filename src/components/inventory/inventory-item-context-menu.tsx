@@ -1,7 +1,7 @@
 "use client";
 
-import { History, ImagePlus, Loader2, MapPin, Ruler } from "lucide-react";
-import { useEffect, useRef, useState } from "react";
+import { ChevronDown, History, Loader2, MapPin, Settings2 } from "lucide-react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { InventoryMovementsSidePanel } from "@/components/inventory-movements-panel";
 import { inputClass } from "@/components/ui-blocks";
@@ -56,7 +56,7 @@ export type InventoryItemContextMenuProps = {
   onOpenBinPlacement?: (context: ItemContextMenu) => void;
 };
 
-const movementFieldClass = `${inputClass} h-10 w-full min-w-0 text-sm`;
+const movementFieldClass = `${inputClass} box-border block h-10 w-auto min-w-0 max-w-full self-stretch text-sm`;
 
 export function InventoryItemContextMenu({
   itemContextMenu,
@@ -82,9 +82,6 @@ export function InventoryItemContextMenu({
   onSubmitMovement,
   onDeleteItem,
   onBeginEditItem,
-  onUploadItemPhoto,
-  onClearItemPhoto,
-  photoUploading = false,
   onUpdateItemUnit,
   unitSaving = false,
   onOpenBinPlacement,
@@ -94,7 +91,6 @@ export function InventoryItemContextMenu({
     context: ItemContextMenu;
     value: string;
   } | null>(null);
-  const photoInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     queueMicrotask(() => setMounted(true));
@@ -125,7 +121,6 @@ export function InventoryItemContextMenu({
     };
 
     window.addEventListener("pointerdown", closeMenuOnPointerDown);
-    window.addEventListener("scroll", closeMenu, true);
 
     function handleKey(event: KeyboardEvent) {
       if (event.key === "Escape") {
@@ -137,7 +132,6 @@ export function InventoryItemContextMenu({
 
     return () => {
       window.removeEventListener("pointerdown", closeMenuOnPointerDown);
-      window.removeEventListener("scroll", closeMenu, true);
       window.removeEventListener("keydown", handleKey);
     };
   }, [itemContextMenu, setItemContextMenu]);
@@ -163,88 +157,42 @@ export function InventoryItemContextMenu({
               )}
             </p>
           </div>
-          <button
-            type="button"
-            onClick={() => onBeginMovement("entrada")}
-            className="mt-1 flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-emerald-200 hover:bg-emerald-400/10"
-          >
-            Entrada
-          </button>
-          <button
-            type="button"
-            onClick={() => onBeginMovement("salida")}
-            className="flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-slate-200 hover:bg-surface-card-hover"
-          >
-            Salida
-          </button>
-          <button
-            type="button"
-            onClick={() => onBeginMovement("ajuste")}
-            className="flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-slate-200 hover:bg-surface-card-hover"
-          >
-            Ajuste
-          </button>
-          {onUploadItemPhoto ? (
-            <>
-              <input
-                ref={photoInputRef}
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                className="hidden"
-                onChange={(event) => {
-                  const file = event.target.files?.[0];
-
-                  if (file && itemContextMenu) {
-                    void onUploadItemPhoto(itemContextMenu, file);
-                  }
-
-                  event.currentTarget.value = "";
-                }}
-              />
-              <button
-                type="button"
-                disabled={photoUploading}
-                onClick={() => photoInputRef.current?.click()}
-                className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-black text-slate-200 hover:bg-surface-card-hover disabled:opacity-50"
-              >
-                {photoUploading ? (
-                  <Loader2 className="h-4 w-4 shrink-0 animate-spin text-slate-400" aria-hidden />
-                ) : (
-                  <ImagePlus className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-                )}
-                {itemContextMenu.stockItem.photoUrl ? "Cambiar foto" : "Agregar foto"}
-              </button>
-              {itemContextMenu.stockItem.photoUrl && onClearItemPhoto ? (
-                <button
-                  type="button"
-                  disabled={photoUploading}
-                  onClick={() => {
-                    void onClearItemPhoto(itemContextMenu);
-                  }}
-                  className="flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-rose-200 hover:bg-rose-400/10 disabled:opacity-50"
-                >
-                  Quitar foto
-                </button>
-              ) : null}
-            </>
-          ) : null}
-          {onUpdateItemUnit ? (
+          <div className="grid grid-cols-3 gap-1 p-1">
             <button
               type="button"
-              disabled={unitSaving}
-              onClick={() => {
-                setUnitEditor({
-                  context: itemContextMenu,
-                  value: resolveInventoryItemUnit(itemContextMenu.stockItem),
-                });
-                setItemContextMenu(null);
-              }}
-              className="flex h-9 w-full items-center gap-2 rounded-md px-2 text-left text-sm font-black text-slate-200 hover:bg-surface-card-hover disabled:opacity-50"
+              onClick={() => onBeginMovement("entrada")}
+              className="flex h-12 flex-col items-center justify-center rounded-md bg-emerald-400/10 text-xs font-black text-emerald-200 transition hover:bg-emerald-400/20"
             >
-              <Ruler className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
-              Unidad de medida
+              <span className="text-base leading-none">+</span>
+              Entrada
             </button>
-          ) : null}
+            <button
+              type="button"
+              onClick={() => onBeginMovement("salida")}
+              className="flex h-12 flex-col items-center justify-center rounded-md text-xs font-black text-slate-200 transition hover:bg-surface-card-hover"
+            >
+              <span className="text-base leading-none">−</span>
+              Salida
+            </button>
+            <button
+              type="button"
+              onClick={() => onBeginMovement("ajuste")}
+              className="flex h-12 flex-col items-center justify-center rounded-md text-xs font-black text-slate-200 transition hover:bg-surface-card-hover"
+            >
+              <span className="text-sm leading-none">±</span>
+              Ajuste
+            </button>
+          </div>
+          <details className="group mt-1 border-t border-white/10 pt-1">
+            <summary className="flex h-9 cursor-pointer list-none items-center gap-2 rounded-md px-2 text-sm font-black text-slate-300 transition hover:bg-surface-card-hover hover:text-white [&::-webkit-details-marker]:hidden">
+              <Settings2 className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+              <span className="flex-1">Más opciones</span>
+              <ChevronDown
+                className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180"
+                aria-hidden
+              />
+            </summary>
+            <div className="mt-1 max-h-72 overflow-y-auto border-t border-white/5 pt-1 [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden">
           {warehouseId && onOpenBinPlacement ? (
             <button
               type="button"
@@ -347,6 +295,8 @@ export function InventoryItemContextMenu({
               </button>
             </>
           ) : null}
+            </div>
+          </details>
       </div>
     ) : null;
 
@@ -357,7 +307,7 @@ export function InventoryItemContextMenu({
       {movementDraft && mounted
         ? createPortal(
             <div
-              className="fixed inset-0 z-[150] flex items-center justify-center bg-black/45 p-4"
+              className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-black/45 p-4 pt-[8dvh] sm:pt-[12dvh]"
               onMouseDown={(event) => {
                 if (event.target === event.currentTarget) {
                   setMovementDraft(null);
@@ -365,13 +315,13 @@ export function InventoryItemContextMenu({
               }}
             >
           <form
-            className="w-full max-w-md rounded-xl border border-black bg-[#17211d] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+            className="box-border flex max-h-[calc(100dvh-10dvh)] w-full max-w-md flex-col overflow-x-hidden overflow-y-auto rounded-xl border border-black bg-[#17211d] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:max-h-[calc(100dvh-14dvh)]"
             onSubmit={(event) => {
               event.preventDefault();
               void onSubmitMovement();
             }}
           >
-            <div className="mb-3">
+            <div className="mb-3 shrink-0">
               <p className="text-lg font-black capitalize text-[#f8fafc]">
                 {movementDraft.type}
               </p>
@@ -379,7 +329,7 @@ export function InventoryItemContextMenu({
                 {movementDraft.context.treeItem.name}
               </p>
             </div>
-            <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
+            <label className="grid min-w-0 shrink-0 gap-1.5 text-xs font-black uppercase text-slate-400">
               Cantidad (
               {resolveInventoryItemUnit(movementDraft.context.stockItem)})
               <input
@@ -414,133 +364,170 @@ export function InventoryItemContextMenu({
               />
             </label>
             {movementDraft.type === "entrada" ? (
-              <div className="mt-3 grid min-w-0 grid-cols-1 gap-3 min-[30rem]:grid-cols-2">
-                <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase leading-snug text-slate-400">
-                  Costo total del lote
-                  <input
-                    className={movementFieldClass}
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={movementDraft.totalCost || ""}
-                    onChange={(event) =>
-                      setMovementDraft((current) => {
-                        if (!current) {
-                          return current;
-                        }
-
-                        const nextTotalCost = event.target.value;
-                        const synced = syncEntryCostFields({
-                          qty: current.qty,
-                          unitCost: current.unitCost || "",
-                          totalCost: nextTotalCost,
-                          anchor: "total",
-                        });
-
-                        return {
-                          ...current,
-                          totalCost: nextTotalCost,
-                          unitCost: synced.unitCost,
-                          entryCostAnchor: "total",
-                        };
-                      })
-                    }
-                    placeholder="Opcional"
+              <details className="group mt-3 box-border w-full max-w-full shrink-0 overflow-hidden rounded-lg border border-black/70 bg-black/10">
+                <summary className="flex h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-black text-slate-300 hover:text-white [&::-webkit-details-marker]:hidden">
+                  <span className="flex-1">Datos de compra</span>
+                  <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                    Opcional
+                  </span>
+                  <ChevronDown
+                    className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180"
+                    aria-hidden
                   />
-                </label>
-                <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase leading-snug text-slate-400">
-                  Costo unitario
+                </summary>
+                <div className="box-border grid min-w-0 max-w-full grid-cols-1 gap-3 border-t border-black/70 p-3">
+                <div className="grid min-w-0 max-w-full gap-1.5">
+                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
+                    <span className="text-xs font-black uppercase text-slate-400">Costo</span>
+                    <span className="inline-flex max-w-full rounded-md border border-black bg-surface-inset p-0.5">
+                      {(["total", "unit"] as const).map((anchor) => (
+                        <button
+                          key={anchor}
+                          type="button"
+                          onClick={() =>
+                            setMovementDraft((current) =>
+                              current ? { ...current, entryCostAnchor: anchor } : current,
+                            )
+                          }
+                          className={`h-7 rounded px-2 text-[10px] font-black uppercase transition ${
+                            (movementDraft.entryCostAnchor || "unit") === anchor
+                              ? "bg-slate-700 text-white"
+                              : "text-slate-500 hover:text-slate-300"
+                          }`}
+                        >
+                          {anchor === "total" ? "Lote" : "Por pieza"}
+                        </button>
+                      ))}
+                    </span>
+                  </div>
                   <input
                     className={movementFieldClass}
-                    type="number"
-                    min="0"
-                    step="0.0001"
-                    value={movementDraft.unitCost || ""}
+                    type="text"
+                    inputMode="decimal"
+                    value={
+                      (movementDraft.entryCostAnchor || "unit") === "total"
+                        ? movementDraft.totalCost || ""
+                        : movementDraft.unitCost || ""
+                    }
                     onChange={(event) =>
                       setMovementDraft((current) => {
                         if (!current) {
                           return current;
                         }
 
-                        const nextUnitCost = event.target.value;
+                        const anchor = current.entryCostAnchor || "unit";
+                        const nextCost = event.target.value;
                         const synced = syncEntryCostFields({
                           qty: current.qty,
-                          unitCost: nextUnitCost,
-                          totalCost: current.totalCost || "",
-                          anchor: "unit",
+                          unitCost: anchor === "unit" ? nextCost : current.unitCost || "",
+                          totalCost: anchor === "total" ? nextCost : current.totalCost || "",
+                          anchor,
                         });
 
                         return {
                           ...current,
-                          unitCost: nextUnitCost,
-                          totalCost: synced.totalCost,
-                          entryCostAnchor: "unit",
+                          unitCost: anchor === "unit" ? nextCost : synced.unitCost,
+                          totalCost: anchor === "total" ? nextCost : synced.totalCost,
                         };
                       })
                     }
-                    placeholder="Opcional"
+                    placeholder={
+                      (movementDraft.entryCostAnchor || "unit") === "total"
+                        ? "Total del lote"
+                        : "Costo por pieza"
+                    }
+                  />
+                </div>
+                  <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
+                    Proveedor
+                    <input
+                      className={movementFieldClass}
+                      value={movementDraft.supplierName || ""}
+                      onChange={(event) =>
+                        setMovementDraft((current) =>
+                          current ? { ...current, supplierName: event.target.value } : current,
+                        )
+                      }
+                      placeholder="Opcional"
+                    />
+                  </label>
+                </div>
+              </details>
+            ) : null}
+            <details className="group mt-2 box-border w-full max-w-full shrink-0 overflow-hidden rounded-lg border border-black/70 bg-black/10">
+              <summary className="flex h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-black text-slate-300 hover:text-white [&::-webkit-details-marker]:hidden">
+                <span className="flex-1">Motivo y detalle</span>
+                <span className="max-w-32 truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">
+                  {manualMovementReasonOptions.find(
+                    (option) => option.value === movementDraft.reasonCode,
+                  )?.label || "Opcional"}
+                </span>
+                <ChevronDown
+                  className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180"
+                  aria-hidden
+                />
+              </summary>
+              <div className="box-border grid min-w-0 max-w-full gap-3 border-t border-black/70 p-3">
+                <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
+                  Motivo
+                  <select
+                    className={movementFieldClass}
+                    value={movementDraft.reasonCode}
+                    onChange={(event) =>
+                      setMovementDraft((current) =>
+                        current
+                          ? {
+                              ...current,
+                              reasonCode: event.target.value as MovementDraft["reasonCode"],
+                            }
+                          : current,
+                      )
+                    }
+                  >
+                    {manualMovementReasonOptions.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
+                  Detalle
+                  <input
+                    className={movementFieldClass}
+                    value={movementDraft.note}
+                    onChange={(event) =>
+                      setMovementDraft((current) =>
+                        current ? { ...current, note: event.target.value } : current,
+                      )
+                    }
+                    placeholder={
+                      movementReasonRequiresDetail(movementDraft.reasonCode)
+                        ? "Requerido"
+                        : "Opcional"
+                    }
+                    required={movementReasonRequiresDetail(movementDraft.reasonCode)}
                   />
                 </label>
               </div>
-            ) : null}
-            <label className="mt-3 grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
-              Motivo
-              <select
-                className={movementFieldClass}
-                value={movementDraft.reasonCode}
-                onChange={(event) =>
-                  setMovementDraft((current) =>
-                    current
-                      ? {
-                          ...current,
-                          reasonCode: event.target.value as MovementDraft["reasonCode"],
-                        }
-                      : current,
-                  )
-                }
-              >
-                {manualMovementReasonOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="mt-3 grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
-              Detalle
-              <input
-                className={movementFieldClass}
-                value={movementDraft.note}
-                onChange={(event) =>
-                  setMovementDraft((current) =>
-                    current ? { ...current, note: event.target.value } : current,
-                  )
-                }
-                placeholder={
-                  movementReasonRequiresDetail(movementDraft.reasonCode)
-                    ? "Requerido"
-                    : "Opcional"
-                }
-                required={movementReasonRequiresDetail(movementDraft.reasonCode)}
-              />
-            </label>
+            </details>
             {stockError ? (
               <p className="mt-3 rounded-lg border border-rose-800 bg-rose-950/30 px-3 py-2 text-sm font-bold text-rose-100">
                 {stockError}
               </p>
             ) : null}
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="grid shrink-0 grid-cols-2 gap-3 pt-4">
               <button
                 type="button"
                 onClick={() => setMovementDraft(null)}
-                className="h-10 rounded-lg border border-black bg-surface-inset px-3 text-sm font-black text-slate-300 hover:bg-surface-card-hover"
+                className="h-12 w-full rounded-lg border border-black bg-surface-inset px-4 text-base font-black text-slate-200 hover:bg-surface-card-hover"
               >
                 Cancelar
               </button>
               <button
                 type="submit"
                 disabled={stockSaving}
-                className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"
+                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-base font-black text-slate-950 disabled:opacity-60"
               >
                 {stockSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 Guardar

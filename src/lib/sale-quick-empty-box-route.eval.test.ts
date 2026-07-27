@@ -25,13 +25,18 @@ const catalogSource = readFileSync(
 describe("quick empty-box route workflow", () => {
   it("uses the company route calendar instead of a free date field", () => {
     assert.match(modalSource, /onRequestRoute/);
-    assert.match(modalSource, /Elegir día y ruta/);
+    assert.match(modalSource, /Elegir fecha \(ruta opcional\)/);
     assert.doesNotMatch(modalSource, /DateInput|ScheduleTimeField/);
     assert.match(saleSource, /openRoutePlanner\("quickEmptyBox"\)/);
     assert.match(saleSource, /routePlannerLeg === "fullBox" \? "Aceptar recolección" : "Aceptar entrega"/);
     assert.match(saleSource, /confirmLabel="Aceptar"/);
     assert.match(saleSource, /enabledDays=\{routeCatalog\.enabledDays\}/);
     assert.match(saleSource, /defaultDriverByWeekday=\{routeCatalog\.defaultDriverByWeekday\}/);
+    assert.match(
+      saleSource,
+      /routePlannerLeg === "quickEmptyBox"/,
+    );
+    assert.match(modalSource, /kind === "pending" && Boolean\(routeDecision\.routeDate\)/);
   });
 
   it("creates the delivery task and attaches a selected route", () => {

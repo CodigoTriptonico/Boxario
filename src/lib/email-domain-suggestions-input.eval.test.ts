@@ -29,4 +29,11 @@ describe("email domain suggestion selection eval", () => {
     assert.doesNotMatch(appendAt, /setOpen\(false\)/);
     assert.match(source, /onClick=\{appendAtAndOpenDomainSuggestions\}/);
   });
+
+  it("offers the inline @ immediately while the email field is active", () => {
+    assert.match(source, /focused && canSuggestAt/);
+    assert.doesNotMatch(source, /EMAIL_AT_SUGGESTION_IDLE_MS/);
+    assert.doesNotMatch(source, /setTimeout\(/);
+    assert.match(source, /aria-label="Agregar arroba al correo"/);
+  });
 });

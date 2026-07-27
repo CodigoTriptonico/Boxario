@@ -81,6 +81,7 @@ const SIDEBAR_GROUPS_EXPANDED_KEY_PREFIX = "boxario:sidebar-expanded-groups";
 type AppShellProps = {
   active: string;
   title: string;
+  headerAction?: React.ReactNode;
   kicker?: string;
   action?: string;
   actionHref?: string;
@@ -391,6 +392,7 @@ export function AppShell({
   session,
   active,
   children,
+  headerAction,
   compactContent,
   compactNavLabel,
   compactNavFocusKey,
@@ -585,7 +587,8 @@ export function AppShell({
             <>
               <div className="mb-4">
                 {showDesktopRail ? (
-                  <div className="flex justify-center">
+                  <div className="flex flex-col items-center gap-1">
+                    {headerAction}
                     <NotificationsCenter session={session} variant="brand" />
                   </div>
                 ) : (
@@ -598,6 +601,7 @@ export function AppShell({
                     backTarget={showContextNav ? contextNavTarget : undefined}
                     keepBrand={contextNavKeepBrand}
                     reserveBackSlot={reserveContextNav}
+                    headerAction={headerAction}
                     sidebarGroupsToggle={{
                       allExpanded: allSidebarGroupsExpanded,
                       onToggle: toggleAllSidebarGroups,
@@ -743,6 +747,7 @@ export function AppShell({
               backTarget={showContextNav ? contextNavTarget : undefined}
               keepBrand={contextNavKeepBrand}
               reserveBackSlot={reserveContextNav}
+              headerAction={headerAction}
             />
             <UserAccountMenu session={session} variant="bar" />
             {surfaceContextId ? (

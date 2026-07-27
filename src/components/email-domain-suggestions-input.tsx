@@ -66,9 +66,11 @@ export function EmailDomainSuggestionsInput({
   const rootRef = useRef<HTMLDivElement>(null);
   const [highlightIndex, setHighlightIndex] = useState(-1);
   const [open, setOpen] = useState(false);
+  const [focused, setFocused] = useState(false);
 
   const cleanValue = value.trim();
-  const showAtSuggestion = shouldShowEmailAtSuggestion(value);
+  const canSuggestAt = shouldShowEmailAtSuggestion(value);
+  const showAtSuggestion = focused && canSuggestAt;
   const suggestions = useMemo(() => getEmailDomainSuggestions(value), [value]);
   const showList = open && suggestions.length > 0;
 
@@ -177,21 +179,24 @@ export function EmailDomainSuggestionsInput({
           aria-expanded={showList}
           onChange={(event) => handleChange(event.target.value)}
           onFocus={() => {
+            setFocused(true);
             if (suggestions.length > 0) {
               setOpen(true);
             }
           }}
+          onBlur={() => setFocused(false)}
           onKeyDown={handleKeyDown}
         />
         {showAtSuggestion ? (
           <div
-            aria-hidden
             className={`${inputClassName} pointer-events-none absolute inset-0 flex items-center overflow-hidden whitespace-pre border-transparent bg-transparent text-transparent shadow-none`}
           >
             <span>{cleanValue}</span>
             <button
               type="button"
               tabIndex={-1}
+              aria-label="Agregar arroba al correo"
+              title="Agregar @"
               className="pointer-events-auto text-slate-400/70 hover:text-emerald-300"
               onMouseDown={(event) => event.preventDefault()}
               onClick={appendAtAndOpenDomainSuggestions}

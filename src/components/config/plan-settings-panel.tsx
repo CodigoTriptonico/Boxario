@@ -155,7 +155,7 @@ export function PlanSettingsPanel() {
         <div className="flex min-w-0 items-center gap-2">
           <p className="text-lg font-black text-[#f8fafc]">Límites del plan</p>
           <CompactInfoDisclosure ariaLabel="Información de los límites del plan">
-              Uso actual de tu paquetería según el contrato configurado por el
+              Uso actual de tu empresa según el contrato configurado por el
               administrador de la plataforma.
           </CompactInfoDisclosure>
         </div>

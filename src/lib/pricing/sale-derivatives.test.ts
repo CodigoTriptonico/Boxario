@@ -28,6 +28,10 @@ const routeConfig: PricingRouteConfig = {
   fullBoxPickupFee: "$10",
   minimumDeposit: "$25",
   logisticsFeeMode: "per_trip",
+  scheduleSuggestions: {
+    delivery: { exact: [], until: [], from: [] },
+    pickup: { exact: [], until: [], from: [] },
+  },
 };
 
 describe("salePricingFromConfig", () => {

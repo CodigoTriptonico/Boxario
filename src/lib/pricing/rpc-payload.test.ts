@@ -27,6 +27,10 @@ const basePayload = (): PricingConfigPayload => ({
     fullBoxPickupFee: "$0",
     minimumDeposit: "$20",
     logisticsFeeMode: "per_trip",
+    scheduleSuggestions: {
+      delivery: { exact: [], until: [], from: [] },
+      pickup: { exact: [], until: [], from: [] },
+    },
   },
   catalogProducts: [],
 });

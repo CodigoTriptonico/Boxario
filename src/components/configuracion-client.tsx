@@ -71,6 +71,7 @@ import {
 import type { PricingConfigPayload } from "@/lib/pricing/types";
 import type { ComboBuilderProduct } from "@/components/config/combo-builder";
 import { CountryCatalogAddPanel } from "@/components/config/country-catalog-add-panel";
+import { ScheduleSuggestionsEditor } from "@/components/config/schedule-suggestions-editor";
 import { PromotionSortableList } from "@/components/config/promotion-sortable-list";
 import {
   createBlankPromotion,
@@ -122,12 +123,6 @@ const sections = [
     title: CONFIG_SECTION_LABELS.distributors.title,
     text: CONFIG_SECTION_LABELS.distributors.text,
     icon: Truck,
-  },
-  {
-    id: "deliveries" as Section,
-    title: CONFIG_SECTION_LABELS.deliveries.title,
-    text: CONFIG_SECTION_LABELS.deliveries.text,
-    icon: Route,
   },
   {
     id: "appearance" as Section,
@@ -221,7 +216,6 @@ const configSections: Section[] = [
   "organization",
   "prices",
   "distributors",
-  "deliveries",
   "appearance",
   "timeclock",
 ];
@@ -579,6 +573,7 @@ type PromotionEditorState = {
 };
 
 type CountryPriceTab = "items" | "promotions" | "delivery";
+type DeliverySettingsTab = "routes" | "suggestions" | "rules";
 
 export function ConfiguracionClient({
   initialPricing,
@@ -658,6 +653,9 @@ export function ConfiguracionClient({
   const [newDistributor, setNewDistributor] = useState(emptyDistributor);
   const [promotionEditor, setPromotionEditor] = useState<PromotionEditorState | null>(null);
   const [countryPriceTab, setCountryPriceTab] = useState<CountryPriceTab>("items");
+  const [deliverySettingsTab, setDeliverySettingsTab] =
+    useState<DeliverySettingsTab>("routes");
+  const [deliveryService, setDeliveryService] = useState<"delivery" | "pickup">("delivery");
   const [newDeliveryRange, setNewDeliveryRange] = useState({ start: "", end: "" });
   const [newPickupRange, setNewPickupRange] = useState({ start: "", end: "" });
   const countryOptions = COUNTRY_OPTIONS;
@@ -1528,7 +1526,31 @@ export function ConfiguracionClient({
       ...config,
       pickupDays: [...config.deliveryDays],
       pickupRanges: [...config.deliveryRanges],
+      scheduleSuggestions: {
+        ...config.scheduleSuggestions,
+        pickup: {
+          ...config.scheduleSuggestions.delivery,
+          exact: [...config.scheduleSuggestions.delivery.exact],
+          until: [...config.scheduleSuggestions.delivery.until],
+          from: [...config.scheduleSuggestions.delivery.from],
+        },
+      },
     };
+  }
+
+  function updateScheduleSuggestions(
+    service: "delivery" | "pickup",
+    suggestions: typeof routeConfig.scheduleSuggestions.delivery,
+  ) {
+    setRouteConfig((current) =>
+      syncLinkedRouteSchedules({
+        ...current,
+        scheduleSuggestions: {
+          ...current.scheduleSuggestions,
+          [service]: suggestions,
+        },
+      }),
+    );
   }
 
   function updateMinimumDeposit(rawPrice: string) {
@@ -2480,8 +2502,39 @@ export function ConfiguracionClient({
 
       {section === "deliveries" ? (
         <Panel title={CONFIG_SECTION_LABELS.deliveries.title} hideHeader={showSidebarNav} {...nestedPanelShell}>
-          <div className="grid gap-4 xl:grid-cols-[1fr_1fr]">
-            <div className="rounded-xl border border-black bg-surface-card p-4 xl:col-span-2">
+          <div className="grid gap-4">
+            <div className="grid grid-cols-3 gap-1 rounded-xl border border-black bg-surface-panel p-1">
+              {([
+                ["routes", "Rutas"],
+                ["suggestions", "Sugerencias"],
+                ["rules", "Reglas"],
+              ] as const).map(([tab, label]) => (
+                <button
+                  key={tab}
+                  type="button"
+                  onClick={() => setDeliverySettingsTab(tab)}
+                  className={`min-h-11 rounded-lg px-2 text-xs font-black sm:text-sm ${
+                    deliverySettingsTab === tab
+                      ? "bg-emerald-400 text-slate-950"
+                      : "text-slate-400 hover:bg-surface-card hover:text-[#f8fafc]"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <p className="px-1 text-sm font-bold text-slate-400">
+              {deliverySettingsTab === "routes"
+                ? "Define los días y rangos que estarán disponibles."
+                : deliverySettingsTab === "suggestions"
+                  ? "Administra los atajos que verá el vendedor al elegir una hora."
+                  : "Configura el cobro inicial y las reglas generales."
+              }
+            </p>
+
+            {deliverySettingsTab === "rules" ? (
+            <div className="rounded-xl border border-black bg-surface-card p-4">
               <div className="mb-3 flex items-start gap-3">
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-surface-panel text-slate-400">
                   <DollarSign className="h-5 w-5" />
@@ -2518,8 +2571,11 @@ export function ConfiguracionClient({
                 </label>
               </div>
             </div>
+            ) : null}
 
-            <div className="rounded-lg border border-black bg-surface-card p-3 xl:col-span-2">
+            {deliverySettingsTab === "routes" ? (
+            <>
+            <div className="rounded-lg border border-black bg-surface-card p-3">
               <button
                 type="button"
                 onClick={toggleLinkedRouteSchedules}
@@ -2674,8 +2730,53 @@ export function ConfiguracionClient({
                 </div>
               </div>
             ))}
+            </>
+            ) : null}
 
-            <div className="rounded-lg border border-black bg-surface-card p-4 shadow-[0_14px_34px_rgba(0,0,0,0.34)] xl:col-span-2">
+            {deliverySettingsTab === "suggestions" ? (
+              <>
+                {!routeConfig.linkedRouteSchedules ? (
+                  <div className="flex gap-2 rounded-xl border border-black bg-surface-card p-1">
+                    {([
+                      ["delivery", "Dejar"],
+                      ["pickup", "Recoger"],
+                    ] as const).map(([service, label]) => (
+                      <button
+                        key={service}
+                        type="button"
+                        onClick={() => setDeliveryService(service)}
+                        className={`min-h-11 flex-1 rounded-lg px-3 text-sm font-black ${
+                          deliveryService === service
+                            ? "bg-emerald-400 text-slate-950"
+                            : "text-slate-400 hover:bg-surface-panel hover:text-[#f8fafc]"
+                        }`}
+                      >
+                        {label}
+                      </button>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-emerald-600 bg-emerald-400 px-4 py-3 text-sm font-black text-slate-950">
+                    Entrega y recolección comparten estos atajos.
+                  </div>
+                )}
+                <ScheduleSuggestionsEditor
+                  service={routeConfig.linkedRouteSchedules ? "delivery" : deliveryService}
+                  value={routeConfig.scheduleSuggestions[
+                    routeConfig.linkedRouteSchedules ? "delivery" : deliveryService
+                  ]}
+                  onChange={(suggestions) =>
+                    updateScheduleSuggestions(
+                      routeConfig.linkedRouteSchedules ? "delivery" : deliveryService,
+                      suggestions,
+                    )
+                  }
+                />
+              </>
+            ) : null}
+
+            {deliverySettingsTab === "rules" ? (
+            <div className="rounded-lg border border-black bg-surface-card p-4 shadow-[0_14px_34px_rgba(0,0,0,0.34)]">
               <div className="mb-4 flex items-start gap-3">
                 <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-surface-panel text-slate-400">
                   <Clock className="h-6 w-6" />
@@ -2740,6 +2841,7 @@ export function ConfiguracionClient({
                 </button>
               </div>
             </div>
+            ) : null}
           </div>
         </Panel>
       ) : null}

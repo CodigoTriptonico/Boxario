@@ -9,6 +9,11 @@ const dialogSource = readFileSync(
   join(root, "src/components/sale/sale-invoice-confirm-dialog.tsx"),
   "utf8",
 );
+const shipmentsSource = readFileSync(join(root, "src/app/actions/shipments.ts"), "utf8");
+const quickCheckoutSource = readFileSync(
+  join(root, "src/components/sale/sale-quick-checkout-modal.tsx"),
+  "utf8",
+);
 
 describe("invoice creation feedback eval", () => {
   it("makes a failed create attempt observable to a counter operator", () => {
@@ -20,5 +25,13 @@ describe("invoice creation feedback eval", () => {
     assert.match(ventaSource, /setStockMessage\(shipmentResult\.error\)/);
     assert.match(dialogSource, /errorMessage\?: string/);
     assert.match(dialogSource, /errorMessage \? \(/);
+  });
+
+  it("creates the sale and warns when stock cannot be reserved", () => {
+    assert.match(shipmentsSource, /mode: "skip"/);
+    assert.match(shipmentsSource, /stockWarning/);
+    assert.match(ventaSource, /shipmentResult\.data\.stockWarning/);
+    assert.match(ventaSource, /Advertencia de inventario/);
+    assert.match(quickCheckoutSource, /border-amber-700/);
   });
 });

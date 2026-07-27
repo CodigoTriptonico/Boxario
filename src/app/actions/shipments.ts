@@ -18,6 +18,7 @@ import {
   depositStatusForPayment,
   invoicePaymentKindForCurrentDeposit,
   readBillingFromPlan,
+  type LogisticsAdditionalCharge,
 } from "@/lib/invoice-billing";
 import { formatMoneyValue } from "@/lib/logistics-fees";
 import { promotionFromDbRow } from "@/lib/combo-rules";
@@ -228,6 +229,10 @@ export type ShipmentRow = {
   publicTrackingExpiresAt?: string;
 };
 
+export type CreateShipmentResult = ShipmentRow & {
+  stockWarning?: string;
+};
+
 export type RouteMemberRow = {
   id: string;
   label: string;
@@ -419,6 +424,7 @@ async function authoritativeSaleQuote(
   organizationId: string,
   countryInput: string,
   planInput: Record<string, unknown>,
+  actor?: Pick<AppSession, "userId" | "fullName" | "email">,
 ) {
   const { data: countries, error: countryError } = await supabase
     .from("pricing_countries")
@@ -434,6 +440,77 @@ async function authoritativeSaleQuote(
   if (!country) throw new Error("Pais sin tarifa vigente");
 
   const plan = asRecord(planInput);
+  const emptyBoxPlan = asRecord(plan.emptyBox);
+  const fullBoxPlan = asRecord(plan.fullBox);
+  const emptyBoxDriver = Boolean(emptyBoxPlan.driverTaskNeeded);
+  const fullBoxDriver = Boolean(fullBoxPlan.driverTaskNeeded);
+  const { data: routeSettings, error: routeSettingsError } = await supabase
+    .from("organization_route_settings")
+    .select("empty_box_delivery_fee, full_box_pickup_fee, minimum_deposit")
+    .eq("organization_id", organizationId)
+    .maybeSingle();
+  if (routeSettingsError) throw new Error(routeSettingsError.message);
+  const feeSuggestions = {
+    emptyBoxDeliveryFee:
+      String(routeSettings?.empty_box_delivery_fee || defaultInvoiceBillingConfig.emptyBoxDeliveryFee),
+    fullBoxPickupFee:
+      String(routeSettings?.full_box_pickup_fee || defaultInvoiceBillingConfig.fullBoxPickupFee),
+    minimumDeposit:
+      String(routeSettings?.minimum_deposit || defaultInvoiceBillingConfig.minimumDeposit),
+    logisticsFeeMode: "per_trip" as const,
+  };
+  const requestedAdjustments = asRecord(plan.feeAdjustments);
+
+  function readAdditionalCharge(
+    key: "emptyBoxDelivery" | "fullBoxPickup",
+    suggestion: string,
+    driverParticipates: boolean,
+  ): LogisticsAdditionalCharge & {
+    suggestion: string;
+    appliedBy: string | null;
+    appliedByName: string;
+    appliedAt: string | null;
+  } {
+    const requested = asRecord(requestedAdjustments[key]);
+    const enabled = requested.enabled === true;
+    if (enabled && !driverParticipates) {
+      throw new Error("El cargo adicional solo aplica cuando participa un conductor");
+    }
+    const rawAmount = String(requested.amount || suggestion).trim();
+    if (!/^\$?\d+(?:\.\d{1,2})?$/.test(rawAmount)) {
+      throw new Error("Importe de cargo logístico inválido");
+    }
+    const amount = parseMoney(rawAmount);
+    if (!Number.isFinite(amount) || amount < 0 || amount > 100000) {
+      throw new Error("Importe de cargo logístico inválido");
+    }
+    const reason = String(requested.reason || "").trim().slice(0, 500);
+    if (enabled && amount !== parseMoney(suggestion) && !reason) {
+      throw new Error("Explica por qué modificaste la tarifa sugerida");
+    }
+    return {
+      enabled,
+      amount: formatMoneyValue(enabled ? amount : 0),
+      reason: enabled ? reason : "",
+      suggestion,
+      appliedBy: enabled ? actor?.userId || null : null,
+      appliedByName: enabled ? actor?.fullName || actor?.email || "" : "",
+      appliedAt: enabled ? new Date().toISOString() : null,
+    };
+  }
+
+  const feeAdjustments = {
+    emptyBoxDelivery: readAdditionalCharge(
+      "emptyBoxDelivery",
+      feeSuggestions.emptyBoxDeliveryFee,
+      emptyBoxDriver,
+    ),
+    fullBoxPickup: readAdditionalCharge(
+      "fullBoxPickup",
+      feeSuggestions.fullBoxPickupFee,
+      fullBoxDriver,
+    ),
+  };
   const rawLines = Array.isArray(plan.boxLines) && plan.boxLines.length
     ? plan.boxLines
     : [asRecord(plan.box)];
@@ -487,9 +564,10 @@ async function authoritativeSaleQuote(
     boxUnitPrice: lines[0]?.unitPrice || "$0",
     boxCount: lines.reduce((sum, line) => sum + line.quantity, 0),
     catalogKey: lines[0]?.catalogKey,
-    emptyBoxDriver: false,
-    fullBoxDriver: false,
-    fees: defaultInvoiceBillingConfig,
+    emptyBoxDriver,
+    fullBoxDriver,
+    fees: feeSuggestions,
+    additionalCharges: feeAdjustments,
     promotions,
     selectedPromotionId: requestedBilling?.promotion?.promotionId,
   });
@@ -512,6 +590,12 @@ async function authoritativeSaleQuote(
       boxLines: securedLines,
       boxCount: securedLines.reduce((sum, line) => sum + line.quantity, 0),
       box: securedLines[0] || null,
+      feeAdjustments,
+      fees: {
+        emptyBoxDelivery: billing.emptyBoxDelivery,
+        fullBoxPickup: billing.fullBoxPickup,
+        total: billing.logisticsSubtotal,
+      },
       billing,
     },
   };
@@ -1362,20 +1446,29 @@ async function atomicSaleInventoryCommand(
     throw new Error(error.message);
   }
 
-  return {
-    mode: deduct ? "deduct" : "reserve",
-    lines: matchEmptyBoxQuoteLinesToStock(quoteLines, stockRows || []).map((line) => ({
-      warehouseId,
-      itemId: line.itemId,
-      itemName: line.itemName,
-      qty: line.quantity,
-    })),
-  };
+  try {
+    return {
+      mode: deduct ? "deduct" : "reserve",
+      lines: matchEmptyBoxQuoteLinesToStock(quoteLines, stockRows || []).map((line) => ({
+        warehouseId,
+        itemId: line.itemId,
+        itemName: line.itemName,
+        qty: line.quantity,
+      })),
+    };
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : "No hay stock suficiente";
+    return {
+      mode: "skip" as const,
+      lines: [],
+      warning: `Advertencia: ${reason}. La venta se creo, pero queda pendiente de inventario.`,
+    };
+  }
 }
 
 export async function createShipmentAction(
   input: CreateShipmentInput,
-): Promise<ActionResult<ShipmentRow>> {
+): Promise<ActionResult<CreateShipmentResult>> {
   try {
     const session = await requireAppSession();
     if (!sessionHasPermission(session, "sales.manage")) {
@@ -1403,6 +1496,7 @@ export async function createShipmentAction(
       session.organizationId,
       country,
       input.logisticsPlan || {},
+      session,
     );
     const paid = parseMoney(input.paid);
     if (paid < 0 || paid > quote.total) {
@@ -1416,6 +1510,7 @@ export async function createShipmentAction(
     const invoiceStatus: InvoiceStatus =
       quote.total > 0 && paid >= quote.total ? "paid" : "open";
     const deliveryNotes = input.deliveryNotes || "";
+    const inventory = await atomicSaleInventoryCommand(session, quote.plan, tasks);
     const initialStatus = resolveInitialShipmentStatus({
       saleKind,
       logisticsPlan: quote.plan,
@@ -1436,11 +1531,10 @@ export async function createShipmentAction(
         createdAt: new Date().toISOString(),
       })),
       deliveryNotes,
-      emptyBoxDeliveredAt: shouldDeductCounterHandingStock(quote.plan)
+      emptyBoxDeliveredAt: inventory?.mode === "deduct"
         ? new Date().toISOString()
         : null,
     });
-    const inventory = await atomicSaleInventoryCommand(session, quote.plan, tasks);
     const trackingToken = randomBytes(32).toString("base64url");
     const trackingExpiresAt = new Date(Date.now() + 365 * 24 * 60 * 60 * 1000).toISOString();
     const packages = physicalPackageCodesForShipment(input.invoiceNumber, quote.plan).map(
@@ -1508,6 +1602,7 @@ export async function createShipmentAction(
       shipmentId?: string;
       trackingToken?: string;
       trackingExpiresAt?: string;
+      replayed?: boolean;
     };
     if (!result.shipmentId) {
       return fail("No se pudo confirmar el envio");
@@ -1518,7 +1613,50 @@ export async function createShipmentAction(
     }
     shipment.publicTrackingToken = result.trackingToken;
     shipment.publicTrackingExpiresAt = result.trackingExpiresAt;
-    return ok(shipment);
+    const securedBilling = readBillingFromPlan(quote.plan);
+    if (
+      !result.replayed &&
+      securedBilling &&
+      parseMoney(securedBilling.logisticsSubtotal) > 0
+    ) {
+      const body = `Cargo logístico adicional: ${securedBilling.logisticsSubtotal}`;
+      const details = {
+        feeAdjustments: asRecord(quote.plan).feeAdjustments || {},
+        emptyBoxDelivery: securedBilling.emptyBoxDelivery,
+        fullBoxPickup: securedBilling.fullBoxPickup,
+        logisticsSubtotal: securedBilling.logisticsSubtotal,
+        quotedTotal: securedBilling.quotedTotal,
+      };
+      try {
+        await admin.from("shipment_journal_entries").insert({
+          organization_id: session.organizationId,
+          shipment_id: shipment.id,
+          category: "billing",
+          body,
+          details,
+          reminder_status: "completed",
+          source: "logistics_charge",
+          source_id: shipment.id,
+          created_by: session.userId,
+          updated_by: session.userId,
+        });
+        await recordActivityHistory(admin, session, {
+          action: "shipment.logistics_surcharge_applied",
+          entityType: "shipment",
+          entityId: shipment.id,
+          title: `Cargo logístico adicional · ${shipment.code}`,
+          description: body,
+          metadata: details,
+        });
+      } catch {
+        // The sale is already committed. Journal/audit recovery can be retried
+        // independently and must never make the seller submit it twice.
+      }
+    }
+    return ok({
+      ...shipment,
+      stockWarning: result.replayed ? undefined : inventory?.warning,
+    });
   } catch (error) {
     return fail(actionErrorMessage(error));
   }
@@ -1556,6 +1694,7 @@ async function createShipmentActionLegacy(input: CreateShipmentInput): Promise<A
       session.organizationId,
       country,
       input.logisticsPlan || {},
+      session,
     );
     const requestedPaid = parseMoney(input.paid);
     if (requestedPaid < 0 || requestedPaid > authoritativeQuote.total) {
@@ -1872,16 +2011,23 @@ export async function createShipmentContactLogAction(
       throw new Error("FORBIDDEN");
     }
 
-    const { error } = await supabase.from("shipment_contact_logs").insert({
+    const { error } = await supabase.from("shipment_journal_entries").insert({
       organization_id: session.organizationId,
       shipment_id: shipment.id,
-      channel: validated.data.channel,
-      channel_other: validated.data.channelOther,
-      outcome: validated.data.outcome,
-      note: validated.data.note,
-      next_step: validated.data.nextStep,
+      category: "customer",
+      body: validated.data.note,
+      details: {
+        channel: validated.data.channel,
+        channelOther: validated.data.channelOther,
+        outcome: validated.data.outcome,
+        nextStep: validated.data.nextStep,
+      },
       follow_up_at: validated.data.followUpAt,
+      assigned_to: validated.data.followUpAt ? session.userId : null,
+      reminder_status: "pending",
+      source: "manual",
       created_by: session.userId,
+      updated_by: session.userId,
     });
 
     if (error) {
@@ -1889,7 +2035,7 @@ export async function createShipmentContactLogAction(
     }
 
     await recordActivityHistory(supabase, session, {
-      action: "shipment.contact_log_created",
+      action: "shipment.journal_entry_created",
       entityType: "shipment",
       entityId: shipment.id,
       title: `Seguimiento · ${shipment.code}`,
@@ -1902,7 +2048,7 @@ export async function createShipmentContactLogAction(
         outcome: validated.data.outcome,
         nextStep: validated.data.nextStep,
         followUpAt: validated.data.followUpAt,
-        source: "envios.contact_log",
+        source: "envios.journal",
       },
     });
 
@@ -1913,6 +2059,127 @@ export async function createShipmentContactLogAction(
   }
 }
 
+function partyCorrectionChangedKeys(
+  before: Record<string, unknown>,
+  after: Record<string, unknown>,
+) {
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  return [...keys].filter((key) => JSON.stringify(before[key]) !== JSON.stringify(after[key]));
+}
+
+export async function syncShipmentPartyAction(input: {
+  shipmentId: string;
+  customerName?: string;
+  recipientSnapshot?: Record<string, unknown>;
+}): Promise<ActionResult<ShipmentRow>> {
+  try {
+    const session = await requireAppSession();
+    if (!sessionHasPermission(session, "sales.manage")) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const shipmentId = input.shipmentId.trim();
+    if (!shipmentId) {
+      return fail("Invoice no encontrado");
+    }
+
+    const hasCustomerName = typeof input.customerName === "string";
+    const hasRecipientSnapshot = Boolean(input.recipientSnapshot);
+    if (!hasCustomerName && !hasRecipientSnapshot) {
+      return fail("No hay datos para corregir");
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return fail("Supabase no configurado");
+    }
+
+    const shipment = await listShipmentById(supabase, session, shipmentId);
+    if (!shipment) {
+      return fail("Invoice no encontrado");
+    }
+
+    const beforeCustomerName = shipment.customer_name;
+    const beforeRecipientSnapshot =
+      (shipment.recipientSnapshot as Record<string, unknown> | null) || {};
+    const nextCustomerName = hasCustomerName
+      ? normalizePersonName(input.customerName || "")
+      : beforeCustomerName;
+    const nextRecipientSnapshot = hasRecipientSnapshot
+      ? normalizePersonNameSnapshot(input.recipientSnapshot) || {}
+      : beforeRecipientSnapshot;
+    const nextCountry =
+      typeof nextRecipientSnapshot.country === "string" && nextRecipientSnapshot.country.trim()
+        ? nextRecipientSnapshot.country.trim()
+        : shipment.country;
+
+    const patch: Record<string, unknown> = {
+      updated_at: new Date().toISOString(),
+    };
+    if (hasCustomerName) {
+      patch.customer_name = nextCustomerName;
+    }
+    if (hasRecipientSnapshot) {
+      patch.recipient_snapshot = nextRecipientSnapshot;
+      patch.country = nextCountry;
+    }
+
+    const { error } = await supabase
+      .from("shipments")
+      .update(patch)
+      .eq("id", shipment.id)
+      .eq("organization_id", session.organizationId);
+
+    if (error) {
+      return fail(error.message);
+    }
+
+    const afterCustomerName = hasCustomerName ? nextCustomerName : beforeCustomerName;
+    const afterRecipientSnapshot = hasRecipientSnapshot
+      ? nextRecipientSnapshot
+      : beforeRecipientSnapshot;
+    const changedFields = [
+      ...(hasCustomerName && beforeCustomerName !== afterCustomerName ? ["customerName"] : []),
+      ...(hasRecipientSnapshot
+        ? partyCorrectionChangedKeys(beforeRecipientSnapshot, afterRecipientSnapshot).map(
+            (key) => `recipient.${key}`,
+          )
+        : []),
+      ...(hasRecipientSnapshot && shipment.country !== nextCountry ? ["country"] : []),
+    ];
+
+    await recordActivityHistory(supabase, session, {
+      action: "shipment.party_corrected",
+      entityType: "shipment",
+      entityId: shipment.id,
+      title: `Datos corregidos · ${shipment.code}`,
+      description:
+        changedFields.length > 0
+          ? `Campos: ${changedFields.join(", ")}`
+          : "Sin cambios detectados",
+      metadata: {
+        shipmentCode: shipment.code,
+        changedFields,
+        before: {
+          customerName: beforeCustomerName,
+          recipientSnapshot: beforeRecipientSnapshot,
+          country: shipment.country,
+        },
+        after: {
+          customerName: afterCustomerName,
+          recipientSnapshot: afterRecipientSnapshot,
+          country: nextCountry,
+        },
+        source: "venta.document_edit",
+      },
+    });
+
+    const updated = await listShipmentById(supabase, session, shipment.id);
+    return updated ? ok(updated) : ok(shipment);
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
 
 export async function finalizeShipmentInvoiceAction(input: {
   shipmentId: string;

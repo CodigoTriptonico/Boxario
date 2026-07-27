@@ -5,6 +5,7 @@ import { ArrowLeft, Bell, CheckCircle2, ChevronsDownUp, PanelLeftClose, PanelLef
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import type { OnboardingProgress } from "@/app/actions/onboarding";
+import { listMyShipmentJournalRemindersAction } from "@/app/actions/shipment-journal";
 import { OnboardingPanel } from "@/components/onboarding/onboarding-panel";
 import { OnboardingStartPanel } from "@/components/onboarding/onboarding-start-panel";
 import { iconWellEmerald, labelMutedClass, textTruncateSafeClass } from "@/components/ui-blocks";
@@ -16,6 +17,7 @@ import {
   resolveOrganizationBrandingFromSession,
 } from "@/lib/organizations/branding";
 import type { AppSession } from "@/lib/auth/types";
+import type { ShipmentJournalEntry } from "@/lib/shipment-journal";
 
 const PANEL_MIN_WIDTH = 320;
 const PANEL_MAX_WIDTH = 416;
@@ -42,6 +44,7 @@ type NotificationsCenterProps = {
 
 type BoxarioBrandHeaderProps = {
   session: AppSession | null;
+  headerAction?: React.ReactNode;
   compact?: boolean;
   className?: string;
   onBack?: () => void;
@@ -88,6 +91,7 @@ export function SidebarCollapseButton({
 
 export function BoxarioBrandHeader({
   session,
+  headerAction,
   compact = false,
   className = "",
   onBack,
@@ -183,6 +187,7 @@ export function BoxarioBrandHeader({
             />
           </button>
         ) : null}
+        {headerAction}
         {showNotifications ? <NotificationsCenter session={session} variant="brand" /> : null}
       </div>
     </div>
@@ -211,6 +216,7 @@ export function NotificationsCenter({
   const [mounted, setMounted] = useState(false);
   const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
   const [completionNotice, setCompletionNotice] = useState<OnboardingCompletionNotice | null>(null);
+  const [journalReminders, setJournalReminders] = useState<ShipmentJournalEntry[]>([]);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   const previousProgressRef = useRef<OnboardingProgress | null>(null);
@@ -228,7 +234,19 @@ export function NotificationsCenter({
 
   const isSidebar = variant === "sidebar";
   const isBrand = variant === "brand";
-  const hasPending = pendingCount > 0;
+  const totalPendingCount = pendingCount + journalReminders.length;
+  const hasPending = totalPendingCount > 0;
+
+  useEffect(() => {
+    if (!session?.organizationId) {
+      return;
+    }
+    void listMyShipmentJournalRemindersAction().then((result) => {
+      if (result.ok) {
+        setJournalReminders(result.data);
+      }
+    });
+  }, [session?.organizationId, open]);
 
   const updatePanelPosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -449,7 +467,31 @@ export function NotificationsCenter({
             />
           ) : null}
 
-          {ready && !hasOnboarding ? <NotificationsEmptyState /> : null}
+          {journalReminders.length ? (
+            <section className="mb-3 grid gap-2">
+              <p className={labelMutedClass}>Recordatorios de envíos</p>
+              {journalReminders.map((reminder) => (
+                <Link
+                  key={reminder.id}
+                  href={`/seguimiento?q=${encodeURIComponent(String(reminder.details.shipmentCode || reminder.shipmentId))}`}
+                  onClick={close}
+                  className="rounded-lg border border-black bg-surface-card p-3 transition hover:bg-surface-card-hover"
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs font-black text-emerald-200">{reminder.title}</span>
+                    <span className={`text-[10px] font-black uppercase ${reminder.dueState === "overdue" ? "text-rose-300" : reminder.dueState === "today" ? "text-amber-300" : "text-slate-400"}`}>
+                      {reminder.dueState === "overdue" ? "Vencido" : reminder.dueState === "today" ? "Hoy" : "Pendiente"}
+                    </span>
+                  </div>
+                  <p className="mt-1 line-clamp-2 text-xs font-semibold text-slate-300">
+                    {reminder.body || "Recordatorio sin nota"}
+                  </p>
+                </Link>
+              ))}
+            </section>
+          ) : null}
+
+          {ready && !hasOnboarding && journalReminders.length === 0 ? <NotificationsEmptyState /> : null}
         </div>
       </div>
     ) : null;
@@ -463,8 +505,8 @@ export function NotificationsCenter({
         className={triggerClass}
         aria-haspopup="dialog"
         aria-expanded={open}
-        aria-label={hasPending ? `Notificaciones, ${pendingCount} pendientes` : "Notificaciones"}
-        title={hasPending ? `${pendingCount} notificación${pendingCount === 1 ? "" : "es"} pendiente${pendingCount === 1 ? "" : "s"}` : "Notificaciones"}
+        aria-label={hasPending ? `Notificaciones, ${totalPendingCount} pendientes` : "Notificaciones"}
+        title={hasPending ? `${totalPendingCount} notificación${totalPendingCount === 1 ? "" : "es"} pendiente${totalPendingCount === 1 ? "" : "s"}` : "Notificaciones"}
       >
         <Bell
           className={`h-4 w-4 shrink-0 transition ${
@@ -481,9 +523,9 @@ export function NotificationsCenter({
             <span className="min-w-0 flex-1 truncate text-sm font-black text-slate-200">
               Notificaciones
             </span>
-            {pendingCount > 0 ? (
+            {totalPendingCount > 0 ? (
               <span className="rounded-md border border-emerald-700/35 bg-emerald-400/10 px-2 py-0.5 text-[10px] font-black tabular-nums text-emerald-200">
-                {pendingCount}
+                {totalPendingCount}
               </span>
             ) : null}
           </>
@@ -496,7 +538,7 @@ export function NotificationsCenter({
                 : "-right-1 -top-1 h-4 min-w-4 px-1 text-[9px] shadow-[0_2px_8px_rgba(52,211,153,0.45)]"
             }`}
           >
-            {pendingCount > 9 ? "9+" : pendingCount}
+            {totalPendingCount > 9 ? "9+" : totalPendingCount}
           </span>
         ) : null}
       </button>

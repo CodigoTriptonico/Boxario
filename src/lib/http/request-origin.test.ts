@@ -35,6 +35,26 @@ describe("resolveRequestOrigin", () => {
 });
 
 describe("resolveRequestUrl", () => {
+  it("keeps the direct IP origin for a native mobile form redirect", () => {
+    const url = resolveRequestUrl(
+      makeRequest("http://172.91.235.107:3000/api/auth/sign-in"),
+      "/platform",
+      { preferRequestOrigin: true, readTunnelFile: false },
+    );
+    assert.equal(url.toString(), "http://172.91.235.107:3000/platform");
+  });
+
+  it("uses the direct host header when the internal request url is localhost", () => {
+    const url = resolveRequestUrl(
+      makeRequest("http://localhost:3000/api/auth/sign-in", {
+        host: "192.168.1.229:3000",
+      }),
+      "/platform",
+      { preferRequestOrigin: true, readTunnelFile: false },
+    );
+    assert.equal(url.toString(), "http://192.168.1.229:3000/platform");
+  });
+
   it("builds redirect urls on the public tunnel origin", () => {
     const url = resolveRequestUrl(
       makeRequest("http://localhost:3000/api/auth/sign-in", {

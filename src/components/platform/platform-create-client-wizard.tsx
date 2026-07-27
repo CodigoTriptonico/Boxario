@@ -347,7 +347,7 @@ export function PlatformCreateClientWizard({
     }
 
     return [
-      `Paquetería: ${createdCredentials.orgName}`,
+      `Empresa: ${createdCredentials.orgName}`,
       `Correo: ${createdCredentials.email}`,
       `Celular${createdCredentials.phones.length > 1 ? "es" : ""}: ${formatContactList(createdCredentials.phones)}`,
       `Contraseña: ${createdCredentials.password}`,
@@ -391,7 +391,7 @@ export function PlatformCreateClientWizard({
 
     onCreated(
       createdOrgId,
-      `Paquetería "${createdCredentials.orgName}" creada. Comparte las credenciales con el dueño.`,
+      `Empresa "${createdCredentials.orgName}" creada. Comparte las credenciales con el dueño.`,
     );
   }
 
@@ -428,7 +428,7 @@ export function PlatformCreateClientWizard({
             <FlowStepTitle
               stepNumber={1}
               done={dataCollapsed}
-              label="Datos de la paquetería"
+              label="Datos de la empresa"
             />
           }
           action={
@@ -455,12 +455,12 @@ export function PlatformCreateClientWizard({
               <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_17rem]">
               <div className={dataColumnClass}>
               <p className={`${flowIntroClass} rounded-lg border border-white/10 bg-[#26322e] px-4 py-3 text-left`}>
-                Completa los datos y pulsa Crear paquetería para darla de alta de inmediato.
+                Completa los datos y pulsa Crear empresa para darla de alta de inmediato.
               </p>
               <fieldset className="space-y-3 rounded-lg border border-white/10 bg-[#2b3833] p-4">
                 <legend className={`${flowLegendClass} rounded-md bg-[#34413b] px-2 py-1`}>
                   <Building2 className="h-4 w-4" aria-hidden />
-                  Paquetería
+                  Empresa
                 </legend>
                 <label className={`grid gap-1 ${compactFieldClass}`}>
                   <span className={flowFieldLabelClass}>Nombre comercial</span>
@@ -526,7 +526,7 @@ export function PlatformCreateClientWizard({
                         setForm((c) => ({ ...c, adminEmail }));
                         setStepHint(null);
                       }}
-                      placeholder="dueño@paqueteria.com"
+                      placeholder="dueño@empresa.com"
                       icon={<Mail className="h-4 w-4" aria-hidden />}
                     />
                   </label>
@@ -652,7 +652,7 @@ export function PlatformCreateClientWizard({
                   disabled={submitting || showPasswordConfirmationError}
                 >
                   {submitting ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                  Crear paquetería
+                  Crear empresa
                 </button>
                 <button type="button" className={secondaryButtonClass} onClick={onCancel} disabled={submitting}>
                   <X className="h-4 w-4" />
@@ -752,7 +752,7 @@ export function PlatformCreateClientWizard({
                 <p
                   className={`${flowIntroClass} rounded-lg border border-emerald-400/20 bg-emerald-950/25 px-4 py-3 text-left text-emerald-100`}
                 >
-                  Comparte estas credenciales con el dueño para que entre a operar su paquetería.
+                  Comparte estas credenciales con el dueño para que entre a operar su empresa.
                 </p>
                 <dl className={flowSummaryDlClass}>
                   <div className={`${flowSummaryItemClass} sm:col-span-2`}>

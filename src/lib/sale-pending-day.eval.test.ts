@@ -19,15 +19,22 @@ describe("sale unknown day eval", () => {
   it("models unknown day separately from a known day with unknown route", () => {
     assert.match(decisionSource, /kind: "undated";\s*routeDate: null/);
     assert.match(decisionSource, /return "Día y ruta pendientes"/);
+    assert.match(decisionSource, /kind: "route_preferred"/);
+    assert.match(decisionSource, /día pendiente/);
   });
 
   it("keeps the unknown-day choice on the day wizard step", () => {
     assert.match(saleSource, /allowPendingDay/);
     assert.match(saleSource, /pendingDayLabel="No sé el día"/);
-    assert.match(panelSource, /CalendarOff/);
     assert.match(panelSource, /showPendingDay/);
+    assert.match(panelSource, /pendingDayAction/);
+    assert.match(panelSource, /\{pendingDayAction\}/);
     assert.match(panelSource, /step === "day"/);
-    assert.match(panelSource, /No sé el día deja todo pendiente/);
+    assert.match(panelSource, /enterPendingDayRouteMode/);
+    assert.match(
+      panelSource,
+      /No sé el día te deja elegir ruta sin fecha\. No sé la ruta conserva el día elegido\./,
+    );
   });
 
   it("creates a pending task without a requested route date", () => {

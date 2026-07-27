@@ -23,6 +23,11 @@ exception
   when duplicate_object then null;
 end $$;
 
+-- sale_kind is formally introduced in 032; ensure it exists here because
+-- the backfill below depends on it and supabase start applies migrations in order.
+alter table public.shipments
+  add column if not exists sale_kind text not null default 'full';
+
 update public.shipments
 set invoice_status = 'paid',
     accounting_status = 'exportable',

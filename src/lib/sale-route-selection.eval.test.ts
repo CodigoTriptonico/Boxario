@@ -27,6 +27,7 @@ test("venta creates driver tasks and keeps a recoverable route workflow", () => 
   assert.match(saleStep, /Quedó así/);
   assert.match(scheduler, /pendingRouteDate/);
   assert.match(scheduler, /Ruta pendiente conserva el día/);
+  assert.match(scheduler, /onConfirmPreferredRoute/);
   assert.match(shipments, /requestedRouteDate/);
   assert.match(shipments, /logisticsRequestedRouteDayPatch/);
 });

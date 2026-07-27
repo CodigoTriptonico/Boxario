@@ -4,6 +4,9 @@ import {
   normalizePersonName,
   normalizePersonNameSnapshot,
   formatPersonNameInput,
+  isValidPersonName,
+  personNameValidationMessage,
+  sanitizePersonNameInput,
 } from "./person-name";
 
 describe("person name formatting", () => {
@@ -21,6 +24,20 @@ describe("person name formatting", () => {
 
   it("keeps empty values empty", () => {
     assert.equal(normalizePersonName("   "), "");
+  });
+
+  it("removes numbers and unsafe symbols while typing", () => {
+    assert.equal(sanitizePersonNameInput("Car;1p🙂"), "Carp");
+    assert.equal(sanitizePersonNameInput("maría-josé o'neill"), "María-José O'Neill");
+  });
+
+  it("validates real name separators without accepting malformed values", () => {
+    assert.equal(isValidPersonName("José O'Neill-Pérez"), true);
+    assert.equal(isValidPersonName("Carlos7"), false);
+    assert.equal(isValidPersonName("Car;P"), false);
+    assert.equal(isValidPersonName("Carlos--Pérez"), false);
+    assert.equal(personNameValidationMessage("", "nombre"), "Escribe el nombre");
+    assert.match(personNameValidationMessage("Diaz@", "apellido"), /solo puede contener/);
   });
 
   it("normalizes snapshot names without changing contact or address data", () => {

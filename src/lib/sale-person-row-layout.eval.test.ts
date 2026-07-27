@@ -16,6 +16,10 @@ const personCardSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/sale/sale-person-card.tsx"),
   "utf8",
 );
+const ventaPartsSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../components/sale/venta-parts.tsx"),
+  "utf8",
+);
 const flowStylesSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/flow-form-styles.ts"),
   "utf8",
@@ -64,6 +68,11 @@ describe("sale person row layout eval", () => {
     );
     assert.equal(personCardSource.includes("divide-y"), false);
     assert.equal(personCardSource.includes("salePersonAddressSummary"), true);
+    assert.equal(personCardSource.includes("break-words sm:truncate"), true);
+    assert.equal(personCardSource.includes("whitespace-nowrap text-[11px]"), true);
+    assert.equal(ventaPartsSource.includes("grid-cols-5 items-start"), true);
+    assert.equal(ventaPartsSource.includes("max-sm:hidden"), true);
+    assert.equal(ventaPartsSource.includes("hidden lg:mt-[2.125rem] lg:flex"), true);
     assert.match(
       personCardSource,
       /inline-flex h-9 items-center[\s\S]*?sm:h-10[\s\S]*?>\s*<Package[\s\S]*?>\s*<span>Rápido<\/span>/,
@@ -78,13 +87,12 @@ describe("sale person row layout eval", () => {
     assert.equal(ventaClientSource.includes("usePageViewLayout(saleListPaletteContext)"), true);
   });
 
-  it("shows person list total in toolbar without pagination", () => {
-    assert.equal(flowStylesSource.includes("flowPersonToolbarCountClass"), true);
-    assert.equal(senderListSource.includes("countLabel={countLabel}"), true);
+  it("keeps person toolbars focused on actions and search without counters", () => {
+    assert.equal(senderListSource.includes("countLabel={countLabel}"), false);
     assert.equal(recipientListSource.includes("SalePersonListFooter"), false);
-    assert.equal(senderListSource.includes("formatSalePersonListCount"), true);
-    assert.equal(ventaClientSource.includes("formatSalePersonListCount"), true);
-    assert.equal(ventaClientSource.includes("recipientCountLabel"), true);
+    assert.equal(senderListSource.includes("formatSalePersonListCount"), false);
+    assert.equal(ventaClientSource.includes("formatSalePersonListCount"), false);
+    assert.equal(ventaClientSource.includes("recipientCountLabel"), false);
     assert.equal(senderListSource.includes("onPageChange"), false);
     assert.equal(recipientListSource.includes("onPageChange"), false);
     assert.equal(ventaClientSource.includes("senderPage"), false);

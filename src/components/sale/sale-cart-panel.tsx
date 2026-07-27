@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronDown, ShoppingCart, Trash2 } from "lucide-react";
+import { ShoppingCart, Trash2, X } from "lucide-react";
 import { PromotionSelector } from "@/components/sale/promotion-selector";
 import { inputClass, primaryButtonClass } from "@/components/ui-blocks";
 import type { InvoiceBillingSnapshot } from "@/lib/invoice-billing";
@@ -260,78 +260,124 @@ export function SaleCartPanel({
   );
 }
 
-type SaleStepCartTriggerProps = {
+type SaleHeaderCartTriggerProps = {
   itemCount: number;
   total: string | null;
   open: boolean;
   onClick: () => void;
 };
 
-export function SaleStepCartTrigger({
+export function SaleHeaderCartTrigger({
   itemCount,
   total,
   open,
   onClick,
-}: SaleStepCartTriggerProps) {
+}: SaleHeaderCartTriggerProps) {
+  const label = itemCount
+    ? `Carrito, ${itemCount} producto${itemCount === 1 ? "" : "s"}${total ? `, ${total}` : ""}`
+    : "Abrir carrito";
+
   return (
     <button
       type="button"
       onClick={onClick}
+      data-sale-header-cart=""
+      aria-haspopup="dialog"
       aria-expanded={open}
-      aria-label={
-        itemCount
-          ? `Carrito, ${itemCount} producto${itemCount === 1 ? "" : "s"}${total ? `, ${total}` : ""}`
-          : "Abrir carrito"
-      }
-      className={`group grid w-full grid-cols-[2rem_minmax(0,1fr)] items-center gap-2 rounded-md border px-2 py-1.5 text-left transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 sm:flex sm:gap-2.5 sm:px-2.5 sm:py-2 ${
+      aria-label={label}
+      title={label}
+      className={`group relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
         open
-          ? "border-emerald-500/70 bg-emerald-400/15 shadow-[inset_0_1px_0_rgba(52,211,153,0.12)]"
+          ? "border-emerald-500/70 bg-emerald-400 text-slate-950"
           : itemCount
-            ? "border-emerald-800/55 bg-[#152019] hover:border-emerald-700/60 hover:bg-[#1a2820]"
-            : "border-black/70 bg-black/20 hover:border-black hover:bg-black/30"
+            ? "border-emerald-800/60 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20"
+            : "border-black bg-surface-inset text-slate-400 hover:bg-surface-card hover:text-slate-200"
       }`}
     >
-      <span
-        className={`relative flex h-8 w-8 shrink-0 items-center justify-center rounded-md border transition sm:h-9 sm:w-9 ${
-          open
-            ? "border-emerald-600 bg-emerald-400 text-slate-950"
-            : itemCount
-              ? "border-emerald-800/60 bg-emerald-400/15 text-emerald-300"
-              : "border-black/80 bg-surface-card/80 text-slate-400 group-hover:text-slate-200"
-        }`}
-      >
-        <ShoppingCart className="h-4 w-4" aria-hidden />
-        {itemCount > 0 ? (
-          <span className="absolute -right-1 -top-1 flex h-4 min-w-4 items-center justify-center rounded-full border border-black bg-emerald-400 px-0.5 text-[9px] font-black text-slate-950">
-            {itemCount}
-          </span>
-        ) : null}
-      </span>
-      <span className="min-w-0 sm:flex-1">
-        <span className="block truncate whitespace-nowrap text-[9px] font-black uppercase leading-none tracking-normal text-slate-500 sm:text-[10px] sm:tracking-wide">
-          Carrito
-        </span>
-        <span
-          className={`hidden truncate text-[10px] font-black sm:block sm:text-[11px] ${
-            itemCount ? "text-emerald-100" : "text-slate-400"
-          }`}
-        >
-          {itemCount
-            ? `${itemCount} producto${itemCount === 1 ? "" : "s"}`
-            : "Ver carrito"}
-        </span>
-      </span>
-      {total && itemCount ? (
-        <span className="hidden shrink-0 text-xs font-black tabular-nums text-emerald-300 sm:inline sm:text-sm">
-          {total}
+      <ShoppingCart className="h-4 w-4" aria-hidden />
+      {itemCount > 0 ? (
+        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-black bg-amber-400 px-0.5 text-[9px] font-black tabular-nums text-slate-950">
+          {itemCount}
         </span>
       ) : null}
-      <ChevronDown
-        className={`hidden h-3.5 w-3.5 shrink-0 text-slate-500 transition-transform sm:block sm:h-4 sm:w-4 ${
-          open ? "rotate-180 text-emerald-300" : ""
-        }`}
-        aria-hidden
-      />
     </button>
+  );
+}
+
+type SaleHeaderCartPanelProps = SaleCartPanelProps & {
+  onClose: () => void;
+};
+
+export function SaleHeaderCartPanel({
+  lines,
+  billing,
+  selectedPromotionId,
+  onPromotionChange,
+  onAdjustQuantity,
+  onUpdateQuantity,
+  onRemoveLine,
+  onClose,
+  emptyHint,
+}: SaleHeaderCartPanelProps) {
+  const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+
+  return (
+    <div className="fixed inset-0 z-[145]" data-sale-header-cart-panel="">
+      <button
+        type="button"
+        className="absolute inset-0 h-full w-full bg-black/45"
+        aria-label="Cerrar carrito"
+        onClick={onClose}
+      />
+      <section
+        role="dialog"
+        aria-modal="true"
+        aria-label="Carrito de la venta"
+        className="absolute right-3 top-[4.75rem] flex max-h-[calc(100dvh-5.5rem)] w-[min(calc(100vw-1.5rem),24rem)] flex-col overflow-hidden rounded-xl border border-black bg-[#1a221f] shadow-[0_18px_48px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.04] lg:right-5 lg:top-5"
+      >
+        <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black bg-surface-card-header px-3 py-2.5">
+          <div className="flex min-w-0 items-center gap-2">
+            <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-800/60 bg-emerald-400/15 text-emerald-300">
+              <ShoppingCart className="h-4 w-4" aria-hidden />
+            </span>
+            <div className="min-w-0">
+              <p className="text-sm font-black text-slate-100">Carrito</p>
+              <p className="text-[10px] font-bold text-slate-400">
+                {itemCount
+                  ? `${itemCount} producto${itemCount === 1 ? "" : "s"}`
+                  : "Vacío"}
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 items-center gap-2">
+            {billing && itemCount ? (
+              <span className="text-sm font-black tabular-nums text-emerald-300">
+                {billing.quotedTotal}
+              </span>
+            ) : null}
+            <button
+              type="button"
+              onClick={onClose}
+              className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300 hover:bg-surface-card"
+              aria-label="Cerrar carrito"
+            >
+              <X className="h-4 w-4" aria-hidden />
+            </button>
+          </div>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto p-3">
+          <CartContents
+            lines={lines}
+            billing={billing}
+            selectedPromotionId={selectedPromotionId}
+            onPromotionChange={onPromotionChange}
+            onAdjustQuantity={onAdjustQuantity}
+            onUpdateQuantity={onUpdateQuantity}
+            onRemoveLine={onRemoveLine}
+            emptyHint={emptyHint}
+          />
+        </div>
+      </section>
+    </div>
   );
 }

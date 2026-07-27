@@ -866,6 +866,7 @@ export async function recordInventoryMovementForLeafAction(input: {
   type: "entrada" | "salida" | "ajuste";
   qty: number;
   note?: string;
+  supplierName?: string;
   reasonCode?: InventoryMovementReasonCode;
   minStock?: number;
   unitCost?: number | null;
@@ -919,6 +920,10 @@ export async function recordInventoryMovementForLeafAction(input: {
       type: input.type,
       qty,
       note: input.note,
+      evidence:
+        input.type === "entrada" && input.supplierName?.trim()
+          ? { supplierName: input.supplierName.trim() }
+          : {},
       reasonCode: input.reasonCode || defaultReasonCodeForMovementType(input.type),
       createdBy: session.userId,
       unitCost: input.type === "entrada" ? (input.unitCost ?? null) : null,

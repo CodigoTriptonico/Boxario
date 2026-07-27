@@ -12,10 +12,19 @@ export function scheduledAtToLocalDateInput(value: string | null | undefined) {
     return "";
   }
 
+  const planWindowDate =
+    /^(\d{4}-\d{2}-\d{2})T(?:-\d{2}:\d{2}|\d{2}:\d{2}\+|\d{2}:\d{2}-\d{2}:\d{2})$/.exec(
+      value,
+    )?.[1] || "";
+  if (planWindowDate) {
+    return planWindowDate;
+  }
+
   const date = new Date(value);
 
   if (Number.isNaN(date.getTime())) {
-    return "";
+    const planDate = /^(\d{4}-\d{2}-\d{2})T/.exec(value)?.[1] || "";
+    return /^\d{4}-\d{2}-\d{2}$/.test(planDate) ? planDate : "";
   }
 
   return formatScheduleDateInput(date);

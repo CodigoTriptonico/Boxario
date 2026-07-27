@@ -1,4 +1,5 @@
 import { existsSync, readFileSync } from "node:fs";
+import { networkInterfaces } from "node:os";
 import { resolve } from "node:path";
 import type { NextConfig } from "next";
 import { resolveDevTunnelOrigins } from "./src/lib/dev-tunnel-origins";
@@ -12,12 +13,20 @@ function loadTunnelUrlFromFile(): string | null {
   return readFileSync(urlFile, "utf8").trim() || null;
 }
 
+function localIpv4Addresses(): string[] {
+  return Object.values(networkInterfaces())
+    .flatMap((entries) => entries ?? [])
+    .filter((entry) => entry.family === "IPv4" && !entry.internal)
+    .map((entry) => entry.address);
+}
+
 const nextConfig: NextConfig = {
   experimental: {
     proxyClientMaxBodySize: "10mb",
   },
   allowedDevOrigins: resolveDevTunnelOrigins({
     tunnelUrl: loadTunnelUrlFromFile(),
+    localOrigins: localIpv4Addresses(),
   }),
   async headers() {
     const productionCsp = process.env.NODE_ENV === "production";
@@ -35,7 +44,7 @@ const nextConfig: NextConfig = {
         : "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
       "connect-src 'self' https: wss:",
       "worker-src 'self' blob:",
-      "upgrade-insecure-requests",
+      ...(productionCsp ? ["upgrade-insecure-requests"] : []),
     ].join("; ");
     const securityHeaders = [
       { key: "X-Content-Type-Options", value: "nosniff" },

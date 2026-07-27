@@ -67,22 +67,24 @@ export function UserAccountMenu({
     if (!session) return;
     setSigningOut(true);
     try {
-      const pendingCount = await countUnconfirmedConductorOperations(
-        session.organizationId,
-        session.userId,
-      );
-      if (pendingCount > 0) {
-        notify.error(
-          `No puedes cerrar sesion: ${pendingCount} ${pendingCount === 1 ? "entrega sigue" : "entregas siguen"} pendiente de sincronizar`,
+      if (session.roleSlug === "conductor") {
+        const pendingCount = await countUnconfirmedConductorOperations(
+          session.organizationId,
+          session.userId,
         );
-        setSignOutConfirmOpen(false);
-        return;
+        if (pendingCount > 0) {
+          notify.error(
+            `No puedes cerrar sesion: ${pendingCount} ${pendingCount === 1 ? "entrega sigue" : "entregas siguen"} pendiente de sincronizar`,
+          );
+          setSignOutConfirmOpen(false);
+          return;
+        }
+        await clearConductorPrivateCache();
+        await clearConductorOfflineUserData(
+          session.organizationId,
+          session.userId,
+        );
       }
-      await clearConductorPrivateCache();
-      await clearConductorOfflineUserData(
-        session.organizationId,
-        session.userId,
-      );
       await signOutAction();
     } finally {
       setSigningOut(false);

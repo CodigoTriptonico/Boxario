@@ -10,11 +10,6 @@ type CopyGroup = {
   items: { label: string; value?: string }[];
 };
 
-type EditGroup = {
-  label: string;
-  text: string;
-};
-
 type MoreAction = {
   label: string;
   icon: ReactNode;
@@ -25,7 +20,6 @@ type SaleContextMenuProps = {
   menu: ContextMenuState;
   activeCopyGroup: string | null;
   copyGroups: CopyGroup[];
-  editGroups: EditGroup[];
   onActiveCopyGroupChange: (label: string | null) => void;
   onEdit: () => void;
   onCopyValue: (value?: string) => void;
@@ -40,7 +34,6 @@ export function SaleContextMenu({
   menu,
   activeCopyGroup,
   copyGroups,
-  editGroups,
   onActiveCopyGroupChange,
   onEdit,
   onCopyValue,
@@ -108,24 +101,15 @@ export function SaleContextMenu({
       ) : null}
 
       {menu.type !== "caja" ? (
-        <ContextMenuFlyout
-          title="Editar info"
-          icon={<Edit3 className="h-5 w-5" />}
+        <button
+          type="button"
+          onClick={onEdit}
           onMouseEnter={() => onActiveCopyGroupChange(null)}
+          className="mt-1 flex h-11 w-full items-center gap-3 rounded-lg px-3 text-left font-black hover:bg-surface-card"
         >
-          <p className="px-3 pb-2 text-xs font-black uppercase text-slate-500">Editar</p>
-          {editGroups.map((group) => (
-            <button
-              key={group.label}
-              type="button"
-              className="grid w-full gap-1 rounded-lg border border-transparent px-3 py-2.5 text-left hover:border-black hover:bg-surface-card"
-              onClick={onEdit}
-            >
-              <span className="text-sm font-black text-[#f8fafc]">{group.label}</span>
-              <span className="text-[11px] font-bold text-slate-500">{group.text}</span>
-            </button>
-          ))}
-        </ContextMenuFlyout>
+          <Edit3 className="h-5 w-5 text-emerald-300" />
+          <span className="flex-1">Editar</span>
+        </button>
       ) : null}
 
       <ContextMenuFlyout

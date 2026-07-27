@@ -18,6 +18,7 @@ import {
   PLATFORM_BRAND_TITLE,
 } from "@/lib/organizations/branding";
 import type { SaleRecipient, SaleSender } from "@/lib/customers/mappers";
+import { resolveCountryCodeFromString } from "@/lib/country-options";
 import { recipientExcelQrValue } from "@/lib/recipient-qr";
 import {
   saleInvoiceEtaLabel,
@@ -187,8 +188,17 @@ export function saleLogisticsContinueHint(
     return "";
   }
 
+  const emptyComplete = logisticsLegComplete(emptyBoxMode, emptyBoxScheduleMode, emptyBoxScheduleAt);
   const pickupDeferred = !fullBoxMode && !fullBoxPickupExpanded;
   const fullComplete = logisticsLegComplete(fullBoxMode, fullBoxScheduleMode, fullBoxScheduleAt);
+
+  if (!emptyComplete) {
+    if (emptyBoxMode === EMPTY_BOX_DRIVER_MODE) {
+      return "Elige la fecha de entrega de la caja vacía (la ruta es opcional).";
+    }
+
+    return "Elige cómo sale la caja vacía para continuar.";
+  }
 
   if (pickupDeferred) {
     return "Elige cómo sale la caja vacía. La recolección queda pendiente.";
@@ -201,11 +211,22 @@ export function saleLogisticsContinueHint(
   return "Elige cómo sale la caja vacía para continuar.";
 }
 
-function scheduledModeComplete(scheduleMode: string, scheduleAt: string) {
+function scheduledModeComplete(
+  scheduleMode: string,
+  scheduleAt: string,
+  options?: { allowPending?: boolean },
+) {
+  const allowPending = options?.allowPending ?? false;
   const routeDate = scheduleAt.split("T")[0] || "";
   const routeTime = scheduleAt.split("T")[1] || "";
 
-  return scheduleMode === "pending" || (scheduleMode === "scheduled" && Boolean(routeDate && scheduleTimeComplete(routeTime)));
+  if (allowPending && scheduleMode === "pending") {
+    return true;
+  }
+
+  return (
+    scheduleMode === "scheduled" && Boolean(routeDate && scheduleTimeComplete(routeTime))
+  );
 }
 
 export function logisticsLegComplete(mode: string, scheduleMode: string, scheduleAt: string) {
@@ -217,7 +238,10 @@ export function logisticsLegComplete(mode: string, scheduleMode: string, schedul
     return true;
   }
 
-  return scheduledModeComplete(scheduleMode, scheduleAt);
+  // Ambos modos conductor pueden quedar pendientes a nivel de agenda.
+  // Caja vacía exige día/fecha en la decisión de ruta (selected o pending con fecha).
+  const allowPending = mode === FULL_BOX_DRIVER_MODE || mode === EMPTY_BOX_DRIVER_MODE;
+  return scheduledModeComplete(scheduleMode, scheduleAt, { allowPending });
 }
 
 export function logisticsDriverTaskCount(emptyBoxMode: string, fullBoxMode: string) {
@@ -370,6 +394,70 @@ export function recipientIdentityKey(recipient: Recipient) {
   return `${recipient.firstName}|${recipient.lastName}|${recipient.country}`.toLowerCase();
 }
 
+export function senderSaleContextProps(sender: Sender) {
+  return {
+    "data-sale-context-key": `sender:${senderPhoneKey(sender)}`,
+    "data-sale-context-type": "remitente" as const,
+    "data-sale-context-title": personFullName(sender),
+    "data-sale-context-first-name": sender.firstName,
+    "data-sale-context-last-name": sender.lastName,
+    "data-sale-context-phones": sender.phones.join("|"),
+    "data-sale-context-street": sender.street,
+    "data-sale-context-house": sender.houseNumber,
+    "data-sale-context-neighborhood": sender.neighborhood,
+    "data-sale-context-city": sender.city,
+    "data-sale-context-state": sender.state,
+    "data-sale-context-postal-code": sender.postalCode,
+    "data-sale-context-address-reference": sender.addressReference,
+    "data-sale-context-country": "USA",
+    "data-sale-context-customer-id": sender.id.startsWith("local-") ? undefined : sender.id,
+  };
+}
+
+export function recipientSaleContextProps(recipient: Recipient) {
+  return {
+    "data-sale-context-key": `recipient:${recipientIdentityKey(recipient)}`,
+    "data-sale-context-type": "destinatario" as const,
+    "data-sale-context-title": personFullName(recipient),
+    "data-sale-context-first-name": recipient.firstName,
+    "data-sale-context-last-name": recipient.lastName,
+    "data-sale-context-phones": recipient.phone,
+    "data-sale-context-street": recipient.street,
+    "data-sale-context-house": recipient.houseNumber,
+    "data-sale-context-neighborhood": recipient.neighborhood,
+    "data-sale-context-city": recipient.city,
+    "data-sale-context-state": recipient.state,
+    "data-sale-context-postal-code": recipient.postalCode,
+    "data-sale-context-address-reference": recipient.addressReference,
+    "data-sale-context-country": recipient.country,
+    "data-sale-context-recipient-id": recipient.id.startsWith("local-r-")
+      ? undefined
+      : recipient.id,
+  };
+}
+
+export function recipientShipmentSnapshot(recipient: Recipient): Record<string, unknown> {
+  return {
+    firstName: recipient.firstName,
+    lastName: recipient.lastName,
+    phone: recipient.phone,
+    email: recipient.email,
+    emails: recipient.emails,
+    country: recipient.country,
+    street: recipient.street,
+    houseNumber: recipient.houseNumber,
+    neighborhood: recipient.neighborhood,
+    city: recipient.city,
+    state: recipient.state,
+    postalCode: recipient.postalCode,
+    addressReference: recipient.addressReference,
+    formattedAddress: recipient.formattedAddress,
+    placeId: recipient.placeId,
+    lat: recipient.lat,
+    lng: recipient.lng,
+  };
+}
+
 export function historyDateLabel(value: string) {
   return new Date(value).toLocaleString("es-MX", {
     day: "2-digit",
@@ -444,6 +532,7 @@ function InvoicePartyCard({
   addressLines,
   country,
   eta,
+  contextProps,
 }: {
   label: string;
   name: string;
@@ -451,11 +540,15 @@ function InvoicePartyCard({
   addressLines: string[];
   country?: string;
   eta?: string;
+  contextProps?: Record<string, string | undefined>;
 }) {
   const etaLabel = saleInvoiceEtaLabel(eta);
 
   return (
-    <div className="relative overflow-hidden rounded-sm border border-zinc-300 bg-white px-4 py-3">
+    <div
+      className="relative overflow-hidden rounded-sm border border-zinc-300 bg-white px-4 py-3"
+      {...contextProps}
+    >
       <p className="text-[8px] font-black uppercase tracking-[0.22em] text-zinc-500">{label}</p>
       <p className="mt-1.5 text-[15px] font-black leading-snug text-zinc-950">{name}</p>
       {phone ? <p className="mt-1 text-[11px] font-bold leading-snug text-zinc-700">{phone}</p> : null}
@@ -567,7 +660,7 @@ export function SaleInvoicePaper({
           </div>
           <div className="min-w-0">
             <p className="text-[9px] font-black uppercase tracking-[0.2em] text-zinc-700">
-              Paqueteria y envios internacionales
+              Cajas y envíos internacionales
             </p>
             <div className="mt-1 h-px bg-zinc-300" />
           </div>
@@ -586,7 +679,7 @@ export function SaleInvoicePaper({
               {companyName}
             </p>
             <p className="mt-2 max-w-[15rem] text-[10px] font-bold uppercase leading-snug tracking-[0.08em] text-zinc-600">
-              Paquetería y envíos internacionales
+              Cajas y envíos internacionales
             </p>
           </div>
           <div className="shrink-0 text-right">
@@ -613,6 +706,7 @@ export function SaleInvoicePaper({
             phone={senderPhonesLabel(sender)}
             addressLines={salePersonAddressLines(sender)}
             eta={!recipient ? deliveryEta : undefined}
+            contextProps={senderSaleContextProps(sender)}
           />
           {recipient ? (
             <InvoicePartyCard
@@ -622,6 +716,7 @@ export function SaleInvoicePaper({
               addressLines={salePersonAddressLines(recipient)}
               country={recipient.country.trim() || undefined}
               eta={deliveryEta}
+              contextProps={recipientSaleContextProps(recipient)}
             />
           ) : null}
         </section>
@@ -770,6 +865,8 @@ export function SaleBoxLabel({
   const companyName = branding?.name?.trim() || PLATFORM_BRAND_TITLE;
   const boxTitle = invoiceBoxTitle(box[0] || "Paquete");
   const recipientQrValue = recipientExcelQrValue(recipient);
+  const countryName = recipient.country.trim();
+  const countryCode = countryName ? resolveCountryCodeFromString(countryName) : "";
 
   return (
     <article
@@ -796,18 +893,45 @@ export function SaleBoxLabel({
       </header>
 
       <section className="grid border-b-2 border-zinc-950">
-        <div className="grid grid-cols-[6.5rem_1fr] border-b border-zinc-300 py-3">
+        <div
+          className="grid grid-cols-[6.5rem_1fr] border-b border-zinc-300 py-3"
+          {...senderSaleContextProps(sender)}
+        >
           <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">
             Remitente
           </span>
           <strong className="text-sm font-black leading-tight">{personFullName(sender)}</strong>
         </div>
-        <div className="grid grid-cols-[6.5rem_1fr] py-3">
+        <div
+          className="grid grid-cols-[6.5rem_1fr] border-b border-zinc-300 py-3"
+          {...recipientSaleContextProps(recipient)}
+        >
           <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">
             Destinatario
           </span>
           <strong className="text-sm font-black leading-tight">{personFullName(recipient)}</strong>
         </div>
+        {countryName ? (
+          <div
+            className="grid grid-cols-[6.5rem_1fr] py-3"
+            {...recipientSaleContextProps(recipient)}
+          >
+            <span className="text-[9px] font-black uppercase tracking-[0.16em] text-zinc-500">
+              País
+            </span>
+            <span className="inline-flex min-w-0 items-center gap-2">
+              <CountryFlag name={countryName} code={countryCode} size="sm" mono />
+              <strong className="min-w-0 truncate text-sm font-black leading-tight">
+                {countryName}
+                {countryCode ? (
+                  <span className="ml-1.5 font-mono text-[10px] font-black text-zinc-600">
+                    {countryCode}
+                  </span>
+                ) : null}
+              </strong>
+            </span>
+          </div>
+        ) : null}
       </section>
 
       <section className="grid flex-1 grid-cols-2 items-start gap-4 py-5">
@@ -1008,18 +1132,18 @@ export type SaleStepBarItem = {
 
 function saleStepBarButtonClass(item: SaleStepBarItem) {
   if (item.isActive) {
-    return "border-2 border-emerald-600 bg-emerald-600/35 text-emerald-50 shadow-[0_10px_24px_rgba(16,185,129,0.22)] ring-1 ring-emerald-400/45";
+    return "border-2 border-emerald-600 bg-emerald-600/35 text-emerald-50 shadow-[0_10px_24px_rgba(16,185,129,0.22)] ring-1 ring-emerald-400/45 max-sm:border-x-0 max-sm:border-t-0 max-sm:border-b-2 max-sm:border-b-emerald-400 max-sm:bg-transparent max-sm:shadow-none max-sm:ring-0";
   }
 
   if (item.isDone) {
-    return "border-emerald-800/80 bg-[#1c2822] text-[#f8fafc] hover:border-emerald-700 hover:bg-[#223028]";
+    return "border-emerald-800/80 bg-[#1c2822] text-[#f8fafc] hover:border-emerald-700 hover:bg-[#223028] max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none";
   }
 
   if (item.isUnlocked) {
-    return "border-black bg-surface-card text-slate-300 hover:border-black hover:bg-surface-card-hover";
+    return "border-black bg-surface-card text-slate-300 hover:border-black hover:bg-surface-card-hover max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none";
   }
 
-  return "cursor-not-allowed border-black/80 bg-surface-inset text-slate-600";
+  return "cursor-not-allowed border-black/80 bg-surface-inset text-slate-600 max-sm:border-0 max-sm:bg-transparent max-sm:shadow-none";
 }
 
 function saleStepBarBadgeClass(item: SaleStepBarItem) {
@@ -1043,13 +1167,13 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
     <div
       className={`flex flex-col items-center justify-center gap-0.5 lg:gap-1 ${
         options?.hideDetail
-          ? "min-h-[4.25rem] sm:min-h-[4.5rem] lg:min-h-[4.75rem]"
-          : "min-h-[5.1rem] sm:min-h-[5.35rem] lg:min-h-[5.6rem]"
+          ? "min-h-[2.75rem] sm:min-h-[4.5rem] lg:min-h-[4.75rem]"
+          : "min-h-[2.75rem] sm:min-h-[5.35rem] lg:min-h-[5.6rem]"
       }`}
     >
-      <div className="flex min-h-[1.75rem] min-w-0 flex-col items-center justify-center gap-0.5 sm:min-h-[2rem] sm:flex-row sm:gap-1.5 lg:min-h-[2.125rem]">
+      <div className="flex min-h-[1.5rem] min-w-0 flex-col items-center justify-center gap-0.5 sm:min-h-[2rem] sm:flex-row sm:gap-1.5 lg:min-h-[2.125rem]">
         <span
-          className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full border-2 text-[10px] font-black sm:h-7 sm:w-7 sm:text-[11px] lg:h-8 lg:w-8 lg:text-xs ${saleStepBarBadgeClass(
+          className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full border-2 text-[9px] font-black sm:h-7 sm:w-7 sm:text-[11px] lg:h-8 lg:w-8 lg:text-xs ${saleStepBarBadgeClass(
             step,
           )}`}
         >
@@ -1060,7 +1184,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
           )}
         </span>
         <span
-          className={`w-full min-w-0 max-w-full truncate text-center text-[10px] font-black uppercase leading-snug tracking-wide sm:text-[11px] lg:text-xs ${
+          className={`w-full min-w-0 max-w-full break-words text-center text-[10px] font-black uppercase leading-snug tracking-wide sm:truncate sm:text-[11px] lg:text-xs ${
             step.isActive ? "text-emerald-200" : ""
           }`}
         >
@@ -1069,12 +1193,12 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
         </span>
       </div>
       <span
-        className={`flex min-h-[1.125rem] w-full min-w-0 max-w-full items-center justify-center sm:min-h-[1.25rem] ${
+        className={`hidden min-h-[1rem] w-full min-w-0 max-w-full items-center justify-center sm:min-h-[1.25rem] lg:flex ${
           step.isActive ? "text-emerald-100" : "text-slate-400"
         }`}
       >
         <span
-          className={`w-full min-w-0 max-w-full truncate text-center leading-snug ${
+          className={`w-full min-w-0 max-w-full break-words text-center leading-snug sm:truncate ${
             step.id === "box"
               ? "text-[11px] font-black sm:text-xs"
               : "text-[11px] font-black sm:text-[11px] lg:text-xs"
@@ -1084,7 +1208,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
         </span>
       </span>
       <span
-        className={`flex min-h-[1.125rem] w-full min-w-0 max-w-full items-center justify-center gap-1.5 sm:min-h-[1.25rem] ${
+        className={`hidden min-h-[1rem] w-full min-w-0 max-w-full items-center justify-center gap-1.5 sm:min-h-[1.25rem] lg:flex ${
           step.country || step.subtitle
             ? step.isActive
               ? "text-emerald-100"
@@ -1098,13 +1222,13 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
             <Flag country={step.country} />
           </span>
         ) : null}
-        <span className="min-w-0 max-w-full truncate text-center text-[11px] font-black leading-snug sm:text-[11px] lg:text-xs">
+        <span className="min-w-0 max-w-full break-words text-center text-[11px] font-black leading-snug sm:truncate sm:text-[11px] lg:text-xs">
           {step.country || step.subtitle || "\u00a0"}
         </span>
       </span>
       {options?.hideDetail ? null : (
         <span
-          className={`flex min-h-[1.75rem] w-full min-w-0 max-w-full items-center justify-center overflow-hidden px-1 text-center leading-tight sm:min-h-[1.25rem] ${
+          className={`hidden min-h-[1.25rem] w-full min-w-0 max-w-full items-center justify-center overflow-hidden px-1 text-center leading-tight sm:min-h-[1.25rem] lg:flex ${
             hasVisibleDetail
               ? step.id === "box"
                 ? step.isActive
@@ -1144,7 +1268,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
 
 function saleStepArrow() {
   return (
-    <div className="flex h-3 items-start justify-center" aria-hidden>
+    <div className="hidden h-3 items-start justify-center lg:flex" aria-hidden>
       <span className="flex flex-col items-center">
         <span className="h-0 w-0 border-x-[7px] border-t-[8px] border-x-transparent border-t-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.65)]" />
         <span className="mt-0.5 h-0.5 w-10 rounded-full bg-emerald-400/90" />
@@ -1178,7 +1302,9 @@ export function SaleStepBar({
     <nav aria-label="Pasos de venta" className="w-full">
       <div
         className={`${flowStepBarShellClass} ${flowStepBarPaddingClass} ${
-          hasOpenStepPopover ? "overflow-visible pb-[min(40vh,17rem)]" : "pb-1"
+          hasOpenStepPopover
+            ? "overflow-visible pb-1 lg:pb-[min(40vh,17rem)]"
+            : "pb-1"
         }`}
       >
         <div className="flex items-start gap-2">
@@ -1186,10 +1312,10 @@ export function SaleStepBar({
             className={`min-w-0 flex-1 ${
               hasOpenStepPopover
                 ? "overflow-visible"
-                : "snap-x snap-mandatory overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
+                : "lg:snap-x lg:snap-mandatory lg:overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
             }`}
           >
-          <ol className="flex min-w-max items-start gap-0 lg:min-w-0 lg:w-full">
+          <ol className="grid min-w-0 grid-cols-5 items-start gap-0 lg:flex lg:min-w-0 lg:w-full lg:gap-0">
           {steps.map((step, index) => {
             const connectorDone =
               index > 0 && (steps[index - 1]?.isDone || steps[index - 1]?.isActive);
@@ -1199,7 +1325,7 @@ export function SaleStepBar({
                 {index > 0 ? (
                   <div
                     aria-hidden
-                    className="mt-7 flex w-1 shrink-0 items-center sm:mt-8 sm:w-1.5 lg:mt-[2.125rem] lg:w-2"
+                    className="hidden lg:mt-[2.125rem] lg:flex lg:w-2 lg:shrink-0 lg:items-center"
                   >
                     <span
                       className={`block h-0.5 w-full rounded-full ${
@@ -1209,10 +1335,10 @@ export function SaleStepBar({
                   </div>
                 ) : null}
                 <li
-                  className={`relative flex shrink-0 snap-start flex-col lg:min-w-0 lg:w-auto ${
+                  className={`relative flex min-w-0 w-full snap-start flex-col lg:shrink-0 lg:min-w-0 lg:w-auto ${
                     step.detailRows?.length
-                      ? "w-[13.5rem] lg:flex-[1.45]"
-                      : "w-[8.5rem] lg:flex-1"
+                      ? "lg:w-[13.5rem] lg:flex-[1.45]"
+                      : "lg:w-[8.5rem] lg:flex-1"
                   }`}
                 >
                   {step.isActive && stepPopovers?.[step.id] ? (
@@ -1227,11 +1353,11 @@ export function SaleStepBar({
                         onClick={() => onOpenStep(step.id)}
                         title={`${step.label}: ${step.value}`}
                         aria-current="step"
-                        className="w-full px-1.5 py-1.5 text-center sm:px-2 sm:py-2"
+                        className="w-full px-0 py-0 text-center sm:px-2 sm:py-2"
                       >
                         {saleStepTileInner(step, { hideDetail: true })}
                       </button>
-                      <div className="border-t border-black/45 bg-black/15 px-1.5 pb-1.5 pt-1 sm:px-2 sm:pb-2 sm:pt-1.5">
+                      <div className="hidden border-t border-black/45 bg-black/15 px-1.5 pb-1.5 pt-1 sm:px-2 sm:pb-2 sm:pt-1.5 lg:block">
                         {stepPopovers[step.id]?.trigger}
                       </div>
                     </div>
@@ -1242,7 +1368,7 @@ export function SaleStepBar({
                       onClick={() => onOpenStep(step.id)}
                       title={`${step.label}: ${step.value}`}
                       aria-current={step.isActive ? "step" : undefined}
-                      className={`min-w-0 w-full rounded-md border px-1.5 py-1.5 text-center transition sm:px-2 sm:py-2 lg:rounded-lg lg:px-2.5 lg:py-2 ${saleStepBarButtonClass(
+                      className={`min-w-0 w-full rounded-md border px-0 py-0 text-center transition sm:px-2 sm:py-2 lg:rounded-lg lg:px-2.5 lg:py-2 ${saleStepBarButtonClass(
                         step,
                       )}`}
                     >
@@ -1253,7 +1379,7 @@ export function SaleStepBar({
                   {step.isActive && stepPopovers?.[step.id]?.open ? (
                     <>
                       {saleStepArrow()}
-                      <div className="absolute left-1/2 top-full z-30 mt-1 w-[min(calc(100vw-1.25rem),22rem)] -translate-x-1/2 sm:w-[min(calc(100vw-2rem),24rem)]">
+                      <div className="absolute left-1/2 top-full z-30 mt-1 hidden w-[min(calc(100vw-1.25rem),22rem)] -translate-x-1/2 sm:w-[min(calc(100vw-2rem),24rem)] lg:block">
                         {stepPopovers[step.id]?.content}
                       </div>
                     </>

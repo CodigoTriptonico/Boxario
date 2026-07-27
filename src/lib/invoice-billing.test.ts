@@ -5,6 +5,8 @@ import {
   computeInvoiceBilling,
   invoiceAccountingStateForPayment,
   invoicePaymentKindForCurrentDeposit,
+  logisticsAdditionalChargeIsValid,
+  logisticsAdditionalChargeRequiresReason,
   readBillingFromPlan,
   saleFinishActionLabel,
 } from "./invoice-billing";
@@ -17,6 +19,40 @@ const fees = {
   minimumDeposit: "$20",
   logisticsFeeMode: "per_trip" as const,
 };
+
+describe("logistics additional charges", () => {
+  it("starts disabled and applies once per selected driver service", () => {
+    const billing = computeInvoiceBilling({
+      boxCount: 3,
+      boxUnitPrice: "$100",
+      emptyBoxDriver: true,
+      fullBoxDriver: true,
+      fees,
+      additionalCharges: {
+        emptyBoxDelivery: { enabled: true, amount: "$15", reason: "" },
+        fullBoxPickup: { enabled: true, amount: "$12", reason: "Acceso especial" },
+      },
+    });
+
+    assert.equal(billing.emptyBoxDelivery, "$15");
+    assert.equal(billing.fullBoxPickup, "$12");
+    assert.equal(billing.logisticsSubtotal, "$27");
+    assert.equal(billing.quotedTotal, "$327");
+  });
+
+  it("requires a reason only when the suggestion changes", () => {
+    const suggested = { enabled: true, amount: "$15", reason: "" };
+    const changed = { enabled: true, amount: "$10", reason: "" };
+    assert.equal(logisticsAdditionalChargeRequiresReason(suggested, "$15"), false);
+    assert.equal(logisticsAdditionalChargeIsValid(suggested, "$15"), true);
+    assert.equal(logisticsAdditionalChargeRequiresReason(changed, "$15"), true);
+    assert.equal(logisticsAdditionalChargeIsValid(changed, "$15"), false);
+    assert.equal(
+      logisticsAdditionalChargeIsValid({ ...changed, reason: "Descuento autorizado" }, "$15"),
+      true,
+    );
+  });
+});
 
 const bundlePromo: PricingPromotionConfig = {
   id: "promo-bundle",

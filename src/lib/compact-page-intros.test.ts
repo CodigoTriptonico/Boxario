@@ -13,7 +13,7 @@ const uiBlocks = component("ui-blocks.tsx");
 const infoDisclosure = component("compact-info-disclosure.tsx");
 const platform = component("platform/platform-console.tsx");
 const agentsRules = readFileSync(new URL("../../AGENTS.md", import.meta.url), "utf8");
-const uiStyle = readFileSync(new URL("../../UI-STYLE.md", import.meta.url), "utf8");
+const uiStyle = readFileSync(new URL("../../docs/GUIA_ESTILO_UI.md", import.meta.url), "utf8");
 
 describe("compact page introductions", () => {
   it("removes the persistent shipping and sales-history introductions", () => {

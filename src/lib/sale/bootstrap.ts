@@ -12,6 +12,10 @@ import { resolveOrganizationBrandingFromSession } from "@/lib/organizations/bran
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import type { InvoiceBillingConfig } from "@/lib/invoice-billing";
 import { listSaleShortcutsForSession, type SaleShortcuts } from "@/lib/sale/shortcuts";
+import {
+  scheduleTimeSuggestionsFor,
+  type ScheduleTimeSuggestions,
+} from "@/lib/sale/schedule-suggestions";
 
 export type VentaBootstrapData = {
   senders: SaleSender[];
@@ -19,6 +23,10 @@ export type VentaBootstrapData = {
   countryBoxes: Record<string, string[][]>;
   countryPromotions: PricingPromotionConfig[];
   logisticsFees: InvoiceBillingConfig;
+  scheduleSuggestions: {
+    delivery: ScheduleTimeSuggestions;
+    pickup: ScheduleTimeSuggestions;
+  };
   organizationBranding: OrganizationBranding;
 };
 
@@ -43,6 +51,18 @@ export async function loadVentaBootstrap(
     countryBoxes: salePricing.countryBoxes,
     countryPromotions: salePricing.promotions,
     logisticsFees: saleLogisticsFeesFromRouteConfig(pricingConfig.routeConfig),
+    scheduleSuggestions: {
+      delivery: scheduleTimeSuggestionsFor(
+        pricingConfig.routeConfig.scheduleSuggestions,
+        "delivery",
+        [],
+      ),
+      pickup: scheduleTimeSuggestionsFor(
+        pricingConfig.routeConfig.scheduleSuggestions,
+        "pickup",
+        [],
+      ),
+    },
     organizationBranding: resolveOrganizationBrandingFromSession(session),
   };
 }

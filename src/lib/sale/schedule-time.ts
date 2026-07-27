@@ -1,10 +1,14 @@
-export type ScheduleTimeKind = "exact" | "range" | "from";
+export type ScheduleTimeKind = "exact" | "range" | "from" | "until";
 
 export type ScheduleTimeValue = {
   kind: ScheduleTimeKind;
   start: string;
   end?: string;
 };
+
+function orderedRange(start: string, end: string) {
+  return start <= end ? { start, end } : { start: end, end: start };
+}
 
 export function parseScheduleTime(timePart: string): ScheduleTimeValue {
   if (!timePart) {
@@ -13,6 +17,10 @@ export function parseScheduleTime(timePart: string): ScheduleTimeValue {
 
   if (timePart.endsWith("+")) {
     return { kind: "from", start: timePart.slice(0, -1) };
+  }
+
+  if (timePart.startsWith("-")) {
+    return { kind: "until", start: timePart.slice(1) };
   }
 
   if (timePart.includes("-")) {
@@ -28,8 +36,16 @@ export function formatScheduleTimePart(value: ScheduleTimeValue): string {
     return `${value.start}+`;
   }
 
-  if (value.kind === "range" && value.end) {
-    return `${value.start}-${value.end}`;
+  if (value.kind === "until") {
+    return `-${value.start}`;
+  }
+
+  if (value.kind === "range") {
+    if (!value.end) {
+      return `${value.start}-`;
+    }
+    const range = orderedRange(value.start, value.end);
+    return `${range.start}-${range.end}`;
   }
 
   return value.start;
@@ -44,15 +60,19 @@ export function formatTime12Hour(value: string) {
   return `${displayHour}:${minuteValue} ${period}`;
 }
 
-function formatScheduleTimeLabel(timePart: string) {
+export function formatScheduleTimeLabel(timePart: string) {
   const parsed = parseScheduleTime(timePart);
 
   if (parsed.kind === "from") {
-    return `desde ${formatTime12Hour(parsed.start)}`;
+    return `a partir de ${formatTime12Hour(parsed.start)}`;
+  }
+
+  if (parsed.kind === "until") {
+    return `antes de ${formatTime12Hour(parsed.start)}`;
   }
 
   if (parsed.kind === "range" && parsed.end) {
-    return `de ${formatTime12Hour(parsed.start)} a ${formatTime12Hour(parsed.end)}`;
+    return `entre ${formatTime12Hour(parsed.start)} y ${formatTime12Hour(parsed.end)}`;
   }
 
   return `a las ${formatTime12Hour(parsed.start)}`;
@@ -131,6 +151,7 @@ export function scheduleAtToTimestamp(scheduleAt: string | null | undefined) {
     date &&
     timePart &&
     (timePart.endsWith("+") ||
+      /^-\d{2}:\d{2}$/.test(timePart) ||
       /^\d{2}:\d{2}-\d{2}:\d{2}$/.test(timePart) ||
       /^\d{2}:\d{2}$/.test(timePart))
   ) {

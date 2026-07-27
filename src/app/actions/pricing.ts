@@ -51,7 +51,14 @@ export async function savePricingConfigAction(
     }
 
     const orgId = session.organizationId;
-    const rpcPayload = buildPricingRpcPayload(payload);
+    // Pricing remains a legacy all-in-one RPC, so always replace its route
+    // fragment with the latest database value. General pricing edits must not
+    // overwrite settings now owned by Ventas and Logística.
+    const currentConfig = await loadPricingConfigForSession(session);
+    const rpcPayload = buildPricingRpcPayload({
+      ...payload,
+      routeConfig: currentConfig.routeConfig,
+    });
 
     const { error: rpcError } = await supabase.rpc("replace_pricing_config", {
       target_org_id: orgId,

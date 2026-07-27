@@ -1,4 +1,3 @@
-import { defaultInvoiceBillingConfig } from "@/lib/invoice-billing";
 import { parseMoneyValue } from "@/lib/logistics-fees";
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import type { PricingCountryConfig, PricingRouteConfig } from "@/lib/pricing/types";
@@ -38,9 +37,9 @@ export function salePricingFromConfig(countries: PricingCountryConfig[], promoti
 
 export function saleLogisticsFeesFromRouteConfig(routeConfig: PricingRouteConfig): SaleLogisticsFeesPayload {
   return {
-    emptyBoxDeliveryFee: defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
-    fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
+    emptyBoxDeliveryFee: routeConfig.emptyBoxDeliveryFee,
+    fullBoxPickupFee: routeConfig.fullBoxPickupFee,
     minimumDeposit: routeConfig.minimumDeposit,
-    logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,
+    logisticsFeeMode: "per_trip",
   };
 }

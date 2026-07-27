@@ -17,6 +17,10 @@ export type InventoryBinPlacement = {
   quantity: number;
 };
 
+export type InventoryItemBinPlacement = InventoryBinPlacement & {
+  itemId: string;
+};
+
 function normalizeBinSegment(value: string) {
   return String(value || "")
     .trim()

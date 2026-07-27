@@ -2,7 +2,6 @@ import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { getSupabaseAnonKey, getSupabaseUrl, isSupabaseConfigured } from "@/lib/supabase/env";
-import { resolveRequestUrl } from "@/lib/http/request-origin";
 import { resolvePostLoginRedirect } from "@/lib/organizations/kind";
 import {
   enforceLoginRateLimit,
@@ -11,6 +10,17 @@ import {
 } from "@/lib/security/api-guards";
 
 const GENERIC_LOGIN_ERROR = "Credenciales invalidas";
+
+function redirectForm(pathname: string, searchParams?: URLSearchParams) {
+  const safePathname = pathname.startsWith("/") ? pathname : "/";
+  const query = searchParams?.toString();
+  const location = query ? `${safePathname}?${query}` : safePathname;
+
+  return new NextResponse(null, {
+    status: 303,
+    headers: { Location: location },
+  });
+}
 
 async function loadIsPlatformAdmin(userId: string) {
   const admin = createSupabaseAdminClient();
@@ -58,12 +68,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ ok: false, error: message }, { status });
     }
 
-    const loginUrl = resolveRequestUrl(request, "/login");
-    loginUrl.searchParams.set("error", message);
+    const searchParams = new URLSearchParams({ error: message });
     if (nextPath) {
-      loginUrl.searchParams.set("next", nextPath);
+      searchParams.set("next", nextPath);
     }
-    return NextResponse.redirect(loginUrl, 303);
+    return redirectForm("/login", searchParams);
   }
 
   if (!email || !password) {
@@ -109,7 +118,7 @@ export async function POST(request: NextRequest) {
   const redirectTo = resolvePostLoginRedirect({ isPlatformAdmin, nextPath });
   const response = wantsJson
     ? NextResponse.json({ ok: true, redirectTo })
-    : NextResponse.redirect(resolveRequestUrl(request, redirectTo), 303);
+    : redirectForm(redirectTo);
 
   cookiesToSet.forEach(({ name, value, options }) => {
     response.cookies.set(name, value, options);

@@ -88,7 +88,7 @@ function resolveCountriesGuide(
     {
       label: "Ir a Configuración",
       title: "Abre Configuración",
-      body: "En el menú lateral pulsa Configuración. Ahí preparas países, precios y el resto de tu paquetería.",
+      body: "En el menú lateral pulsa Configuración. Ahí preparas países, precios y el resto de tu empresa.",
       actionHref: "/configuracion",
       actionLabel: "Ir a Configuración",
     },

@@ -1,11 +1,11 @@
--- Boxario: distinguir org de plataforma (dueño) vs clientes (paqueterías)
+-- Boxario: distinguir org de plataforma (dueño) vs clientes (empresas)
 
 alter table public.organizations
   add column if not exists kind text not null default 'client'
     check (kind in ('platform', 'client'));
 
 comment on column public.organizations.kind is
-  'platform = Boxario (dueño); client = paquetería cliente';
+  'platform = Boxario (dueño); client = empresa cliente';
 
 -- Organizaciones de usuarios en platform_admins → plataforma
 update public.organizations o

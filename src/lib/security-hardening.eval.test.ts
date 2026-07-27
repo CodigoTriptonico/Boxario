@@ -113,4 +113,16 @@ describe("security hardening regression gate", () => {
     assert.match(route, /correlationId/);
     assert.match(config, /proxyClientMaxBodySize: "10mb"/);
   });
+
+  it("only upgrades insecure requests when CSP is enforced in production", () => {
+    const config = read("next.config.ts");
+    assert.match(
+      config,
+      /\.\.\.\(productionCsp \? \["upgrade-insecure-requests"\] : \[\]\)/,
+    );
+    assert.match(
+      config,
+      /productionCsp\s*\?\s*"Content-Security-Policy"\s*:\s*"Content-Security-Policy-Report-Only"/,
+    );
+  });
 });

@@ -15,6 +15,7 @@ import { resolveSurfaceContextFromPathname } from "@/lib/ui-surface-route-contex
 import type { AppSession } from "@/lib/auth/types";
 
 type ShellConfig = {
+  headerAction?: React.ReactNode;
   compactContent?: React.ReactNode;
   compactNavLabel?: string;
   compactNavFocusKey?: string | number;
@@ -55,7 +56,7 @@ export function AppFrame({
   const active = useMemo(() => activeFromPath(pathname, session), [pathname, session]);
 
   const defaultContextNav = useMemo(() => {
-    if (pathname === "/" || pathname.startsWith("/login")) {
+    if (pathname === "/" || pathname === "/venta" || pathname.startsWith("/login")) {
       return null;
     }
 
@@ -101,6 +102,7 @@ export function AppFrame({
             session={session}
             active={active}
             title={active}
+            headerAction={config.headerAction}
             compactContent={config.compactContent}
             compactNavLabel={config.compactNavLabel}
             compactNavFocusKey={config.compactNavFocusKey}

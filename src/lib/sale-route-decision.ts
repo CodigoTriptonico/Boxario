@@ -17,6 +17,12 @@ export type SaleRouteDecision =
       routeDate: string;
     }
   | {
+      kind: "route_preferred";
+      routeDate: null;
+      routeTemplateId: string;
+      routeLabel: string;
+    }
+  | {
       kind: "undated";
       routeDate: null;
     };
@@ -28,6 +34,10 @@ export function saleRouteDecisionSummary(decision: SaleRouteDecision | null) {
 
   if (decision.kind === "undated") {
     return "Día y ruta pendientes";
+  }
+
+  if (decision.kind === "route_preferred") {
+    return `${decision.routeLabel} · día pendiente`;
   }
 
   if (decision.kind === "pending") {
@@ -42,7 +52,11 @@ export function saleRouteDecisionSchedule(decision: SaleRouteDecision | null) {
     return { scheduleMode: "", scheduleAt: "" } as const;
   }
 
-  if (decision.kind === "pending" || decision.kind === "undated") {
+  if (
+    decision.kind === "pending" ||
+    decision.kind === "undated" ||
+    decision.kind === "route_preferred"
+  ) {
     return { scheduleMode: "pending", scheduleAt: "" } as const;
   }
 
@@ -66,4 +80,16 @@ export function saleRouteDecisionTask(decision: SaleRouteDecision) {
         scheduledAt: null,
         requestedRouteDate: decision.routeDate,
       };
+}
+
+export function saleRouteDecisionTemplateId(decision: SaleRouteDecision | null) {
+  if (!decision) {
+    return null;
+  }
+
+  if (decision.kind === "selected" || decision.kind === "route_preferred") {
+    return decision.routeTemplateId;
+  }
+
+  return null;
 }

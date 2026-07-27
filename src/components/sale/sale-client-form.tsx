@@ -19,7 +19,10 @@ import {
   type Sender,
 } from "@/components/sale/venta-parts";
 import { resolveAddressValidationUi, addressCardSubtitle } from "@/lib/sale-address-validation-ui";
-import { formatPersonNameInput } from "@/lib/person-name";
+import {
+  PERSON_NAME_MAX_LENGTH,
+  sanitizePersonNameInput,
+} from "@/lib/person-name";
 
 type SaleClientFormProps = {
   form: {
@@ -70,9 +73,17 @@ type SaleClientFormProps = {
     editingCustomerId: string | null;
     duplicateClient: Sender | null;
   };
+  /** En modal de documentos: apila paneles a ancho completo para que no se corte la dirección. */
+  layout?: "split" | "stack";
 };
 
-export function SaleClientForm({ form, address, actions, meta }: SaleClientFormProps) {
+export function SaleClientForm({
+  form,
+  address,
+  actions,
+  meta,
+  layout = "split",
+}: SaleClientFormProps) {
   const contactMenuRef = useRef<HTMLDivElement>(null);
   const [contactMenuOpen, setContactMenuOpen] = useState(false);
   const [addressUnverifiedAccepted, setAddressUnverifiedAccepted] = useState(false);
@@ -187,7 +198,11 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
       </div>
 
       <form
-        className="relative grid gap-4 lg:grid-cols-2 lg:items-start"
+        className={
+          layout === "stack"
+            ? "relative grid gap-4"
+            : "relative grid gap-4 lg:grid-cols-2 lg:items-start"
+        }
         autoComplete="off"
         onSubmit={(event) => event.preventDefault()}
       >
@@ -219,8 +234,10 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
                     className={clientFormInputClass}
                     placeholder="Carlos"
                     value={form.firstName}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    inputMode="text"
                     onChange={(event) =>
-                      form.setFirstName(formatPersonNameInput(event.target.value))
+                      form.setFirstName(sanitizePersonNameInput(event.target.value))
                     }
                   />
                 </label>
@@ -232,8 +249,10 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
                     className={clientFormInputClass}
                     placeholder="Diaz"
                     value={form.lastName}
+                    maxLength={PERSON_NAME_MAX_LENGTH}
+                    inputMode="text"
                     onChange={(event) =>
-                      form.setLastName(formatPersonNameInput(event.target.value))
+                      form.setLastName(sanitizePersonNameInput(event.target.value))
                     }
                   />
                 </label>
@@ -350,21 +369,23 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
             </div>
           </div>
           <div className="space-y-3 p-4">
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1.5fr)_6.5rem_5.5rem]">
+            <label className="grid min-w-0 gap-1.5">
+              <span className={clientFormAddressLabelClass(form.street)}>Calle</span>
+              <input
+                {...noBrowserAutocomplete}
+                name="boxario-client-line-1"
+                className={clientFormAddressFieldClass(form.street)}
+                placeholder="Calle y numero"
+                title={form.street || undefined}
+                value={form.street}
+                onChange={(event) => {
+                  touchAddressField(() => form.setStreet(event.target.value));
+                }}
+              />
+            </label>
+
+            <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid min-w-0 gap-1.5">
-                <span className={clientFormAddressLabelClass(form.street)}>Calle</span>
-                <input
-                  {...noBrowserAutocomplete}
-                  name="boxario-client-line-1"
-                  className={clientFormAddressFieldClass(form.street)}
-                  placeholder="Calle y numero"
-                  value={form.street}
-                  onChange={(event) => {
-                    touchAddressField(() => form.setStreet(event.target.value));
-                  }}
-                />
-              </label>
-              <label className="grid gap-1.5">
                 <span className={clientFormAddressLabelClass(form.house, { required: false })}>
                   Unidad
                 </span>
@@ -373,19 +394,21 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
                   name="boxario-client-line-2"
                   className={clientFormAddressFieldClass(form.house, { required: false })}
                   placeholder="Apto / suite"
+                  title={form.house || undefined}
                   value={form.house}
                   onChange={(event) => {
                     touchAddressField(() => form.setHouse(event.target.value));
                   }}
                 />
               </label>
-              <label className="grid gap-1.5">
+              <label className="grid min-w-0 gap-1.5">
                 <span className={clientFormAddressLabelClass(form.postalCode)}>CP</span>
                 <input
                   {...noBrowserAutocomplete}
                   name="boxario-client-zip"
                   className={clientFormAddressFieldClass(form.postalCode)}
                   placeholder="Codigo postal"
+                  title={form.postalCode || undefined}
                   value={form.postalCode}
                   onChange={(event) => {
                     touchAddressField(() => form.setPostalCode(event.target.value));
@@ -394,7 +417,7 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
               </label>
             </div>
 
-            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_4.5rem]">
+            <div className="grid gap-3 sm:grid-cols-[minmax(0,1.15fr)_minmax(0,1.15fr)_minmax(5rem,7rem)]">
               <label className="grid min-w-0 gap-1.5">
                 <span className={clientFormAddressLabelClass(form.neighborhood, { required: false })}>
                   Colonia
@@ -404,6 +427,7 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
                   name="boxario-client-zone"
                   className={clientFormAddressFieldClass(form.neighborhood, { required: false })}
                   placeholder="Barrio / colonia"
+                  title={form.neighborhood || undefined}
                   value={form.neighborhood}
                   onChange={(event) => {
                     touchAddressField(() => form.setNeighborhood(event.target.value));
@@ -417,19 +441,21 @@ export function SaleClientForm({ form, address, actions, meta }: SaleClientFormP
                   name="boxario-client-city"
                   className={clientFormAddressFieldClass(form.city)}
                   placeholder="Ciudad"
+                  title={form.city || undefined}
                   value={form.city}
                   onChange={(event) => {
                     touchAddressField(() => form.setCity(event.target.value));
                   }}
                 />
               </label>
-              <label className="grid gap-1.5">
+              <label className="grid min-w-0 gap-1.5">
                 <span className={clientFormAddressLabelClass(form.state)}>Estado</span>
                 <input
                   {...noBrowserAutocomplete}
                   name="boxario-client-region"
                   className={clientFormAddressFieldClass(form.state)}
                   placeholder="Estado"
+                  title={form.state || undefined}
                   value={form.state}
                   onChange={(event) => {
                     touchAddressField(() => form.setState(event.target.value));

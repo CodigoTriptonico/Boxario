@@ -9,6 +9,7 @@ import {
   buildWarehouseBinLabel,
   validateBinPlacementQuantity,
   type InventoryBinPlacement,
+  type InventoryItemBinPlacement,
   type WarehouseBin,
 } from "@/lib/inventory-bins";
 
@@ -262,6 +263,42 @@ export async function listInventoryBinPlacementsAction(input: {
     }
 
     return ok((data || []).map((row) => mapPlacement(row as InventoryBinStockRow)));
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function listWarehouseInventoryBinPlacementsAction(input: {
+  warehouseId: string;
+}): Promise<ActionResult<InventoryItemBinPlacement[]>> {
+  try {
+    const session = await requireAppSession();
+    if (!session) {
+      return fail("Sesión requerida");
+    }
+
+    if (!sessionHasPermission(session, "inventory.view")) {
+      return fail("Sin permiso para ver inventario");
+    }
+
+    const supabase = await createScopedSupabase(session);
+    const { data, error } = await supabase
+      .from("inventory_bin_stock")
+      .select("bin_id, item_id, quantity, warehouse_bins(code, label)")
+      .eq("warehouse_id", input.warehouseId)
+      .gt("quantity", 0)
+      .order("quantity", { ascending: false });
+
+    if (error) {
+      return fail(error.message);
+    }
+
+    return ok(
+      (data || []).map((row) => ({
+        ...mapPlacement(row as InventoryBinStockRow),
+        itemId: (row as InventoryBinStockRow).item_id,
+      })),
+    );
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

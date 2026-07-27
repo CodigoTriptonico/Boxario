@@ -17,6 +17,7 @@ describe("BoxarioBrandHeader layout", () => {
     assert.match(source, /inline-flex h-8 min-w-0 items-center rounded-lg/);
     assert.match(source, /ml-1 flex h-8 shrink-0 items-center gap-1/);
     assert.match(source, /variant="brand"/);
+    assert.match(source, /\{headerAction\}[\s\S]*\{showNotifications \? <NotificationsCenter/);
     assert.match(source, /<h1 className=\{`min-w-0 flex-1 \$\{titleClass\}`\}>\{brandTitle\}<\/h1>/);
     assert.match(source, /sidebarGroupsToggle \? \([\s\S]*ChevronsDownUp[\s\S]*\{showNotifications \? <NotificationsCenter/);
   });

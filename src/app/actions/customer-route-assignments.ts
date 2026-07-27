@@ -15,9 +15,17 @@ import {
   type CustomerRouteAssignmentRequestStatus,
 } from "@/lib/customer-route-verification";
 import { getLogisticsWeekdayIndex } from "@/lib/logistics-route-week";
+import {
+  genericLogisticsRouteName,
+  isDayAsRouteTemplateId,
+} from "@/lib/logistics-day-route";
 import { scheduledAtToLocalDateInput } from "@/lib/schedule-date";
 import { customerRouteReplacementNote } from "@/lib/customer-route-replacement";
 import { routeAddressFromCustomer } from "@/lib/logistics-address";
+import {
+  logisticsScheduleExpressionFromWindow,
+  logisticsScheduleWindowPatch,
+} from "@/lib/logistics-schedule-window";
 import {
   readBoxLinesFromLogisticsPlan,
   shipmentBoxLinesDetailLabel,
@@ -99,7 +107,13 @@ function mapRequestRow(row: {
     lng?: number | string | null;
   } | null;
   shipment?: { code?: string | null; logistics_plan?: unknown } | null;
-  task?: { task_type?: string | null } | null;
+  task?: {
+    task_type?: string | null;
+    scheduled_at?: string | null;
+    schedule_kind?: "exact" | "range" | "from" | null;
+    window_start_at?: string | null;
+    window_end_at?: string | null;
+  } | null;
   template?: { name?: string | null; weekday?: number | null } | null;
   driver?: { full_name?: string | null; email?: string | null } | null;
 }): CustomerRouteAssignmentRequestRow {
@@ -131,7 +145,13 @@ function mapRequestRow(row: {
     routeTemplateId: row.route_template_id,
     routeTemplateName: String(row.template?.name || "").trim() || "Ruta",
     routeWeekday: Number(row.template?.weekday ?? -1),
-    scheduledAt: row.scheduled_at,
+    scheduledAt:
+      logisticsScheduleExpressionFromWindow({
+        scheduledAt: row.task?.scheduled_at || row.scheduled_at,
+        scheduleKind: row.task?.schedule_kind,
+        windowStartAt: row.task?.window_start_at,
+        windowEndAt: row.task?.window_end_at,
+      }) || row.scheduled_at,
     driverId,
     driverLabel: driverId
       ? String(row.driver?.full_name || "").trim() ||
@@ -286,11 +306,19 @@ export async function requestCustomerRouteAssignmentAction(input: {
     const shipmentId = String(input.shipmentId || "").trim();
     const taskId = String(input.taskId || "").trim();
     const routeTemplateId = String(input.routeTemplateId || "").trim();
+    const dayAsRoute = isDayAsRouteTemplateId(routeTemplateId);
     let driverId = String(input.driverId || "").trim();
     const scheduledAt = String(input.scheduledAt || "").trim();
     const routeDate = scheduledAtToLocalDateInput(scheduledAt);
+    const schedulePatch = logisticsScheduleWindowPatch(scheduledAt);
 
-    if (!shipmentId || !taskId || !routeTemplateId || !/^\d{4}-\d{2}-\d{2}$/.test(routeDate)) {
+    if (
+      !shipmentId ||
+      !taskId ||
+      !routeTemplateId ||
+      !schedulePatch.scheduled_at ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(routeDate)
+    ) {
       return fail("Completa fecha y ruta");
     }
 
@@ -304,7 +332,15 @@ export async function requestCustomerRouteAssignmentAction(input: {
       driverId = String(weekdayDefault?.default_driver_id || "").trim();
     }
 
-    const [{ data: shipment, error: shipmentError }, { data: task, error: taskError }, { data: template, error: templateError }] =
+    const templateResultPromise = dayAsRoute
+      ? Promise.resolve({ data: null, error: null })
+      : supabase
+          .from("logistics_route_templates")
+          .select("id, weekday, name")
+          .eq("id", routeTemplateId)
+          .eq("organization_id", session.organizationId)
+          .maybeSingle();
+    const [{ data: shipment, error: shipmentError }, { data: task, error: taskError }, { data: templateRow, error: templateError }] =
       await Promise.all([
         supabase
           .from("shipments")
@@ -318,12 +354,7 @@ export async function requestCustomerRouteAssignmentAction(input: {
           .eq("id", taskId)
           .eq("organization_id", session.organizationId)
           .maybeSingle(),
-        supabase
-          .from("logistics_route_templates")
-          .select("id, weekday, name")
-          .eq("id", routeTemplateId)
-          .eq("organization_id", session.organizationId)
-          .maybeSingle(),
+        templateResultPromise,
       ]);
 
     if (shipmentError || !shipment) {
@@ -335,7 +366,7 @@ export async function requestCustomerRouteAssignmentAction(input: {
     if (task.status === "completed" || task.status === "cancelled") {
       return fail("La tarea ya está cerrada");
     }
-    if (templateError || !template) {
+    if (!dayAsRoute && (templateError || !templateRow)) {
       return fail(templateError?.message || "Ruta semanal no encontrada");
     }
 
@@ -345,6 +376,28 @@ export async function requestCustomerRouteAssignmentAction(input: {
     }
 
     const weekday = getLogisticsWeekdayIndex(routeDate);
+    let template: { id: string | null; weekday: number; name: string };
+    if (dayAsRoute) {
+      const { data: enabledDays, error: daysError } = await supabase.rpc(
+        "list_logistics_route_weekdays",
+        { target_org_id: session.organizationId },
+      );
+      const dayKeys = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
+      if (daysError || !enabledDays?.includes(dayKeys[weekday])) {
+        return fail(daysError?.message || "El dia no esta disponible en el calendario de rutas");
+      }
+      template = {
+        id: null,
+        weekday,
+        name: genericLogisticsRouteName(weekday),
+      };
+    } else {
+      template = {
+        id: String(templateRow?.id || ""),
+        weekday: Number(templateRow?.weekday),
+        name: String(templateRow?.name || ""),
+      };
+    }
     if (Number(template.weekday) !== weekday) {
       return fail("La ruta no corresponde al día elegido");
     }
@@ -374,6 +427,40 @@ export async function requestCustomerRouteAssignmentAction(input: {
 
     if (pendingExisting) {
       return fail("Ya hay una solicitud pendiente de logística para esta tarea");
+    }
+
+    if (dayAsRoute) {
+      const assignResult = await confirmLogisticsTaskScheduleAction({
+        taskId,
+        scheduledAt,
+        driverId: driverId || null,
+        routeTemplateId,
+      });
+      if (!assignResult.ok) {
+        return fail(assignResult.error);
+      }
+
+      await recordActivityHistory(supabase, session, {
+        action: "customer.route_assignment.day_route_assigned",
+        entityType: "shipment",
+        entityId: shipmentId,
+        title: `Ruta general asignada: ${shipment.code}`,
+        description: `${template.name} · día habilitado`,
+        metadata: {
+          taskId,
+          weekday,
+          driverId: driverId || null,
+          zoneKey,
+          routeId: assignResult.data.id,
+          dayAsRoute: true,
+        },
+      });
+
+      return ok({
+        outcome: "assigned",
+        requestId: null,
+        routeId: assignResult.data.id,
+      });
     }
 
     const verification = await loadActiveVerification(
@@ -425,10 +512,7 @@ export async function requestCustomerRouteAssignmentAction(input: {
     const { error: taskScheduleError } = await supabase
       .from("shipment_logistics_tasks")
       .update({
-        scheduled_at: scheduledAt,
-        schedule_kind: "exact",
-        window_start_at: scheduledAt,
-        window_end_at: null,
+        ...schedulePatch,
         status: task.status === "pending" ? "scheduled" : task.status,
         updated_at: nowIso,
       })
@@ -447,7 +531,7 @@ export async function requestCustomerRouteAssignmentAction(input: {
         shipment_id: shipmentId,
         task_id: taskId,
         route_template_id: routeTemplateId,
-        scheduled_at: scheduledAt,
+        scheduled_at: schedulePatch.scheduled_at,
         driver_id: driverId || null,
         zone_key: zoneKey,
         status: "pending",
@@ -523,7 +607,9 @@ export async function listPendingCustomerRouteAssignmentRequestsAction(): Promis
           neighborhood, city, state, postal_code, country, formatted_address, lat, lng
         ),
         shipment:shipments!customer_route_assignment_requests_shipment_id_fkey(code, logistics_plan),
-        task:shipment_logistics_tasks!customer_route_assignment_requests_task_id_fkey(task_type),
+        task:shipment_logistics_tasks!customer_route_assignment_requests_task_id_fkey(
+          task_type, scheduled_at, schedule_kind, window_start_at, window_end_at
+        ),
         template:logistics_route_templates!customer_route_assignment_requests_route_template_id_fkey(name, weekday),
         driver:profiles!customer_route_assignment_requests_driver_id_fkey(full_name, email)
       `,
@@ -656,7 +742,24 @@ export async function reviewCustomerRouteAssignmentRequestAction(input: {
       return fail("La zona del remitente cambió; el vendedor debe volver a proponer la ruta");
     }
 
-    const routeDate = scheduledAtToLocalDateInput(request.scheduled_at);
+    const { data: taskSchedule, error: taskScheduleError } = await supabase
+      .from("shipment_logistics_tasks")
+      .select("scheduled_at, schedule_kind, window_start_at, window_end_at")
+      .eq("id", request.task_id)
+      .eq("organization_id", session.organizationId)
+      .maybeSingle();
+    if (taskScheduleError || !taskSchedule) {
+      return fail(taskScheduleError?.message || "No se encontró el horario de la tarea");
+    }
+
+    const scheduleExpression =
+      logisticsScheduleExpressionFromWindow({
+        scheduledAt: taskSchedule.scheduled_at,
+        scheduleKind: taskSchedule.schedule_kind,
+        windowStartAt: taskSchedule.window_start_at,
+        windowEndAt: taskSchedule.window_end_at,
+      }) || request.scheduled_at;
+    const routeDate = scheduledAtToLocalDateInput(scheduleExpression);
     let assignDriverId = String(request.driver_id || "").trim();
     if (!assignDriverId) {
       const { data: weekdayDefault } = await supabase
@@ -670,7 +773,7 @@ export async function reviewCustomerRouteAssignmentRequestAction(input: {
 
     const assignResult = await confirmLogisticsTaskScheduleAction({
       taskId: request.task_id,
-      scheduledAt: request.scheduled_at,
+      scheduledAt: scheduleExpression,
       driverId: assignDriverId || null,
       routeTemplateId: request.route_template_id,
     });
@@ -742,6 +845,7 @@ export async function replaceCustomerRouteAssignmentRequestAction(input: {
 
     const requestId = String(input.requestId || "").trim();
     const routeTemplateId = String(input.routeTemplateId || "").trim();
+    const dayAsRoute = isDayAsRouteTemplateId(routeTemplateId);
     let driverId = String(input.driverId || "").trim();
     const scheduledAt = String(input.scheduledAt || "").trim();
     const routeDate = scheduledAtToLocalDateInput(scheduledAt);
@@ -766,26 +870,53 @@ export async function replaceCustomerRouteAssignmentRequestAction(input: {
       return fail("La solicitud ya fue revisada");
     }
 
-    const [{ data: oldTemplate }, { data: newTemplate, error: templateError }] = await Promise.all([
+    const newTemplatePromise = dayAsRoute
+      ? Promise.resolve({ data: null, error: null })
+      : supabase
+          .from("logistics_route_templates")
+          .select("id, name, weekday")
+          .eq("id", routeTemplateId)
+          .eq("organization_id", session.organizationId)
+          .maybeSingle();
+    const [{ data: oldTemplate }, { data: newTemplateRow, error: templateError }] = await Promise.all([
       supabase
         .from("logistics_route_templates")
         .select("id, name")
         .eq("id", request.route_template_id)
         .eq("organization_id", session.organizationId)
         .maybeSingle(),
-      supabase
-        .from("logistics_route_templates")
-        .select("id, name, weekday")
-        .eq("id", routeTemplateId)
-        .eq("organization_id", session.organizationId)
-        .maybeSingle(),
+      newTemplatePromise,
     ]);
 
-    if (templateError || !newTemplate) {
+    if (!dayAsRoute && (templateError || !newTemplateRow)) {
       return fail(templateError?.message || "Ruta semanal no encontrada");
     }
 
-    if (Number(newTemplate.weekday) !== getLogisticsWeekdayIndex(routeDate)) {
+    const replacementWeekday = getLogisticsWeekdayIndex(routeDate);
+    let newTemplate: { id: string | null; weekday: number; name: string };
+    if (dayAsRoute) {
+      const { data: enabledDays, error: daysError } = await supabase.rpc(
+        "list_logistics_route_weekdays",
+        { target_org_id: session.organizationId },
+      );
+      const dayKeys = ["Lun", "Mar", "Mie", "Jue", "Vie", "Sab", "Dom"];
+      if (daysError || !enabledDays?.includes(dayKeys[replacementWeekday])) {
+        return fail(daysError?.message || "El dia no esta disponible en el calendario de rutas");
+      }
+      newTemplate = {
+        id: null,
+        weekday: replacementWeekday,
+        name: genericLogisticsRouteName(replacementWeekday),
+      };
+    } else {
+      newTemplate = {
+        id: String(newTemplateRow?.id || ""),
+        weekday: Number(newTemplateRow?.weekday),
+        name: String(newTemplateRow?.name || ""),
+      };
+    }
+
+    if (Number(newTemplate.weekday) !== replacementWeekday) {
       return fail("La ruta de reemplazo no corresponde al día elegido");
     }
 
@@ -821,13 +952,15 @@ export async function replaceCustomerRouteAssignmentRequestAction(input: {
       return fail(assignResult.error);
     }
 
-    await upsertCustomerRouteVerification({
-      supabase,
-      session,
-      customerId: request.customer_id,
-      routeTemplateId,
-      zoneKey: currentZoneKey,
-    });
+    if (!dayAsRoute) {
+      await upsertCustomerRouteVerification({
+        supabase,
+        session,
+        customerId: request.customer_id,
+        routeTemplateId,
+        zoneKey: currentZoneKey,
+      });
+    }
 
     const nowIso = new Date().toISOString();
     const reviewNote =
@@ -863,7 +996,8 @@ export async function replaceCustomerRouteAssignmentRequestAction(input: {
         requestId,
         taskId: request.task_id,
         previousRouteTemplateId: request.route_template_id,
-        routeTemplateId,
+        routeTemplateId: newTemplate.id,
+        dayAsRoute,
         routeId: assignResult.data.id,
         zoneKey: currentZoneKey,
         driverId,

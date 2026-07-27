@@ -3,7 +3,6 @@
 import { type ReactNode } from "react";
 import {
   flowPersonToolbarActionsClass,
-  flowPersonToolbarCountClass,
   flowPersonToolbarRecentsClass,
   flowPersonToolbarSearchSlotClass,
   flowPersonToolbarShellClass,
@@ -18,7 +17,6 @@ type SalePersonListToolbarProps = {
   onCreate: () => void;
   createOnboardingTarget?: string;
   recents?: ReactNode;
-  countLabel?: string;
 };
 
 export function SalePersonListToolbar({
@@ -29,29 +27,25 @@ export function SalePersonListToolbar({
   onCreate,
   createOnboardingTarget,
   recents,
-  countLabel,
 }: SalePersonListToolbarProps) {
   return (
     <div className={flowPersonToolbarShellClass}>
-      <div className={flowPersonToolbarActionsClass}>
-        <button
-          type="button"
-          onClick={onCreate}
-          className={flowToolbarInlineCreateClass}
-          data-onboarding-target={createOnboardingTarget}
-        >
-          {createIcon}
-          <span className="hidden sm:inline">{createLabel}</span>
-          <span className="sm:hidden">{createShortLabel}</span>
-        </button>
-        {countLabel ? (
-          <span className={flowPersonToolbarCountClass} aria-live="polite">
-            {countLabel}
-          </span>
-        ) : null}
-      </div>
       {recents ? <div className={flowPersonToolbarRecentsClass}>{recents}</div> : null}
-      <div className={flowPersonToolbarSearchSlotClass}>{search}</div>
+      <div className="flex min-w-0 flex-1 items-stretch gap-2">
+        <div className={`${flowPersonToolbarSearchSlotClass} flex-1`}>{search}</div>
+        <div className={flowPersonToolbarActionsClass}>
+          <button
+            type="button"
+            onClick={onCreate}
+            className={flowToolbarInlineCreateClass}
+            data-onboarding-target={createOnboardingTarget}
+          >
+            {createIcon}
+            <span className="hidden md:inline">{createLabel}</span>
+            <span className="md:hidden">{createShortLabel}</span>
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

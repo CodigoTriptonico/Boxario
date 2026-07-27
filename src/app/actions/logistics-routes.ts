@@ -36,7 +36,11 @@ import {
   logisticsWeekdayKeys,
   type LogisticsWeekdayKey,
 } from "@/lib/logistics-route-catalog";
-import { genericLogisticsRouteName } from "@/lib/logistics-day-route";
+import {
+  genericLogisticsRouteName,
+  isDayAsRouteTemplateId,
+} from "@/lib/logistics-day-route";
+import { logisticsScheduleWindowPatch } from "@/lib/logistics-schedule-window";
 import type { AppSession } from "@/lib/auth/types";
 
 type Supabase = NonNullable<Awaited<ReturnType<typeof createScopedSupabase>>>;
@@ -53,20 +57,30 @@ export type LogisticsRouteTemplateRow = {
   id: string;
   weekday: number;
   name: string;
+  startTime: string;
+  estimatedEndTime: string;
   createdAt: string;
   updatedAt: string;
+};
+
+export type LogisticsWeekdaySchedule = {
+  startTime: string;
+  estimatedEndTime: string;
 };
 
 export type LogisticsRouteCatalog = {
   enabledDays: LogisticsWeekdayKey[];
   templates: LogisticsRouteTemplateRow[];
   defaultDriverByWeekday: Array<string | null>;
+  weekdayScheduleByWeekday: Array<LogisticsWeekdaySchedule | null>;
 };
 
 type LogisticsRouteTemplateDbRow = {
   id: string;
   weekday: number;
   name: string;
+  start_time?: string | null;
+  estimated_end_time?: string | null;
   created_at: string;
   updated_at: string;
 };
@@ -131,6 +145,12 @@ type LogisticsWeekdayDefaultDbRow = {
   default_driver_id: string | null;
 };
 
+type LogisticsWeekdayScheduleDbRow = {
+  weekday: number;
+  start_time: string | null;
+  estimated_end_time: string | null;
+};
+
 const ROUTE_SELECT = `
   id, route_date, name, status, assigned_to, vehicle_id, warehouse_id, zone_key, route_template_id, notes, published_at, started_at, completed_at, arrival_warehouse_id, arrival_reason_code, arrival_note, arrival_reported_at, arrival_confirmed_at, arrival_confirmed_by, created_at, updated_at,
   logistics_route_stops (
@@ -150,9 +170,46 @@ function mapRouteTemplate(row: LogisticsRouteTemplateDbRow): LogisticsRouteTempl
     id: row.id,
     weekday: Number(row.weekday),
     name: row.name,
+    startTime: row.start_time ? row.start_time.slice(0, 5) : "",
+    estimatedEndTime: row.estimated_end_time ? row.estimated_end_time.slice(0, 5) : "",
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   };
+}
+
+function isLegacyImplicitDayTemplate(template: LogisticsRouteTemplateRow) {
+  return (
+    template.name.trim().toLowerCase() ===
+    genericLogisticsRouteName(template.weekday).toLowerCase()
+  );
+}
+
+const ROUTE_TEMPLATE_SELECT = "id, weekday, name, start_time, estimated_end_time, created_at, updated_at";
+const ROUTE_TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+
+function routeScheduleInput(input: { startTime?: string; estimatedEndTime?: string }) {
+  const hasScheduleInput = input.startTime !== undefined || input.estimatedEndTime !== undefined;
+  if (!hasScheduleInput) {
+    return { hasScheduleInput: false, startTime: null as string | null, estimatedEndTime: null as string | null };
+  }
+
+  const startTime = String(input.startTime || "").trim();
+  const estimatedEndTime = String(input.estimatedEndTime || "").trim();
+  if (!startTime && !estimatedEndTime) {
+    return { hasScheduleInput: true, startTime: null, estimatedEndTime: null };
+  }
+  if (!ROUTE_TIME_PATTERN.test(startTime) || !ROUTE_TIME_PATTERN.test(estimatedEndTime)) {
+    throw new Error("Completa la hora de inicio y la hora de fin estimada");
+  }
+  if (startTime >= estimatedEndTime) {
+    throw new Error("La hora de fin estimada debe ser posterior a la hora de inicio");
+  }
+
+  return { hasScheduleInput: true, startTime, estimatedEndTime };
+}
+
+function canManageRouteSchedule(session: AppSession) {
+  return sessionHasPermission(session, "routes.update_status");
 }
 
 
@@ -516,11 +573,11 @@ export async function listLogisticsRouteCatalogAction(): Promise<ActionResult<Lo
       return fail("Supabase no configurado");
     }
 
-    const [daysResult, templatesResult, defaultsResult] = await Promise.all([
+    const [daysResult, templatesResult, defaultsResult, schedulesResult] = await Promise.all([
       supabase.rpc("list_logistics_route_weekdays", { target_org_id: session.organizationId }),
       supabase
         .from("logistics_route_templates")
-        .select("id, weekday, name, created_at, updated_at")
+        .select(ROUTE_TEMPLATE_SELECT)
         .eq("organization_id", session.organizationId)
         .order("weekday", { ascending: true })
         .order("created_at", { ascending: true }),
@@ -528,6 +585,9 @@ export async function listLogisticsRouteCatalogAction(): Promise<ActionResult<Lo
         .from("logistics_weekday_defaults")
         .select("weekday, default_driver_id")
         .eq("organization_id", session.organizationId),
+      supabase.rpc("list_logistics_weekday_schedules", {
+        target_org_id: session.organizationId,
+      }),
     ]);
 
     if (daysResult.error) {
@@ -536,6 +596,10 @@ export async function listLogisticsRouteCatalogAction(): Promise<ActionResult<Lo
 
     if (templatesResult.error) {
       return fail(templatesResult.error.message);
+    }
+
+    if (schedulesResult.error) {
+      return fail(schedulesResult.error.message);
     }
 
     const defaultDriverByWeekday = Array<string | null>(7).fill(null);
@@ -547,12 +611,32 @@ export async function listLogisticsRouteCatalogAction(): Promise<ActionResult<Lo
       }
     }
 
+    const weekdayScheduleByWeekday = Array<LogisticsWeekdaySchedule | null>(7).fill(null);
+    for (const row of (schedulesResult.data || []) as LogisticsWeekdayScheduleDbRow[]) {
+      if (
+        Number.isInteger(row.weekday) &&
+        row.weekday >= 0 &&
+        row.weekday <= 6 &&
+        row.start_time &&
+        row.estimated_end_time
+      ) {
+        weekdayScheduleByWeekday[row.weekday] = {
+          startTime: row.start_time.slice(0, 5),
+          estimatedEndTime: row.estimated_end_time.slice(0, 5),
+        };
+      }
+    }
+
     const enabledDays = (daysResult.data || []).filter(isLogisticsWeekdayKey);
+    const templates = ((templatesResult.data || []) as LogisticsRouteTemplateDbRow[])
+      .map(mapRouteTemplate)
+      .filter((template) => !isLegacyImplicitDayTemplate(template));
 
     return ok({
       enabledDays,
-      templates: ((templatesResult.data || []) as LogisticsRouteTemplateDbRow[]).map(mapRouteTemplate),
+      templates,
       defaultDriverByWeekday,
+      weekdayScheduleByWeekday,
     });
   } catch (error) {
     return fail(actionErrorMessage(error));
@@ -592,13 +676,72 @@ export async function setLogisticsWeekdayDefaultDriverAction(input: {
     await recordActivityHistory(supabase, session, {
       action: "logistics.weekday_default_driver_changed",
       entityType: "logistics_weekday_default",
-      entityId: `${session.organizationId}:${input.weekday}`,
+      entityId: null,
       title: "Conductor predeterminado actualizado",
       description: logisticsWeekdayKeys[input.weekday] || "Dia de ruta",
       metadata: { weekday: input.weekday, driverId },
     });
 
     return ok(driverId);
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function setLogisticsWeekdayScheduleAction(input: {
+  weekday: number;
+  startTime: string;
+  estimatedEndTime: string;
+}): Promise<ActionResult<LogisticsWeekdaySchedule>> {
+  try {
+    const session = await requireAppSession();
+    if (!canManageRouteSchedule(session)) {
+      throw new Error("FORBIDDEN");
+    }
+
+    if (!Number.isInteger(input.weekday) || input.weekday < 0 || input.weekday > 6) {
+      return fail("Dia de ruta invalido");
+    }
+
+    const schedule = routeScheduleInput(input);
+    if (!schedule.startTime || !schedule.estimatedEndTime) {
+      return fail("Completa el horario general del dia");
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return fail("Supabase no configurado");
+    }
+
+    const { data, error } = await supabase.rpc("set_logistics_weekday_schedule", {
+      target_org_id: session.organizationId,
+      target_weekday: input.weekday,
+      target_start_time: schedule.startTime,
+      target_estimated_end_time: schedule.estimatedEndTime,
+    });
+
+    const row = ((data || []) as LogisticsWeekdayScheduleDbRow[])[0];
+    if (error || !row?.start_time || !row.estimated_end_time) {
+      return fail(error?.message || "No se pudo guardar el horario general del dia");
+    }
+
+    const result = {
+      startTime: row.start_time.slice(0, 5),
+      estimatedEndTime: row.estimated_end_time.slice(0, 5),
+    };
+    await recordActivityHistory(supabase, session, {
+      action: "logistics.weekday_schedule_changed",
+      entityType: "logistics_weekday_default",
+      entityId: null,
+      title: `Horario general actualizado: ${logisticsWeekdayKeys[input.weekday]}`,
+      description: `${result.startTime} - ${result.estimatedEndTime}`,
+      metadata: {
+        weekday: input.weekday,
+        ...result,
+      },
+    });
+
+    return ok(result);
   } catch (error) {
     return fail(actionErrorMessage(error));
   }
@@ -655,11 +798,18 @@ export async function setLogisticsRouteWeekdayEnabledAction(input: {
 export async function createLogisticsRouteTemplateAction(input: {
   weekday: number;
   name: string;
+  startTime?: string;
+  estimatedEndTime?: string;
 }): Promise<ActionResult<LogisticsRouteTemplateRow>> {
   try {
     const session = await requireAppSession();
 
     if (!canManageRoutes(session)) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const schedule = routeScheduleInput(input);
+    if (schedule.hasScheduleInput && !canManageRouteSchedule(session)) {
       throw new Error("FORBIDDEN");
     }
 
@@ -679,9 +829,11 @@ export async function createLogisticsRouteTemplateAction(input: {
         organization_id: session.organizationId,
         weekday: input.weekday,
         name,
+        start_time: schedule.startTime,
+        estimated_end_time: schedule.estimatedEndTime,
         created_by: session.userId,
       })
-      .select("id, weekday, name, created_at, updated_at")
+      .select(ROUTE_TEMPLATE_SELECT)
       .single();
 
     if (error || !data) {
@@ -695,115 +847,11 @@ export async function createLogisticsRouteTemplateAction(input: {
       entityId: template.id,
       title: `Ruta semanal creada: ${template.name}`,
       description: logisticsWeekdayKeys[template.weekday] || "Dia de ruta",
-      metadata: { weekday: template.weekday },
-    });
-
-    return ok(template);
-  } catch (error) {
-    return fail(actionErrorMessage(error));
-  }
-}
-
-/**
- * When an enabled weekday has no named templates, the day itself is the route.
- * Finds or creates the generic "Ruta del {día}" template for that weekday.
- */
-export async function ensureLogisticsDayRouteTemplateAction(input: {
-  weekday: number;
-}): Promise<ActionResult<LogisticsRouteTemplateRow>> {
-  try {
-    const session = await requireAppSession();
-
-    if (!canManageRoutes(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    if (!Number.isInteger(input.weekday) || input.weekday < 0 || input.weekday > 6) {
-      return fail("Dia de ruta invalido");
-    }
-
-    const weekdayKey = logisticsWeekdayKeys[input.weekday];
-    if (!weekdayKey) {
-      return fail("Dia de ruta invalido");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
-    const { data: enabledDaysRaw, error: daysError } = await supabase.rpc(
-      "list_logistics_route_weekdays",
-      { target_org_id: session.organizationId },
-    );
-    if (daysError) {
-      return fail(daysError.message);
-    }
-
-    const enabledDays = (enabledDaysRaw || []).filter(isLogisticsWeekdayKey);
-    if (!enabledDays.includes(weekdayKey)) {
-      return fail(`${weekdayKey} no esta disponible en el calendario de rutas`);
-    }
-
-    const { data: existingRows, error: listError } = await supabase
-      .from("logistics_route_templates")
-      .select("id, weekday, name, created_at, updated_at")
-      .eq("organization_id", session.organizationId)
-      .eq("weekday", input.weekday)
-      .order("created_at", { ascending: true });
-
-    if (listError) {
-      return fail(listError.message);
-    }
-
-    const existing = ((existingRows || []) as LogisticsRouteTemplateDbRow[]).map(mapRouteTemplate);
-    const genericName = genericLogisticsRouteName(input.weekday);
-    const genericMatch = existing.find(
-      (template) => template.name.trim().toLowerCase() === genericName.toLowerCase(),
-    );
-    if (genericMatch) {
-      return ok(genericMatch);
-    }
-    if (existing[0]) {
-      return ok(existing[0]);
-    }
-
-    const { data, error } = await supabase
-      .from("logistics_route_templates")
-      .insert({
-        organization_id: session.organizationId,
-        weekday: input.weekday,
-        name: genericName,
-        created_by: session.userId,
-      })
-      .select("id, weekday, name, created_at, updated_at")
-      .single();
-
-    if (error || !data) {
-      if (error?.code === "23505") {
-        const { data: raced } = await supabase
-          .from("logistics_route_templates")
-          .select("id, weekday, name, created_at, updated_at")
-          .eq("organization_id", session.organizationId)
-          .eq("weekday", input.weekday)
-          .order("created_at", { ascending: true })
-          .limit(1)
-          .maybeSingle();
-        if (raced) {
-          return ok(mapRouteTemplate(raced as LogisticsRouteTemplateDbRow));
-        }
-      }
-      return fail(error?.message || "No se pudo crear la ruta del dia");
-    }
-
-    const template = mapRouteTemplate(data as LogisticsRouteTemplateDbRow);
-    await recordActivityHistory(supabase, session, {
-      action: "logistics.route_template_created",
-      entityType: "logistics_route_template",
-      entityId: template.id,
-      title: `Ruta del dia asegurada: ${template.name}`,
-      description: weekdayKey,
-      metadata: { weekday: template.weekday, dayAsRoute: true },
+      metadata: {
+        weekday: template.weekday,
+        startTime: template.startTime,
+        estimatedEndTime: template.estimatedEndTime,
+      },
     });
 
     return ok(template);
@@ -815,6 +863,8 @@ export async function ensureLogisticsDayRouteTemplateAction(input: {
 export async function updateLogisticsRouteTemplateAction(input: {
   templateId: string;
   name: string;
+  startTime?: string;
+  estimatedEndTime?: string;
 }): Promise<ActionResult<LogisticsRouteTemplateRow>> {
   try {
     const session = await requireAppSession();
@@ -828,17 +878,31 @@ export async function updateLogisticsRouteTemplateAction(input: {
       return fail("El nombre de la ruta es obligatorio");
     }
 
+    const schedule = routeScheduleInput(input);
+    if (schedule.hasScheduleInput && !canManageRouteSchedule(session)) {
+      throw new Error("FORBIDDEN");
+    }
+
     const supabase = await createScopedSupabase(session);
     if (!supabase) {
       return fail("Supabase no configurado");
     }
 
+    const patch: Record<string, unknown> = {
+      name,
+      updated_at: new Date().toISOString(),
+    };
+    if (schedule.hasScheduleInput) {
+      patch.start_time = schedule.startTime;
+      patch.estimated_end_time = schedule.estimatedEndTime;
+    }
+
     const { data, error } = await supabase
       .from("logistics_route_templates")
-      .update({ name, updated_at: new Date().toISOString() })
+      .update(patch)
       .eq("id", input.templateId)
       .eq("organization_id", session.organizationId)
-      .select("id, weekday, name, created_at, updated_at")
+      .select(ROUTE_TEMPLATE_SELECT)
       .single();
 
     if (error || !data) {
@@ -852,7 +916,11 @@ export async function updateLogisticsRouteTemplateAction(input: {
       entityId: template.id,
       title: `Ruta semanal actualizada: ${template.name}`,
       description: logisticsWeekdayKeys[template.weekday] || "Dia de ruta",
-      metadata: { weekday: template.weekday },
+      metadata: {
+        weekday: template.weekday,
+        startTime: template.startTime,
+        estimatedEndTime: template.estimatedEndTime,
+      },
     });
 
     return ok(template);
@@ -925,27 +993,81 @@ export async function confirmLogisticsTaskScheduleAction(input: {
     const supabase = await createScopedSupabase(session);
     if (!supabase) return fail("Supabase no configurado");
     const routeDate = scheduledAtToLocalDateInput(input.scheduledAt);
+    const schedulePatch = logisticsScheduleWindowPatch(input.scheduledAt);
     const driverId = String(input.driverId || "").trim() || null;
-    if (!input.taskId || !input.routeTemplateId || !/^\d{4}-\d{2}-\d{2}$/.test(routeDate)) {
+    const routeTemplateId = String(input.routeTemplateId || "").trim();
+    if (
+      !input.taskId ||
+      !routeTemplateId ||
+      !schedulePatch.scheduled_at ||
+      !/^\d{4}-\d{2}-\d{2}$/.test(routeDate)
+    ) {
       return fail("Completa fecha y ruta");
-    }
-    const [{ data: template, error: templateError }, taskInputs] = await Promise.all([
-      supabase.from("logistics_route_templates").select("id, weekday, name").eq("id", input.routeTemplateId).eq("organization_id", session.organizationId).single(),
-      loadTaskInputs(supabase, session, { excludeRouted: true, onlyCurrentStep: true }),
-    ]);
-    if (templateError || !template) return fail("Ruta semanal no encontrada");
-    if (driverId) {
-      await assertConductorProfile(supabase, session, driverId);
     }
     const weekday = weekdayIndexForRouteDate(routeDate);
     if (weekday === null) return fail("Fecha invalida");
+    const dayAsRoute = isDayAsRouteTemplateId(routeTemplateId);
+    let template: { id: string | null; weekday: number; name: string };
+
+    if (dayAsRoute) {
+      const { data: enabledDaysRaw, error: daysError } = await supabase.rpc(
+        "list_logistics_route_weekdays",
+        { target_org_id: session.organizationId },
+      );
+      const weekdayKey = logisticsWeekdayKeys[weekday];
+      if (
+        daysError ||
+        !weekdayKey ||
+        !(enabledDaysRaw || []).filter(isLogisticsWeekdayKey).includes(weekdayKey)
+      ) {
+        return fail(daysError?.message || "El dia no esta disponible en el calendario de rutas");
+      }
+      template = {
+        id: null,
+        weekday,
+        name: genericLogisticsRouteName(weekday),
+      };
+    } else {
+      const { data, error } = await supabase
+        .from("logistics_route_templates")
+        .select("id, weekday, name")
+        .eq("id", routeTemplateId)
+        .eq("organization_id", session.organizationId)
+        .single();
+      if (error || !data) return fail("Ruta semanal no encontrada");
+      template = {
+        id: String(data.id),
+        weekday: Number(data.weekday),
+        name: String(data.name),
+      };
+    }
+
+    const taskInputs = await loadTaskInputs(supabase, session, {
+      excludeRouted: true,
+      onlyCurrentStep: true,
+    });
+    if (driverId) {
+      await assertConductorProfile(supabase, session, driverId);
+    }
     if (Number(template.weekday) !== weekday) return fail("La ruta no corresponde al día elegido");
     const task = taskInputs.find((entry) => entry.taskId === input.taskId);
     if (!task) return fail("Tarea no disponible para programar");
-    const { data: existing } = await supabase.from("logistics_routes").select(ROUTE_SELECT).eq("organization_id", session.organizationId).eq("route_template_id", input.routeTemplateId).eq("route_date", routeDate).neq("status", "cancelled").maybeSingle();
+    let existingQuery = supabase
+      .from("logistics_routes")
+      .select(ROUTE_SELECT)
+      .eq("organization_id", session.organizationId)
+      .eq("route_date", routeDate)
+      .neq("status", "cancelled");
+    existingQuery = dayAsRoute
+      ? existingQuery.is("route_template_id", null).eq("name", template.name)
+      : existingQuery.eq("route_template_id", routeTemplateId);
+    const { data: existingRows } = await existingQuery
+      .order("created_at", { ascending: true })
+      .limit(1);
+    const existing = existingRows?.[0] || null;
     let route = existing ? mapRoute(existing as unknown as LogisticsRouteDbRow) : null;
     if (!route) {
-      const { data, error } = await supabase.from("logistics_routes").insert({ organization_id: session.organizationId, route_template_id: input.routeTemplateId, route_date: routeDate, name: template.name, status: "draft", assigned_to: driverId, zone_key: "", created_by: session.userId }).select(ROUTE_SELECT).single();
+      const { data, error } = await supabase.from("logistics_routes").insert({ organization_id: session.organizationId, route_template_id: template.id, route_date: routeDate, name: template.name, status: "draft", assigned_to: driverId, zone_key: "", created_by: session.userId }).select(ROUTE_SELECT).single();
       if (error || !data) return fail(error?.message || "No se pudo crear la ruta operativa");
       route = mapRoute(data as unknown as LogisticsRouteDbRow);
     } else if (driverId && route.assignedTo && route.assignedTo !== driverId) {
@@ -959,10 +1081,7 @@ export async function confirmLogisticsTaskScheduleAction(input: {
     const { error: taskError } = await supabase
       .from("shipment_logistics_tasks")
       .update({
-        scheduled_at: input.scheduledAt,
-        schedule_kind: "exact",
-        window_start_at: input.scheduledAt,
-        window_end_at: null,
+        ...schedulePatch,
         assigned_to: taskAssignedTo,
         assigned_at: taskAssignedTo ? nowIso : null,
         status: taskAssignedTo ? "assigned" : "scheduled",
@@ -995,7 +1114,8 @@ export async function confirmLogisticsTaskScheduleAction(input: {
         scheduledAt: input.scheduledAt,
         driverId: taskAssignedTo,
         routeId: route.id,
-        routeTemplateId: input.routeTemplateId,
+        routeTemplateId: template.id,
+        dayAsRoute,
       },
     });
     return ok(await loadRouteById(supabase, session, route.id));

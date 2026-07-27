@@ -1,4 +1,4 @@
--- Platform (super) admin: gestión cross-tenant de paqueterías
+-- Platform (super) admin: gestión cross-tenant de empresas
 
 -- ---------------------------------------------------------------------------
 -- Organizations: slug + estado activo

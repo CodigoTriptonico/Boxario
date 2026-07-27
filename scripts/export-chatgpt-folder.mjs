@@ -20,7 +20,6 @@ const rootFiles = [
   "DESARROLLO-LOCAL.md",
   "BASE-LOCAL.md",
   "SETUP.md",
-  "UI-STYLE.md",
   "RESPALDOS.md",
   "package.json",
   "package-lock.json",
@@ -72,7 +71,7 @@ Copia del proyecto **sin secretos ni carpetas generadas**, lista para subir a un
 
 ## Qué incluye
 
-- Documentación: \`README.md\`, \`AGENTS.md\`, \`DESARROLLO-LOCAL.md\`, \`BASE-LOCAL.md\`, \`SETUP.md\`, \`UI-STYLE.md\`, \`docs/\`
+- Documentación: \`README.md\`, \`AGENTS.md\`, \`DESARROLLO-LOCAL.md\`, \`BASE-LOCAL.md\`, \`SETUP.md\`, \`docs/GUIA_ESTILO_UI.md\`, \`docs/\`
 - Código: \`src/\`, \`scripts/\`, \`supabase/\`, \`tests/\`, \`public/\`
 - Config: \`package.json\`, \`tsconfig.json\`, \`next.config.ts\`, etc.
 - Plantillas de entorno: \`.env.example\`, \`.env.local.template\`

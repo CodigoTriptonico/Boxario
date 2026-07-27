@@ -28,7 +28,12 @@ export function useContextNav({
     if (!enabled) {
       if (lastAppliedRef.current !== null) {
         lastAppliedRef.current = null;
-        setShellConfig({});
+        setShellConfig({
+          contextNavLabel: undefined,
+          onContextNavBack: undefined,
+          contextNavTarget: undefined,
+          contextNavKeepBrand: undefined,
+        });
       }
       return;
     }
@@ -51,7 +56,12 @@ export function useContextNav({
   useEffect(() => {
     return () => {
       lastAppliedRef.current = null;
-      setShellConfig({});
+      setShellConfig({
+        contextNavLabel: undefined,
+        onContextNavBack: undefined,
+        contextNavTarget: undefined,
+        contextNavKeepBrand: undefined,
+      });
     };
   }, [setShellConfig]);
 }

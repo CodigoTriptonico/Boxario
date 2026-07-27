@@ -11,4 +11,11 @@ describe("login password visibility eval", () => {
     assert.match(source, /type=\{showPassword \? "text" : "password"\}/);
     assert.match(source, /aria-label=\{showPassword \? "Ocultar contrase/);
   });
+
+  it("keeps a server fallback when mobile JavaScript hydration is unavailable", () => {
+    assert.match(source, /action=\{mode === "login" \? "\/api\/auth\/sign-in" : undefined\}/);
+    assert.match(source, /method=\{mode === "login" \? "post" : undefined\}/);
+    assert.match(source, /name="nextPath"/);
+    assert.match(source, /No se pudo conectar con el servidor/);
+  });
 });

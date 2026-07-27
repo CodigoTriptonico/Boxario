@@ -424,21 +424,27 @@ export async function requestPersistentConductorStorage() {
 function postServiceWorkerMessage(message: Record<string, unknown>) {
   if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return Promise.resolve(false);
 
-  return navigator.serviceWorker.ready.then((registration) => new Promise<boolean>((resolve) => {
-    const worker = navigator.serviceWorker.controller || registration.active;
-    if (!worker) {
-      resolve(false);
-      return;
+  return navigator.serviceWorker.getRegistration().then((registration) => {
+    if (!registration) {
+      return false;
     }
 
-    const channel = new MessageChannel();
-    const timeout = window.setTimeout(() => resolve(false), 5_000);
-    channel.port1.onmessage = (event) => {
-      window.clearTimeout(timeout);
-      resolve(event.data?.ok === true);
-    };
-    worker.postMessage(message, [channel.port2]);
-  }));
+    return new Promise<boolean>((resolve) => {
+      const worker = navigator.serviceWorker.controller || registration.active;
+      if (!worker) {
+        resolve(false);
+        return;
+      }
+
+      const channel = new MessageChannel();
+      const timeout = window.setTimeout(() => resolve(false), 5_000);
+      channel.port1.onmessage = (event) => {
+        window.clearTimeout(timeout);
+        resolve(event.data?.ok === true);
+      };
+      worker.postMessage(message, [channel.port2]);
+    });
+  }).catch(() => false);
 }
 
 export function cacheConductorOfflineShell(scope: ConductorOfflineScope) {

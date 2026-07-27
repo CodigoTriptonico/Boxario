@@ -19,6 +19,12 @@ describe("app shell hydration contract", () => {
     assert.match(hydrationHookSource, /function getServerSnapshot\(\) \{\s*return false;/);
   });
 
+  it("passes contextual header actions through the shell without placing them in page content", () => {
+    assert.match(appFrameSource, /headerAction\?: React\.ReactNode/);
+    assert.match(appFrameSource, /headerAction=\{config\.headerAction\}/);
+    assert.match(brandHeaderSource, /\{headerAction\}[\s\S]*NotificationsCenter/);
+  });
+
   it("defers pathname-derived context navigation until hydration is complete", () => {
     assert.match(
       appFrameSource,
@@ -42,6 +48,27 @@ describe("app shell hydration contract", () => {
     assert.match(
       brandHeaderSource,
       /<Link[\s\S]*?aria-label="Ir al inicio"[\s\S]*?<h1 className=\{`min-w-0 flex-1 \$\{titleClass\}`\}>\{brandTitle\}<\/h1>/,
+    );
+  });
+
+  it("clears every contextual navigation field when a module unmounts", () => {
+    const contextNavSource = readFileSync(join(root, "hooks/use-context-nav.ts"), "utf8");
+
+    assert.equal(
+      (contextNavSource.match(/contextNavLabel: undefined/g) ?? []).length,
+      2,
+    );
+    assert.equal(
+      (contextNavSource.match(/onContextNavBack: undefined/g) ?? []).length,
+      2,
+    );
+    assert.equal(
+      (contextNavSource.match(/contextNavTarget: undefined/g) ?? []).length,
+      2,
+    );
+    assert.equal(
+      (contextNavSource.match(/contextNavKeepBrand: undefined/g) ?? []).length,
+      2,
     );
   });
 });

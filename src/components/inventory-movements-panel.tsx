@@ -37,6 +37,7 @@ import {
   formatInventoryMovementTrail,
   inventoryMovementReasonLabel,
   readInventoryMovementEvidencePhotos,
+  readInventoryMovementSupplierName,
 } from "@/lib/inventory-movement-audit";
 
 type MovementsTab = "history" | "summary";
@@ -98,6 +99,15 @@ function formatWhen(value: string) {
   }
 }
 
+function formatMovementCost(value: number) {
+  return new Intl.NumberFormat("es-MX", {
+    style: "currency",
+    currency: "USD",
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 4,
+  }).format(value);
+}
+
 function MovementTypeIcon({ type }: { type: InventoryMovementType }) {
   if (type === "entrada" || type === "devolucion") {
     return <ArrowDownLeft className="h-4 w-4" aria-hidden />;
@@ -149,6 +159,7 @@ function MovementList({
           referenceLabel: movement.toLocationType === "shipment" ? movement.toLocationLabel : null,
         });
         const evidencePhotos = readInventoryMovementEvidencePhotos(movement.evidence);
+        const supplierName = readInventoryMovementSupplierName(movement.evidence);
 
         return (
         <li key={movement.id} className="rounded-xl border border-black bg-[#111827] p-3">
@@ -194,6 +205,32 @@ function MovementList({
               {movement.qty}
             </span>
           </div>
+          {supplierName || movement.unitCost != null || movement.totalCost != null ? (
+            <dl className="mt-2 grid gap-1 rounded-lg border border-black/70 bg-black/10 px-2.5 py-2 text-xs">
+              {supplierName ? (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="font-bold text-slate-500">Proveedor</dt>
+                  <dd className="text-right font-black text-slate-200">{supplierName}</dd>
+                </div>
+              ) : null}
+              {movement.unitCost != null ? (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="font-bold text-slate-500">Costo unitario</dt>
+                  <dd className="font-black tabular-nums text-slate-200">
+                    {formatMovementCost(movement.unitCost)}
+                  </dd>
+                </div>
+              ) : null}
+              {movement.totalCost != null ? (
+                <div className="flex items-center justify-between gap-3">
+                  <dt className="font-bold text-slate-500">Costo del lote</dt>
+                  <dd className="font-black tabular-nums text-slate-200">
+                    {formatMovementCost(movement.totalCost)}
+                  </dd>
+                </div>
+              ) : null}
+            </dl>
+          ) : null}
           {movement.note ? (
             <p className="mt-2 text-xs font-bold leading-relaxed text-slate-400">
               {movement.note}

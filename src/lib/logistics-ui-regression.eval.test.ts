@@ -25,9 +25,9 @@ function invoiceCardSource() {
 function logisticsToolbarSource() {
   const taskPanelStart = componentSource.indexOf('className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"');
   assert.notEqual(taskPanelStart, -1);
-  const toolbarStart = componentSource.indexOf("<div className={panelToolbarClass}>", taskPanelStart);
+  const toolbarStart = componentSource.indexOf("<div className={`${panelToolbarClass}", taskPanelStart);
   const listStart = componentSource.indexOf(
-    'className={`${panelListScrollClass} pt-3`}',
+    'className={`${panelListScrollClass}',
     toolbarStart,
   );
   assert.notEqual(toolbarStart, -1);
@@ -208,11 +208,16 @@ describe("logistica single-action invoice card eval", () => {
     assert.equal(main.includes("4+ dias"), false);
   });
 
-  it("keeps the main toolbar in one compact row", () => {
+  it("keeps only search and filters in the permanent mobile toolbar", () => {
     const toolbar = logisticsToolbarSource();
 
     assert.equal(toolbar.includes("panelToolbarClass"), true);
-    assert.equal(toolbar.includes("flex flex-wrap items-center gap-2"), true);
+    assert.equal(toolbar.includes("flex min-w-0 flex-wrap items-center gap-2"), true);
+    assert.equal(toolbar.includes("order-2 min-w-0 flex-[1_1_calc(100%-3.5rem)]"), true);
+    assert.equal(toolbar.includes("order-3 !hidden w-full min-w-0 grid-cols-2"), true);
+    assert.equal(toolbar.includes("order-1 !hidden lg:order-none lg:ml-auto lg:!block"), true);
+    assert.equal(toolbar.includes("!hidden w-[11.5rem]"), true);
+    assert.equal(toolbar.includes("lg:!hidden"), true);
     assert.equal(toolbar.includes("lg:grid-cols-[auto_minmax(18rem,1.4fr)"), false);
     assert.equal(toolbar.includes('className="grid gap-3"'), false);
     assert.equal(

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { History, Package, PhoneCall, Search, Star, X } from "lucide-react";
+import { History, Package, PhoneCall, Search, Settings2, Star, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, memo, type ReactNode } from "react";
 import {
   listLogisticsRouteCatalogAction,
@@ -33,10 +33,8 @@ import { EstadisticasAuditoriaPanel } from "@/components/estadisticas/auditoria-
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import { LogisticsTaskScheduleConfirmPanel } from "@/components/logistica/logistics-task-schedule-confirm-panel";
 import { ShipmentCollectDialog } from "@/components/shipment-collect-dialog";
-import {
-  ShipmentContactLogDialog,
-  ShipmentContactLogLine,
-} from "@/components/shipment-contact-log-dialog";
+import { ShipmentContactLogLine } from "@/components/shipment-contact-log-dialog";
+import { ShipmentJournalDialog } from "@/components/shipment-journal-dialog";
 import { EnviosShipmentContextMenu, type EnviosShipmentMenuState } from "@/components/envios-shipment-context-menu";
 import { ShipmentLogisticsAssignmentBadges } from "@/components/shipment-logistics-assignment-badges";
 import { ShipmentMilestoneAgeTrigger } from "@/components/shipment-milestone-age-strip";
@@ -62,7 +60,7 @@ import {
   resolveEnviosBulkReadinessPatch,
   type EnviosBulkReadinessAction,
 } from "@/lib/envios-bulk-readiness";
-import { formatMoneyValue } from "@/lib/logistics-fees";
+import { formatMoneyValue, parseMoneyValue } from "@/lib/logistics-fees";
 import { readBillingFromPlan } from "@/lib/invoice-billing";
 import {
   DEFAULT_PAYMENT_METHOD,
@@ -129,6 +127,8 @@ type EnviosClientProps = {
   initialPendingRouteTaskIds?: string[];
   initialRoleSlug?: string;
   canManageSales?: boolean;
+  canManageSalesSettings?: boolean;
+  canViewShipmentJournal?: boolean;
   canUpdateShipmentStatus?: boolean;
   canManageShipmentOwners?: boolean;
   canAccessAuditoria?: boolean;
@@ -153,6 +153,31 @@ function driverCollectionLabel(row: ShipmentRow) {
   return `Conductor recibió ${formatMoneyValue(collection.receivedAmount)} · esperado ${formatMoneyValue(collection.expectedAmount)}`;
 }
 
+function shipmentLogisticsCharge(row: ShipmentRow) {
+  const billing = readBillingFromPlan(row.logistics_plan);
+  if (!billing || parseMoneyValue(billing.logisticsSubtotal) <= 0) {
+    return null;
+  }
+  const plan = row.logistics_plan && typeof row.logistics_plan === "object"
+    ? row.logistics_plan as Record<string, unknown>
+    : {};
+  const adjustments =
+    plan.feeAdjustments && typeof plan.feeAdjustments === "object"
+      ? plan.feeAdjustments as Record<string, unknown>
+      : {};
+  const adjusted = Object.values(adjustments).some((value) => {
+    if (!value || typeof value !== "object") return false;
+    const charge = value as Record<string, unknown>;
+    return charge.enabled === true &&
+      parseMoneyValue(String(charge.amount || "$0")) !==
+        parseMoneyValue(String(charge.suggestion || "$0"));
+  });
+  return {
+    amount: billing.logisticsSubtotal,
+    adjusted,
+  };
+}
+
 export function EnviosClient({
   mode = "tracking",
   unified = false,
@@ -164,6 +189,8 @@ export function EnviosClient({
   initialPendingRouteTaskIds = [],
   initialRoleSlug = "administrador",
   canManageSales = false,
+  canManageSalesSettings = false,
+  canViewShipmentJournal = false,
   canUpdateShipmentStatus = false,
   canManageShipmentOwners = false,
   canAccessAuditoria = false,
@@ -1045,6 +1072,7 @@ export function EnviosClient({
             onStatusFilterChange={setStatusFilter}
             statusFilterOptions={statusFilterOptions}
             canManageSales={canManageSales}
+            canManageSalesSettings={canManageSalesSettings}
             isConductor={isConductor}
           />
 
@@ -1069,6 +1097,7 @@ export function EnviosClient({
                   displayShipments={displayShipments}
                   cardClass={cardClass}
                   canManageSales={canManageSales}
+                  canViewShipmentJournal={canViewShipmentJournal}
                   canManageShipmentOwners={canManageShipmentOwners}
                   canEditProgress={canEditProgress}
                   canUpdateShipmentStatus={canUpdateShipmentStatus}
@@ -1108,7 +1137,8 @@ export function EnviosClient({
               ) : (
                 <EnviosShipmentCardsGrid
                   displayShipments={displayShipments}
-                  canManageSales={canManageSales}
+                    canManageSales={canManageSales}
+                    canViewShipmentJournal={canViewShipmentJournal}
                   canManageShipmentOwners={canManageShipmentOwners}
                   canEditProgress={canEditProgress}
                   canUpdateShipmentStatus={canUpdateShipmentStatus}
@@ -1238,6 +1268,7 @@ export function EnviosClient({
           templates={routeCatalog.templates}
           enabledDays={routeCatalog.enabledDays}
           defaultDriverByWeekday={routeCatalog.defaultDriverByWeekday}
+          weekdayScheduleByWeekday={routeCatalog.weekdayScheduleByWeekday}
           routeMembers={routeMembers}
           saving={routeProgramSaving}
           title={
@@ -1265,18 +1296,12 @@ export function EnviosClient({
       ) : null}
 
       {contactLogTarget ? (
-        <ShipmentContactLogDialog
+        <ShipmentJournalDialog
           key={contactLogTarget.id}
           open
           shipment={contactLogTarget}
           onClose={() => setContactLogShipmentId(null)}
           onError={(message) => notify.error(message)}
-          onSaved={(updated) => {
-            setShipments((current) =>
-              current.map((entry) => (entry.id === updated.id ? updated : entry)),
-            );
-            notify.success("Seguimiento guardado");
-          }}
         />
       ) : null}
 
@@ -1382,6 +1407,7 @@ function EnviosReadinessActions({
   listosCount,
   pendientesCount,
   canManageSales,
+  canManageSalesSettings,
   isConductor,
 }: {
   mode: EnviosClientMode;
@@ -1391,6 +1417,7 @@ function EnviosReadinessActions({
   listosCount: number;
   pendientesCount: number;
   canManageSales: boolean;
+  canManageSalesSettings: boolean;
   isConductor: boolean;
 }) {
   const isHistoryMode = mode === "history";
@@ -1460,6 +1487,16 @@ function EnviosReadinessActions({
           <span className="hidden sm:inline">Nuevo envío</span>
         </Link>
       ) : null}
+      {canManageSalesSettings && !isConductor ? (
+        <Link
+          href="/seguimiento?view=configuracion"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300 hover:text-white"
+          title="Configuración de ventas"
+          aria-label="Configuración de ventas"
+        >
+          <Settings2 className="h-4 w-4" />
+        </Link>
+      ) : null}
     </div>
   );
 }
@@ -1485,6 +1522,7 @@ type EnviosFiltersToolbarProps = {
   onStatusFilterChange: (value: string) => void;
   statusFilterOptions: { value: string; label: string }[];
   canManageSales: boolean;
+  canManageSalesSettings: boolean;
   isConductor: boolean;
 };
 
@@ -1509,6 +1547,7 @@ const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
   onStatusFilterChange,
   statusFilterOptions,
   canManageSales,
+  canManageSalesSettings,
   isConductor,
 }: EnviosFiltersToolbarProps) {
   const isHistoryMode = mode === "history";
@@ -1586,6 +1625,7 @@ const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
             listosCount={listosCount}
             pendientesCount={pendientesCount}
             canManageSales={canManageSales}
+            canManageSalesSettings={canManageSalesSettings}
             isConductor={isConductor}
           />
         </div>
@@ -1675,6 +1715,7 @@ type EnviosShipmentListsSharedProps = {
   displayShipments: ShipmentRow[];
   cardClass: string;
   canManageSales: boolean;
+  canViewShipmentJournal: boolean;
   canManageShipmentOwners: boolean;
   canEditProgress: boolean;
   canUpdateShipmentStatus: boolean;
@@ -1721,6 +1762,7 @@ const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
   displayShipments,
   cardClass,
   canManageSales,
+  canViewShipmentJournal,
   canEditProgress,
   canUpdateShipmentStatus,
   isHistoryMode,
@@ -1755,6 +1797,7 @@ const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
             canManageSales && row.invoice_status === "open" && balanceDue > 0;
           const progressSteps = shipmentLogisticsSteps(row);
           const paymentProgress = shipmentPaymentProgress(row, quote);
+          const logisticsCharge = shipmentLogisticsCharge(row);
           const activeStep = progressSteps.find((step) => step.state === "active");
           const logisticsAssignment = shipmentOperationalAssignment(
             row,
@@ -1864,6 +1907,12 @@ const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
                       summaryRow
                       progress={paymentProgress}
                     />
+                    {logisticsCharge ? (
+                      <p className="mt-1 text-right text-[9px] font-black text-amber-300">
+                        Cargo logístico {logisticsCharge.amount}
+                        {logisticsCharge.adjusted ? " · Tarifa ajustada" : ""}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
 
@@ -1925,13 +1974,13 @@ const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
                   </div>
                   <div className="flex flex-col gap-2.5 lg:flex-row lg:items-start lg:gap-4">
                     <div className="flex shrink-0 flex-wrap items-center gap-1.5">
-                      {canManageSales ? (
+                      {canViewShipmentJournal ? (
                         <button
                           type="button"
                           onClick={() => onContactLogOpen(row.id)}
                           className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-emerald-300 hover:bg-surface-card"
-                          title="Registrar seguimiento"
-                          aria-label={`Registrar seguimiento de ${row.code}`}
+                          title="Abrir Bitácora"
+                          aria-label={`Abrir Bitácora de ${row.code}`}
                         >
                           <PhoneCall className="h-4 w-4" aria-hidden />
                           {row.contactLogs?.length ? (
@@ -2009,6 +2058,7 @@ type EnviosShipmentCardsGridProps = Omit<EnviosShipmentListsSharedProps, "cardCl
 const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
   displayShipments,
   canManageSales,
+  canViewShipmentJournal,
   canManageShipmentOwners,
   canEditProgress,
   canUpdateShipmentStatus,
@@ -2045,6 +2095,7 @@ const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
           canManageSales && row.invoice_status === "open" && balanceDue > 0;
         const progressSteps = shipmentLogisticsSteps(row);
         const paymentProgress = shipmentPaymentProgress(row, quote);
+        const logisticsCharge = shipmentLogisticsCharge(row);
         const activeStep = progressSteps.find((step) => step.state === "active");
         const logisticsAssignment = shipmentOperationalAssignment(
           row,
@@ -2157,6 +2208,12 @@ const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
 
             <div className="mt-2">
               <ShipmentPaymentProgress compact progress={paymentProgress} />
+              {logisticsCharge ? (
+                <p className="mt-1.5 rounded-md border border-amber-800/70 bg-amber-950/20 px-2 py-1 text-[10px] font-black text-amber-200">
+                  Cargo logístico adicional: {logisticsCharge.amount}
+                  {logisticsCharge.adjusted ? " · Tarifa ajustada" : ""}
+                </p>
+              ) : null}
               {latestPayment ? (
                 <p className="mt-1.5 rounded-md border border-black bg-surface-inset px-2 py-1 text-[10px] font-black text-slate-300">
                   Pago: {formatMoneyValue(latestPayment.amount)} ·{" "}
@@ -2185,13 +2242,13 @@ const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
               ) : null}
               <div className="flex flex-wrap items-center justify-between gap-1.5">
                 <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1">
-                  {canManageSales ? (
+                  {canViewShipmentJournal ? (
                     <button
                       type="button"
                       onClick={() => onContactLogOpen(row.id)}
                       className="relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-emerald-300 hover:bg-surface-card"
-                      title="Registrar seguimiento"
-                      aria-label={`Registrar seguimiento de ${row.code}`}
+                      title="Abrir Bitácora"
+                      aria-label={`Abrir Bitácora de ${row.code}`}
                     >
                       <PhoneCall className="h-4 w-4" aria-hidden />
                       {row.contactLogs?.length ? (

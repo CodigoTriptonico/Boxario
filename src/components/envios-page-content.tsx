@@ -24,6 +24,15 @@ export async function EnviosPageContent({ mode }: EnviosPageContentProps) {
 
   const canManageShipmentOwners = canChangeShipmentSalesOwner(session);
   const canManageSales = sessionHasPermission(session, "sales.manage");
+  const canManageSalesSettings =
+    sessionHasPermission(session, "sales.settings.manage") ||
+    sessionHasPermission(session, "settings.manage");
+  const canViewShipmentJournal =
+    canManageSales ||
+    sessionHasPermission(session, "logistics.settings.manage") ||
+    sessionHasPermission(session, "accounting.view") ||
+    sessionHasPermission(session, "audit.immutable.view") ||
+    sessionHasPermission(session, "settings.manage");
   const [shipmentsResult, membersResult, ownersResult, routesResult, catalogResult, pendingRouteTasksResult] =
     await Promise.all([
       listShipmentsAction(),
@@ -52,6 +61,8 @@ export async function EnviosPageContent({ mode }: EnviosPageContentProps) {
       initialPendingRouteTaskIds={pendingRouteTasksResult.ok ? pendingRouteTasksResult.data : []}
       initialRoleSlug={session.roleSlug}
       canManageSales={canManageSales}
+      canManageSalesSettings={canManageSalesSettings}
+      canViewShipmentJournal={canViewShipmentJournal}
       canUpdateShipmentStatus={sessionHasPermission(session, "routes.update_status")}
       canManageShipmentOwners={canManageShipmentOwners}
       canAccessAuditoria={canAccessPath(session, "/auditoria")}

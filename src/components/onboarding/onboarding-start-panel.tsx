@@ -54,7 +54,7 @@ export function OnboardingStartPanel({
             Configuración inicial
           </p>
           <h3 className="mt-0.5 text-base font-black text-[#f8fafc]">
-            Deja tu paquetería lista para vender
+            Deja tu empresa lista para vender
           </h3>
           <p className="mt-1.5 text-xs font-bold leading-relaxed text-slate-400">
             Te guiaremos paso a paso: países, inventario, precios, stock y tu primera venta.

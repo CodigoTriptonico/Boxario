@@ -5,17 +5,22 @@ import { TimePickerInput } from "@/components/time-picker-input";
 import {
   applyScheduleTimePreset,
   formatScheduleTimePart,
+  formatTime12Hour,
   parseScheduleTime,
   scheduleTimePresetMatches,
   type ScheduleTimeKind,
 } from "@/lib/sale/schedule-time";
+import {
+  DEFAULT_SCHEDULE_SUGGESTIONS,
+  type ScheduleTimeSuggestions,
+} from "@/lib/sale/schedule-suggestions";
 
-const TIME_PRESETS = [
-  ["10 AM", "10:00"],
-  ["12 PM", "12:00"],
-  ["2 PM", "14:00"],
-  ["5 PM", "17:00"],
-] as const;
+const PRESET_LABELS = {
+  exact: "Horas frecuentes",
+  until: "Límites sugeridos",
+  from: "Inicios sugeridos",
+  range: "Rangos sugeridos",
+} as const;
 
 function segmentClass(selected: boolean) {
   return selected
@@ -26,11 +31,16 @@ function segmentClass(selected: boolean) {
 type ScheduleTimeFieldProps = {
   value: string;
   onChange: (timePart: string) => void;
+  suggestions?: ScheduleTimeSuggestions;
 };
 
-export function ScheduleTimeField({ value, onChange }: ScheduleTimeFieldProps) {
+export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTimeFieldProps) {
   const parsed = parseScheduleTime(value);
   const [rangeTarget, setRangeTarget] = useState<"start" | "end">("start");
+  const resolvedSuggestions: ScheduleTimeSuggestions = suggestions ?? {
+    ...DEFAULT_SCHEDULE_SUGGESTIONS.delivery,
+    range: ["08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-17:00"],
+  };
 
   function update(next: Partial<typeof parsed>) {
     onChange(formatScheduleTimePart({ ...parsed, ...next }));
@@ -43,32 +53,54 @@ export function ScheduleTimeField({ value, onChange }: ScheduleTimeFieldProps) {
 
     if (kind === "range") {
       setRangeTarget("start");
-      onChange(formatScheduleTimePart({ kind, start: parsed.start, end: parsed.end || "" }));
+      onChange(
+        formatScheduleTimePart({
+          kind,
+          start: parsed.start,
+          end: parsed.kind === "range" ? parsed.end || "" : "",
+        }),
+      );
       return;
     }
 
-    onChange(formatScheduleTimePart({ kind, start: parsed.start }));
+    onChange(
+      formatScheduleTimePart({
+        kind,
+        start: parsed.kind === "range" ? parsed.end || parsed.start : parsed.start,
+      }),
+    );
   }
 
-  function presetTarget() {
-    return parsed.kind === "range" ? rangeTarget : "start";
-  }
+  const singleTimePresets =
+    parsed.kind === "range" ? [] : resolvedSuggestions[parsed.kind].map((time) => [
+      formatTime12Hour(time).replace(":00", ""),
+      time,
+    ] as const);
+  const rangePresets = resolvedSuggestions.range.flatMap((range) => {
+    const [start, end] = range.split("-");
+    if (!start || !end) {
+      return [];
+    }
+
+    return [[`${formatTime12Hour(start).replace(":00", "")}–${formatTime12Hour(end).replace(":00", "")}`, start, end] as const];
+  });
 
   return (
     <div className="grid min-w-0 gap-2">
-      <div className="grid grid-cols-3 gap-1 rounded-lg bg-surface-panel p-1">
+      <div className="flex min-w-0 gap-1 rounded-lg bg-surface-panel p-1">
         {(
           [
-            ["exact", "Puntual"],
-            ["range", "Rango"],
-            ["from", "Desde"],
+            ["exact", "Exacta"],
+            ["until", "Antes de"],
+            ["from", "A partir"],
+            ["range", "Entre"],
           ] as const
         ).map(([kind, label]) => (
           <button
             key={kind}
             type="button"
             onClick={() => setKind(kind)}
-            className={`h-8 rounded-md text-[11px] font-black transition ${segmentClass(parsed.kind === kind)}`}
+            className={`h-9 min-w-0 flex-1 whitespace-nowrap rounded-md px-1 text-[10px] font-black transition ${segmentClass(parsed.kind === kind)}`}
           >
             {label}
           </button>
@@ -76,28 +108,41 @@ export function ScheduleTimeField({ value, onChange }: ScheduleTimeFieldProps) {
       </div>
 
       <div className="grid gap-1.5">
-        {parsed.kind === "range" ? (
-          <span className="text-[11px] font-black uppercase text-slate-500">
-            Atajo para {rangeTarget === "end" ? "Hasta" : "Desde"}
-          </span>
-        ) : (
-          <span className="text-[11px] font-black uppercase text-slate-500">Atajos</span>
-        )}
-        <div className="flex flex-wrap gap-1.5">
-          {TIME_PRESETS.map(([label, time]) => (
+        <span className="text-[11px] font-black uppercase text-slate-500">
+          {PRESET_LABELS[parsed.kind]}
+        </span>
+        <div className="grid grid-cols-4 gap-1.5">
+          {parsed.kind === "range"
+            ? rangePresets.map(([label, start, end]) => (
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() =>
+                    onChange(formatScheduleTimePart({ kind: "range", start, end }))
+                  }
+                  className={`h-8 min-w-0 rounded-md border px-1 text-[10px] font-black transition ${
+                    parsed.start === start && parsed.end === end
+                      ? "border-emerald-600 bg-emerald-400 text-slate-950"
+                      : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
+                  }`}
+                >
+                  {label}
+                </button>
+              ))
+            : singleTimePresets.map(([label, time]) => (
             <button
               key={label}
               type="button"
-              onClick={() => onChange(applyScheduleTimePreset(value, time, presetTarget()))}
-              className={`h-8 rounded-md border px-3 text-xs font-black transition ${
-                scheduleTimePresetMatches(value, time, presetTarget())
+              onClick={() => onChange(applyScheduleTimePreset(value, time))}
+              className={`h-8 min-w-0 rounded-md border px-1 text-[11px] font-black transition ${
+                scheduleTimePresetMatches(value, time)
                   ? "border-emerald-600 bg-emerald-400 text-slate-950"
                   : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
               }`}
             >
               {label}
             </button>
-          ))}
+              ))}
         </div>
       </div>
 
@@ -139,10 +184,21 @@ export function ScheduleTimeField({ value, onChange }: ScheduleTimeFieldProps) {
 
       {parsed.kind === "from" ? (
         <label className="grid gap-1.5">
-          <span className="text-[11px] font-black uppercase text-slate-500">Desde (en adelante)</span>
+          <span className="text-[11px] font-black uppercase text-slate-500">A partir de</span>
           <TimePickerInput
             value={parsed.start}
-            ariaLabel="Hora desde en adelante"
+            ariaLabel="Hora a partir de"
+            onChange={(nextValue) => update({ start: nextValue })}
+          />
+        </label>
+      ) : null}
+
+      {parsed.kind === "until" ? (
+        <label className="grid gap-1.5">
+          <span className="text-[11px] font-black uppercase text-slate-500">Antes de</span>
+          <TimePickerInput
+            value={parsed.start}
+            ariaLabel="Hora antes de"
             onChange={(nextValue) => update({ start: nextValue })}
           />
         </label>

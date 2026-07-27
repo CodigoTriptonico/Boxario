@@ -14,7 +14,7 @@ const platformWizard = component("platform/platform-create-client-wizard.tsx");
 const planSettings = component("config/plan-settings-panel.tsx");
 const warehouseAccess = component("config/user-warehouse-access-editor.tsx");
 const driverChange = component("logistica/logistics-driver-change-dialog.tsx");
-const uiStyle = readFileSync(new URL("../../UI-STYLE.md", import.meta.url), "utf8");
+const uiStyle = readFileSync(new URL("../../docs/GUIA_ESTILO_UI.md", import.meta.url), "utf8");
 
 describe("visual density cleanup contract", () => {
   it("uses dividers instead of nested summary cards", () => {

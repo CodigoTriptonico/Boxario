@@ -13,10 +13,24 @@ describe("venta mobile flow layout eval", () => {
     );
     assert.match(
       ventaSource,
-      /justify-center overflow-y-auto py-2[\s\S]*?SaleLogisticsStep[\s\S]*?flex shrink-0 justify-center border-t border-black\/80 pt-4[\s\S]*?onClick=\{continueFromLogistics\}/,
+      /justify-center overflow-y-auto px-1 py-2 sm:px-1\.5[\s\S]*?SaleLogisticsStep[\s\S]*?flex shrink-0 justify-center border-t border-black\/80 pt-4[\s\S]*?onClick=\{continueFromLogistics\}/,
     );
     assert.equal(ventaSource.includes("sticky top-0 z-20"), false);
-    assert.match(stepBarSource, /hasOpenStepPopover\s*\?\s*"overflow-visible"/);
-    assert.match(stepBarSource, /<ol className="flex min-w-max items-start gap-0 lg:min-w-0 lg:w-full">/);
+    assert.match(
+      stepBarSource,
+      /hasOpenStepPopover[\s\S]*?\? "overflow-visible pb-1 lg:pb-\[min\(40vh,17rem\)\]"/,
+    );
+    assert.match(
+      stepBarSource,
+      /<ol className="grid min-w-0 grid-cols-5 items-start gap-0 lg:flex lg:min-w-0 lg:w-full lg:gap-0">/,
+    );
+    assert.doesNotMatch(stepBarSource, /SaleMobileStepSummary|activeMobileStep/);
+    assert.match(ventaSource, /<SaleHeaderCartTrigger/);
+    assert.match(ventaSource, /setShellConfig\(\{ headerAction: saleHeaderCartAction \}\)/);
+    assert.doesNotMatch(ventaSource, /stepPopovers=\{/);
+    assert.match(
+      stepBarSource,
+      /className=\{`hidden min-h-\[1rem\][\s\S]*?lg:flex/,
+    );
   });
 });

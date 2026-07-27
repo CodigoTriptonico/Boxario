@@ -26,11 +26,14 @@ export function CountryFlag({
   name,
   size = "sm",
   className = "",
+  /** Escala de grises + contraste alto; mejor para etiquetas impresas en B/N. */
+  mono = false,
 }: {
   code?: string;
   name?: string;
   size?: CountryFlagSize;
   className?: string;
+  mono?: boolean;
 }) {
   const resolvedCode = resolveCode({ code, name });
   const sizeClass = sizeClasses[size];
@@ -47,14 +50,30 @@ export function CountryFlag({
     );
   }
 
+  const flagUrl = `https://flagcdn.com/w80/${resolvedCode.toLowerCase()}.png`;
+  const label = name || resolvedCode;
+
+  if (mono) {
+    return (
+      // eslint-disable-next-line @next/next/no-img-element -- CDN flag; grayscale for B/N print
+      <img
+        src={flagUrl}
+        alt={label}
+        className={`${base} object-cover grayscale contrast-150 ${className}`}
+        loading="lazy"
+        decoding="async"
+      />
+    );
+  }
+
   return (
     <span
       className={`${base} bg-cover bg-center ${className}`}
       style={{
-        backgroundImage: `url(https://flagcdn.com/w80/${resolvedCode.toLowerCase()}.png)`,
+        backgroundImage: `url(${flagUrl})`,
       }}
       role="img"
-      aria-label={name || resolvedCode}
+      aria-label={label}
     />
   );
 }

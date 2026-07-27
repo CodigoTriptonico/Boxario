@@ -1,5 +1,6 @@
 -- Gestores de usuarios pueden ver teléfonos de recuperación del equipo.
 
+drop policy if exists profile_phones_org_manage on public.profile_phones;
 create policy profile_phones_org_manage on public.profile_phones
   for select
   using (

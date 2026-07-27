@@ -16,6 +16,7 @@ import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import type { InventoryCatalogProduct } from "@/lib/pricing-catalog";
 import type { PricingConfigPayload } from "@/lib/pricing/types";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { normalizeScheduleSuggestionConfig } from "@/lib/sale/schedule-suggestions";
 
 const emptyRouteConfig: PricingRouteConfig = {
   deliveryDays: [],
@@ -29,6 +30,7 @@ const emptyRouteConfig: PricingRouteConfig = {
   fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
   minimumDeposit: defaultInvoiceBillingConfig.minimumDeposit,
   logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,
+  scheduleSuggestions: normalizeScheduleSuggestionConfig(undefined),
 };
 
 function snapshotPayload(payload: {

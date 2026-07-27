@@ -5,6 +5,8 @@ export type PermissionKey =
   | "warehouses.manage"
   | "settings.manage"
   | "sales.manage"
+  | "sales.settings.manage"
+  | "logistics.settings.manage"
   | "customers.manage"
   | "inventory.view"
   | "inventory.reserve"

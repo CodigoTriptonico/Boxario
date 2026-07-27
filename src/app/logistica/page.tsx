@@ -12,6 +12,7 @@ import { LogisticaClient } from "@/components/logistica-client";
 import { requirePathAccess } from "@/lib/auth/require";
 import { sessionHasPermission } from "@/lib/auth/permissions";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { loadAxisSettingsAction } from "@/app/actions/axis-settings";
 
 export default async function LogisticaPage() {
   const session = await requirePathAccess("/logistica");
@@ -20,10 +21,16 @@ export default async function LogisticaPage() {
     return <LogisticaClient />;
   }
 
-  const [shipmentsResult, membersResult, warehousesResult] = await Promise.all([
+  const canManageLogisticsSettings =
+    sessionHasPermission(session, "logistics.settings.manage") ||
+    sessionHasPermission(session, "settings.manage");
+  const [shipmentsResult, membersResult, warehousesResult, axisSettingsResult] = await Promise.all([
     listShipmentsAction(),
     listRouteMembersAction(),
     listWarehousesAction(),
+    canManageLogisticsSettings
+      ? loadAxisSettingsAction()
+      : Promise.resolve({ ok: true as const, data: null }),
   ]);
   const [routesResult, taskAddressesResult, routeCatalogResult] = await Promise.all([
     listLogisticsRoutesAction(),
@@ -40,6 +47,8 @@ export default async function LogisticaPage() {
       initialTaskAddresses={taskAddressesResult.ok ? taskAddressesResult.data : []}
       initialRouteCatalog={routeCatalogResult.ok ? routeCatalogResult.data : undefined}
       canManageRoutes={sessionHasPermission(session, "routes.update_status")}
+      canManageLogisticsSettings={canManageLogisticsSettings}
+      initialLogisticsSettings={axisSettingsResult.ok ? axisSettingsResult.data?.logistics : undefined}
       agencyModuleEnabled={session.agencyModuleEnabled}
     />
   );

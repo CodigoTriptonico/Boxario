@@ -36,7 +36,8 @@ import { settingsSectionClass as sectionClass } from "@/components/config/settin
 const compactInputClass = `${inputClass} h-10`;
 
 const PERMISSION_GROUPS: { title: string; keys: PermissionKey[] }[] = [
-  { title: "Ventas", keys: ["sales.manage", "customers.manage"] },
+  { title: "Ventas", keys: ["sales.manage", "sales.settings.manage", "customers.manage"] },
+  { title: "Logística", keys: ["logistics.settings.manage"] },
   {
     title: "Inventario",
     keys: ["inventory.view", "inventory.reserve", "inventory.adjust", "inventory.assign", "inventory.return", "warehouses.manage"],
@@ -54,7 +55,7 @@ const ROLE_META: Record<
 > = {
   administrador: {
     icon: Crown,
-    hint: "Gestión completa de la paquetería.",
+    hint: "Gestión completa de la empresa.",
   },
   vendedor: {
     icon: UserCog,

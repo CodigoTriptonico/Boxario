@@ -36,7 +36,7 @@ export const onboardingStepHelp: Record<OnboardingStepId, OnboardingHelpBlock> =
 
 export const onboardingGroupHelp: Record<string, OnboardingHelpBlock> = {
   "initial-tasks": {
-    what: "Esta lista te guía paso a paso para dejar tu paquetería lista para vender.",
+    what: "Esta lista te guía paso a paso para dejar tu empresa lista para vender.",
     why: "Cada paso tiene mini-instrucciones según la pantalla en la que estés.",
     tip: "Abre Notificaciones (campana) y sigue del Paso 1 al 5. También puedes empezar en Nueva venta y la app te irá guiando.",
   },

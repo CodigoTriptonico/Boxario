@@ -70,4 +70,9 @@ describe("conductor offline-first eval", () => {
     assert.match(queueCoreSource, /Revisar sincronización/);
     assert.match(clientSource, /Guardada en este teléfono/);
   });
+  it("does not wait forever for an absent service worker during logout cleanup", () => {
+    assert.match(queueSource, /serviceWorker\.getRegistration\(\)/);
+    assert.doesNotMatch(queueSource, /return navigator\.serviceWorker\.ready\.then/);
+    assert.match(queueSource, /\.catch\(\(\) => false\)/);
+  });
 });

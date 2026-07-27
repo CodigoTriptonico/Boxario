@@ -6,8 +6,8 @@ const source = readFileSync(new URL("./test-sms-flow.mjs", import.meta.url), "ut
 
 describe("SMS integration hygiene eval", () => {
   it("uses isolated synthetic identities and does not retain them after the test", () => {
-    assert.match(source, /test-paqueteria-flow@example\.com/);
-    assert.match(source, /Test Paqueteria Flow/);
+    assert.match(source, /test-boxario-flow@example\.com/);
+    assert.match(source, /Test Boxario Flow/);
     assert.match(source, /await removeTestData\(admin, testEmail, testPhone, testOrgName\)/);
   });
 

@@ -37,6 +37,7 @@ export type InventoryMovementReferenceType =
 export type InventoryMovementEvidence = {
   photos?: string[];
   note?: string;
+  supplierName?: string;
 };
 
 export const inventoryMovementReasonLabel: Record<InventoryMovementReasonCode, string> = {
@@ -146,6 +147,17 @@ export function readInventoryMovementEvidencePhotos(
   }
 
   return photos.filter((url): url is string => typeof url === "string" && url.trim().length > 0);
+}
+
+export function readInventoryMovementSupplierName(
+  evidence: InventoryMovementEvidence | Record<string, unknown> | null | undefined,
+) {
+  if (!evidence || typeof evidence !== "object") {
+    return "";
+  }
+
+  const supplierName = (evidence as InventoryMovementEvidence).supplierName;
+  return typeof supplierName === "string" ? supplierName.trim() : "";
 }
 
 export function emptyInventoryMovementAuditFields(): Pick<

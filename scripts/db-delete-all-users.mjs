@@ -39,6 +39,6 @@ const after = {
 console.log("Después:", after);
 console.log("\nUsuarios y organizaciones eliminados. Para volver a entrar:");
 console.log("  npm run db:restore-owner");
-console.log("  o crea una paquetería en /platform tras registrarte de nuevo.");
+console.log("  o crea una empresa en /platform tras registrarte de nuevo.");
 
 await client.end();

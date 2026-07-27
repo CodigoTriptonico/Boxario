@@ -2,7 +2,6 @@
 
 import { ChevronLeft, ChevronRight, MapPin, Package, Phone, User } from "lucide-react";
 import type { KeyboardEvent, MouseEvent, ReactNode } from "react";
-import { CountryName } from "@/components/country-flag";
 import { listCardShellClass, listRowBaseClass, listRowHoverClass } from "@/components/ui-blocks";
 import {
   resolveSalePersonCardVariant,
@@ -167,7 +166,7 @@ export function SalePersonCard({
           }`}
         >
           <Phone className="h-4 w-4 shrink-0" />
-          <span className="truncate">{phone}</span>
+          <span className="min-w-0 break-words sm:truncate">{phone}</span>
         </p>
 
         <SalePersonAddressBlock
@@ -232,7 +231,6 @@ export function SalePersonRow({
   name,
   phone,
   address,
-  country,
   cardStyle,
   hint,
   hintHighlighted = false,
@@ -284,15 +282,9 @@ export function SalePersonRow({
 
         <div className="min-w-0 py-0.5">
           <p className="truncate text-base font-black leading-tight text-[#f8fafc]">{name}</p>
-          <div className="mt-1 flex min-w-0 items-center gap-2 overflow-hidden text-xs font-bold leading-none text-slate-500">
-            <Phone className="h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="min-w-0 truncate">{phone}</span>
-            <CountryName
-              name={country}
-              size="xs"
-              className="hidden shrink-0 sm:inline-flex"
-              labelClassName="max-w-[5rem] truncate"
-            />
+          <div className="mt-1 flex min-w-0 items-start gap-1.5 overflow-hidden text-xs font-bold leading-snug text-slate-500">
+            <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+            <span className="min-w-0 flex-1 whitespace-nowrap text-[11px] sm:truncate sm:text-xs">{phone}</span>
           </div>
         </div>
 

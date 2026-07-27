@@ -65,6 +65,49 @@ async function columnExists(client, tableName, columnName) {
   return rows.length > 0;
 }
 
+async function supabaseMigrationsTableExists(client) {
+  const { rows } = await client.query(`
+    select 1
+    from information_schema.tables
+    where table_schema = 'supabase_migrations'
+      and table_name = 'schema_migrations'
+    limit 1
+  `);
+  return rows.length > 0;
+}
+
+/**
+ * When `supabase start` / `db reset` already applied files, copy those into
+ * app_schema_migrations so db:apply does not re-run non-idempotent SQL.
+ */
+async function syncFromSupabaseMigrations(client, files) {
+  if (!(await supabaseMigrationsTableExists(client))) {
+    return 0;
+  }
+
+  const fileSet = new Set(files);
+  const { rows } = await client.query(`
+    select version, name
+    from supabase_migrations.schema_migrations
+    order by version
+  `);
+
+  let synced = 0;
+  for (const row of rows) {
+    const file = `${row.version}_${row.name}.sql`;
+    if (!fileSet.has(file) || (await isMigrationApplied(client, file))) {
+      continue;
+    }
+    await markMigrationApplied(client, file);
+    synced += 1;
+  }
+
+  if (synced > 0) {
+    console.log(`Synced ${synced} migration(s) from supabase_migrations.schema_migrations`);
+  }
+  return synced;
+}
+
 /** Mark legacy migrations as applied when DB was created before tracking table existed. */
 async function bootstrapLegacyMigrations(client) {
   const legacyMarkers = [
@@ -117,6 +160,7 @@ async function main() {
   console.log("Connected to", label);
 
   await ensureMigrationsTable(client);
+  await syncFromSupabaseMigrations(client, MIGRATIONS);
   await bootstrapLegacyMigrations(client);
 
   for (const file of MIGRATIONS) {

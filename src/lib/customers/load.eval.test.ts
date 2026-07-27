@@ -28,5 +28,13 @@ describe("customer recipients load eval", () => {
     assert.equal(ventaSource.includes("ensureSenderRecipients"), true);
     assert.equal(ventaSource.includes('setRecipientQuery("")'), true);
     assert.equal(ventaSource.includes("leftHasRecipients"), true);
+
+    const chooseSenderStart = ventaSource.indexOf("function chooseSender(sender: Sender)");
+    const chooseSenderBody = ventaSource.slice(
+      chooseSenderStart,
+      ventaSource.indexOf("function patchSenderCardStyle", chooseSenderStart),
+    );
+    assert.match(chooseSenderBody, /setSelectedSender\(resolved\);/);
+    assert.doesNotMatch(chooseSenderBody, /await ensureSenderRecipients\(resolved\)/);
   });
 });

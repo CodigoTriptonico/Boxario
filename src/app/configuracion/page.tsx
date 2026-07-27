@@ -3,6 +3,7 @@ import { sessionHasPermission } from "@/lib/auth/permissions";
 import { requirePathAccess } from "@/lib/auth/require";
 import { loadTimeClockDashboard, syncTimeClockAlertsForOrganization } from "@/lib/time-clock-data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { redirect } from "next/navigation";
 
 async function loadTimeClockInitialSnapshot(
   session: NonNullable<Awaited<ReturnType<typeof requirePathAccess>>>,
@@ -25,6 +26,9 @@ export default async function ConfiguracionPage({
 }) {
   const session = await requirePathAccess("/configuracion");
   const { view } = await searchParams;
+  if (view === "deliveries") {
+    redirect("/seguimiento?view=configuracion");
+  }
   const canManageTimeClock = Boolean(session && sessionHasPermission(session, "time_clock.manage"));
 
   let initialPricing;

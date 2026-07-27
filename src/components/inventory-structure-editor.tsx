@@ -1273,6 +1273,7 @@ export function InventoryStructureEditor({
       type,
       qty: type === "ajuste" ? String(itemContextMenu.stockItem.stock) : "1",
       note: "",
+      supplierName: "",
       reasonCode: defaultReasonCodeForMovementType(type),
       unitCost: "",
       totalCost: "",
@@ -1341,6 +1342,7 @@ export function InventoryStructureEditor({
       type: movementDraft.type,
       qty,
       note: movementDraft.note,
+      supplierName: movementDraft.type === "entrada" ? movementDraft.supplierName : undefined,
       reasonCode: movementDraft.reasonCode,
       minStock: movementDraft.context.stockItem.minStock,
       unitCost: resolvedCost.unitCost,
@@ -1755,6 +1757,7 @@ export function InventoryStructureEditor({
 
   const itemsPanel = (
     <InventoryItemGrid
+      warehouseId={warehouseId}
       embedded={embedded}
       selectedCategoryData={selectedCategoryData}
       selectedSubcategory={selectedSubcategory}

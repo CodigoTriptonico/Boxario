@@ -16,7 +16,7 @@ import {
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const dryRun = process.argv.includes("--dry-run");
-const logDirectory = join(process.env.LOCALAPPDATA ?? root, "PaqueteriaSaas");
+const logDirectory = join(process.env.LOCALAPPDATA ?? root, "Boxario");
 const logFile = join(logDirectory, "github-backup.log");
 const lockFile = join(root, ".git", "auto-github-backup.lock");
 let lockHandle;

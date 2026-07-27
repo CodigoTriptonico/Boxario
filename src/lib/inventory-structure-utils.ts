@@ -26,6 +26,7 @@ export type MovementDraft = {
   type: "entrada" | "salida" | "ajuste";
   qty: string;
   note: string;
+  supplierName?: string;
   reasonCode: InventoryMovementReasonCode;
   unitCost?: string;
   totalCost?: string;

@@ -215,7 +215,7 @@ export function PlatformConsole() {
   );
 
   const platformNavTitle = showCreateOrg
-    ? "Nueva paqueteria"
+    ? "Nueva empresa"
     : selectedOrg?.name || "Plataforma";
   const handlePlatformNavBack = useCallback(() => {
     if (showCreateOrg) {
@@ -558,7 +558,7 @@ export function PlatformConsole() {
                 <div>
                   <dt className={labelMutedClass}>Tipo</dt>
                   <dd className="mt-1 text-sm font-black text-slate-200">
-                    Paquetería
+                    Empresa
                   </dd>
                 </div>
               </dl>
@@ -567,7 +567,7 @@ export function PlatformConsole() {
               <div className="flex items-center gap-2">
                 <p className={labelMutedClass}>Cuenta y operación</p>
                 <CompactInfoDisclosure ariaLabel="Información de aislamiento por empresa">
-                  Usuarios, permisos y registros operativos quedan dentro de esta paquetería.
+                  Usuarios, permisos y registros operativos quedan dentro de esta empresa.
                 </CompactInfoDisclosure>
               </div>
               <p className="mt-1 text-sm font-black text-slate-100">

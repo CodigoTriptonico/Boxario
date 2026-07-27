@@ -5,9 +5,17 @@ const DEFAULT_DEV_ORIGINS = ["127.0.0.1", "localhost", TUNNEL_DEV_ORIGIN_WILDCAR
 export function resolveDevTunnelOrigins(options?: {
   baseOrigins?: string[];
   tunnelUrl?: string | null;
+  localOrigins?: string[];
 }): string[] {
   const origins = new Set(options?.baseOrigins ?? DEFAULT_DEV_ORIGINS);
   const tunnelUrl = options?.tunnelUrl?.trim();
+
+  for (const localOrigin of options?.localOrigins ?? []) {
+    const normalized = localOrigin.trim();
+    if (normalized) {
+      origins.add(normalized);
+    }
+  }
 
   if (tunnelUrl) {
     try {

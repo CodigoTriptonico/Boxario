@@ -19,13 +19,18 @@ describe("responsive layout eval", () => {
   it("keeps the primary logistic dialogs readable when names and identifiers are long", () => {
     for (const path of [
       "src/components/logistica/logistics-task-edit-panel.tsx",
-      "src/components/logistica/logistics-task-schedule-confirm-panel.tsx",
       "src/components/logistica/logistics-driver-change-dialog.tsx",
     ]) {
       const file = source(path);
       assert.match(file, /p-3 sm:p-4/);
       assert.match(file, /break-words/);
     }
+
+    const schedulePanel = source(
+      "src/components/logistica/logistics-task-schedule-confirm-panel.tsx",
+    );
+    assert.match(schedulePanel, /p-3 sm:p-4/);
+    assert.doesNotMatch(schedulePanel, /\{shipmentCode\} · \{customerName\}/);
   });
 
   it("keeps mobile reports scanable by showing metric labels next to each value", () => {
@@ -41,7 +46,9 @@ describe("responsive layout eval", () => {
     const metrics = source("src/components/estadisticas/ventas-panel.tsx");
     const datePicker = source("src/components/date-picker-calendar.tsx");
 
-    assert.match(nav, /w-full min-w-0 flex-wrap/);
+    assert.match(nav, /<details className="group relative lg:hidden">/);
+    assert.match(nav, /absolute right-0 top-full/);
+    assert.match(nav, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
     assert.match(metrics, /grid-cols-4/);
     assert.doesNotMatch(metrics, /min-w-\[4\.5rem\] px-3/);
     assert.match(datePicker, /max-w-\[17\.5rem\]/);

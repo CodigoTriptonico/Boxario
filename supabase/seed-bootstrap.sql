@@ -3,12 +3,12 @@
 
 -- 1) Crear organizacion
 insert into public.organizations (name, slug)
-values ('Mi Paqueteria', 'mi-paqueteria')
+values ('Mi Empresa', 'mi-empresa')
 on conflict (slug) do nothing;
 
 -- 2) Sembrar roles y bodega principal
 select public.seed_organization_roles(
-  (select id from public.organizations where slug = 'mi-paqueteria')
+  (select id from public.organizations where slug = 'mi-empresa')
 );
 
 -- 3) Vincular tu usuario (reemplaza el email)
@@ -23,6 +23,6 @@ select public.seed_organization_roles(
 -- cross join public.organizations o
 -- cross join public.roles r
 -- where u.email = 'admin@ejemplo.com'
---   and o.slug = 'mi-paqueteria'
+--   and o.slug = 'mi-empresa'
 --   and r.slug = 'administrador'
 -- on conflict (id) do nothing;

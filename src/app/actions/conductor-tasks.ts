@@ -1143,40 +1143,6 @@ async function failTask(admin: Admin, session: AppSession, input: {
     throw new Error(taskError.message);
   }
 
-  const outcome = input.failureReason === "Cliente no contesto" ? "no_answer" : "other";
-  const { error: contactError } = await admin.from("shipment_contact_logs").insert({
-    organization_id: session.organizationId,
-    shipment_id: input.shipment.id,
-    channel: "other",
-    channel_other: "Conductor",
-    outcome,
-    note: auditedFullNote,
-    next_step: "Reprogramar con logistica",
-    follow_up_at: null,
-    created_by: session.userId,
-  });
-
-  if (contactError) {
-    throw new Error(contactError.message);
-  }
-
-  await recordActivityHistory(admin, session, {
-    action: "shipment.contact_log_created",
-    entityType: "shipment",
-    entityId: input.shipment.id,
-    title: `Seguimiento - ${input.shipment.code}`,
-    description: `${formatConductorAdminActorDescription(audit, "Conductor")}: ${auditedFullNote}`,
-    metadata: {
-      shipmentCode: input.shipment.code,
-      source: "conductor.tareas",
-      taskId: input.task.id,
-      taskType: input.task.taskType,
-      failureReason: input.failureReason,
-      evidenceUrl: input.evidenceUrl,
-      ...conductorActionAuditMetadata(session, input.driverId),
-    },
-  });
-
   await recordActivityHistory(admin, session, {
     action: "shipment.logistics_task_failed",
     entityType: "shipment",
@@ -1194,6 +1160,7 @@ async function failTask(admin: Admin, session: AppSession, input: {
       note: input.note,
       evidenceUrl: input.evidenceUrl,
       cancelledAt: now,
+      nextStep: "Reprogramar con Logística",
       ...conductorActionAuditMetadata(session, input.driverId),
     },
   });

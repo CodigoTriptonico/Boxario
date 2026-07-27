@@ -1,6 +1,6 @@
 $ErrorActionPreference = "Stop"
 
-$taskName = "PaqueteriaSaasHourlyGitHubBackup"
+$taskName = "BoxarioHourlyGitHubBackup"
 $runner = Join-Path $PSScriptRoot "run-auto-github-backup.ps1"
 $startTime = (Get-Date).AddMinutes(1).ToString("HH:mm")
 $shortRunner = (& cmd.exe /d /c "for %I in (`"$runner`") do @echo %~sI").Trim()

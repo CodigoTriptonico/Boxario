@@ -19,6 +19,7 @@ describe("auth session flow eval", () => {
 
     assert.ok(pendingCheck >= 0);
     assert.ok(signOut > pendingCheck);
+    assert.match(accountMenuSource, /session\.roleSlug === "conductor"/);
     assert.match(accountMenuSource, /if \(pendingCount > 0\)[\s\S]*return;/);
   });
 

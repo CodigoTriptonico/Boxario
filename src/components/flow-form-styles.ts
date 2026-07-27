@@ -4,7 +4,7 @@ export const flowPageShellWideClass = "flex min-h-0 w-full flex-1 flex-col pb-6 
 
 export const flowStepBarShellClass = "w-full border-b border-black bg-[#1c2622]";
 
-export const flowStepBarPaddingClass = "px-2 py-1.5 sm:px-3 sm:py-2";
+export const flowStepBarPaddingClass = "px-2 py-1 sm:px-3 sm:py-2";
 
 /** Superficie plana para listas de persona (sin caja extra). */
 export const flowPersonListShellClass =
@@ -57,9 +57,6 @@ export const flowPersonToolbarSearchShellClass =
 
 export const flowPersonToolbarActionsClass =
   "flex shrink-0 items-stretch justify-start gap-2";
-
-export const flowPersonToolbarCountClass =
-  "inline-flex h-11 items-center rounded-lg border border-black/80 bg-[#202b26] px-2.5 text-[11px] font-black tabular-nums text-slate-300 shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_8px_20px_rgba(0,0,0,0.18)]";
 
 export const flowToolbarCreateButtonClass =
   "inline-flex h-10 shrink-0 items-center justify-center gap-2 rounded-lg border border-white/10 bg-transparent px-3 text-sm font-black text-slate-300 transition hover:border-emerald-700/40 hover:bg-emerald-400/5 hover:text-emerald-200";

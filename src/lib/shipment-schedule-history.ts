@@ -1,4 +1,8 @@
-import { formatScheduleAtDisplay, scheduleAtToTimestamp } from "@/lib/sale/schedule-time";
+import {
+  formatScheduleAtDisplay,
+  parseScheduleTime,
+  scheduleAtToTimestamp,
+} from "@/lib/sale/schedule-time";
 import { formatScheduleDateInput } from "@/lib/schedule-date";
 import { logisticsLegSnapshot } from "@/lib/shipment-audit";
 import { EMPTY_BOX_LEG_LABELS, FULL_BOX_LEG_LABELS } from "@/lib/shipment-leg-labels";
@@ -41,14 +45,18 @@ export function normalizeScheduleAtKey(value: string | null | undefined) {
     return "";
   }
 
+  const [planDate = "", planTime = ""] = value.split("T");
+  if (planDate && planTime && parseScheduleTime(planTime).kind !== "exact") {
+    return `${planDate}T${planTime}`;
+  }
+
   const timestamp = scheduleAtToTimestamp(value);
 
   if (timestamp) {
     return timestamp;
   }
 
-  const [date = "", time = ""] = value.split("T");
-  return `${date}T${time}`;
+  return `${planDate}T${planTime}`;
 }
 
 export function legHasScheduleChange(leg: Record<string, unknown> | null | undefined) {

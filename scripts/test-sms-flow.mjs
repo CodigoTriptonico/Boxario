@@ -58,9 +58,9 @@ async function main() {
   const client = createClient(url, anonKey, {
     auth: { autoRefreshToken: false, persistSession: false },
   });
-  const testEmail = "test-paqueteria-flow@example.com";
+  const testEmail = "test-boxario-flow@example.com";
   const testPhone = "+525512345678";
-  const testOrgName = "Test Paqueteria Flow";
+  const testOrgName = "Test Boxario Flow";
 
   console.log("1. Limpiando datos temporales anteriores...");
   await removeTestData(admin, testEmail, testPhone, testOrgName);

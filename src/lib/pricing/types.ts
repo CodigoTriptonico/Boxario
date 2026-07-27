@@ -1,5 +1,6 @@
 import type { InventoryCatalogProduct } from "@/lib/pricing-catalog";
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
+import type { ScheduleSuggestionConfig } from "@/lib/sale/schedule-suggestions";
 
 export type PricingBoxConfig = {
   size: string;
@@ -36,6 +37,7 @@ export type PricingRouteConfig = {
   fullBoxPickupFee: string;
   minimumDeposit: string;
   logisticsFeeMode: "per_trip" | "per_box";
+  scheduleSuggestions: ScheduleSuggestionConfig;
 };
 
 export type PricingConfigPayload = {

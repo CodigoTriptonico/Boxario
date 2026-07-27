@@ -55,7 +55,9 @@ test("dense navigation and date controls reflow instead of being clipped on 320p
   const salesMetrics = source("src/components/estadisticas/ventas-panel.tsx");
   const datePicker = source("src/components/date-picker-calendar.tsx");
 
-  assert.match(logisticsNav, /flex w-full min-w-0 flex-wrap[\s\S]*sm:w-auto/);
+  assert.match(logisticsNav, /<details className="group relative lg:hidden">/);
+  assert.match(logisticsNav, /absolute right-0 top-full/);
+  assert.match(logisticsNav, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
   assert.match(salesMetrics, /grid h-10 w-full grid-cols-4[\s\S]*sm:w-auto/);
   assert.match(salesMetrics, /min-w-0 whitespace-nowrap px-1 text-\[11px\][\s\S]*sm:px-3 sm:text-xs/);
   assert.match(datePicker, /w-full max-w-\[17\.5rem\]/);
