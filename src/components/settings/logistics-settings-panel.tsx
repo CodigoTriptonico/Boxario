@@ -1,6 +1,6 @@
 "use client";
 
-import { DollarSign, Save, Settings2 } from "lucide-react";
+import { DollarSign, Save } from "lucide-react";
 import { useState } from "react";
 import {
   saveLogisticsAxisSettingsAction,
@@ -10,14 +10,24 @@ import { primaryButtonClass } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
 import { moneyInputDisplayValue, normalizeMoneyInput } from "@/lib/logistics-fees";
 
+function settingsEqual(a: LogisticsAxisSettings, b: LogisticsAxisSettings) {
+  return (
+    a.emptyBoxDeliveryFee === b.emptyBoxDeliveryFee &&
+    a.fullBoxPickupFee === b.fullBoxPickupFee &&
+    a.routeLeadTime === b.routeLeadTime
+  );
+}
+
 export function LogisticsSettingsPanel({
   initialSettings,
 }: {
   initialSettings: LogisticsAxisSettings;
 }) {
   const notify = useNotify();
+  const [baseline, setBaseline] = useState(initialSettings);
   const [settings, setSettings] = useState(initialSettings);
   const [saving, setSaving] = useState(false);
+  const hasChanges = !settingsEqual(settings, baseline);
 
   async function save() {
     setSaving(true);
@@ -28,36 +38,12 @@ export function LogisticsSettingsPanel({
       return;
     }
     setSettings(result.data);
+    setBaseline(result.data);
     notify.success("Configuración de logística guardada");
   }
 
   return (
-    <main className="grid gap-4">
-      <header className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-black bg-surface-card p-4">
-        <div className="flex min-w-0 items-center gap-3">
-          <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-lg bg-emerald-400/15 text-emerald-300">
-            <Settings2 className="h-5 w-5" />
-          </span>
-          <span>
-            <span className="block text-lg font-black text-white">
-              Configuración de logística
-            </span>
-            <span className="block text-sm font-semibold text-slate-400">
-              Anticipación operativa y cargos sugeridos. Los días y horarios se administran en Rutas.
-            </span>
-          </span>
-        </div>
-        <button
-          type="button"
-          className={`${primaryButtonClass} gap-2`}
-          onClick={save}
-          disabled={saving}
-        >
-          <Save className="h-4 w-4" />
-          {saving ? "Guardando…" : "Guardar"}
-        </button>
-      </header>
-
+    <main className="grid gap-4 pb-24">
       <section className="grid gap-4 rounded-xl border border-black bg-surface-card p-4 md:grid-cols-3">
         <div className="md:col-span-3">
           <div className="flex items-center gap-2">
@@ -67,7 +53,8 @@ export function LogisticsSettingsPanel({
             </h2>
           </div>
           <p className="mt-1 text-xs font-semibold text-slate-400">
-            Son opcionales: Ventas decide si aplicarlas. El servicio normal sigue incluido.
+            Son opcionales: Ventas decide si aplicarlas. El servicio normal sigue incluido. Los días
+            y horarios se administran en Rutas.
           </p>
         </div>
         {[
@@ -108,6 +95,22 @@ export function LogisticsSettingsPanel({
           />
         </label>
       </section>
+
+      {hasChanges ? (
+        <div className="fixed inset-x-0 bottom-0 z-20 border-t border-black bg-surface-card/95 p-3 backdrop-blur">
+          <div className="mx-auto flex max-w-6xl justify-end">
+            <button
+              type="button"
+              className={`${primaryButtonClass} gap-2`}
+              onClick={() => void save()}
+              disabled={saving}
+            >
+              <Save className="h-4 w-4" />
+              {saving ? "Guardando…" : "Guardar cambios"}
+            </button>
+          </div>
+        </div>
+      ) : null}
     </main>
   );
 }

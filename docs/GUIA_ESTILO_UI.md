@@ -414,6 +414,14 @@ Esta preferencia también aplica a badges dentro de las tarjetas, como “1 dest
 
 **Preferir:** una línea de tiempo cronológica con una sola caja de captura y categoría; mostrar en la tarjeta los indicadores `Editada`, `Eliminada`, `Pendiente`, `Hoy` o `Vencido`, y mantener visibles evidencia y próximo paso.
 
+### 2026-07-27 - Preferencia UI: sin barra fija de Guardar en configuración
+
+**No repetir:** encabezado permanente con título, descripción y botón `Guardar` siempre visible en pantallas de configuración (p. ej. logística).
+
+**Motivo:** Ocupa espacio, repite el nombre del módulo y obliga a un guardado explícito aunque no haya cambios.
+
+**Preferir:** empezar directo con el contenido; el botón `Guardar cambios` aparece sólo cuando hay modificaciones pendientes (o guardar automáticamente si el flujo lo permite sin riesgo de valores a medias).
+
 ### 2026-07-27 - Preferencia UI: decir empresa, no paquetería
 
 **No repetir:** llamar `paquetería` / `paqueteria` a la organización cliente, ni usar ese término en copy de producto, placeholders o facturas.

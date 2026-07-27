@@ -69,3 +69,11 @@ Este documento conserva decisiones de infraestructura, red, autenticación y com
 **Decisión:** `shipment_journal_entries` conserva el estado actual, asignación, recordatorio y borrado lógico. `activity_history` conserva eventos automáticos y cada revisión con antes/después, actor, fecha y razón de eliminación.
 
 **Compatibilidad:** Los contactos existentes se migran conservando autor y fechas; la tabla anterior queda como respaldo sin nuevas escrituras. Los resultados offline del conductor continúan usando su operación idempotente y la Bitácora filtra eventos auxiliares para mostrar una sola entrada por resultado.
+
+### 2026-07-27 - Residuos del rename paqueteria-saas → Boxario
+
+**Contexto:** El proyecto local y el repositorio ya usan `Boxario`, pero el despliegue en Vercel sigue publicado como `paqueteria-saas.vercel.app`.
+
+**Decisión:** En código y copy se usa `empresa` / `Boxario`. Los scripts locales de backup usan carpeta y tarea `Boxario`. Las URLs de `scripts/publish-gui.ps1` conservan el proyecto Vercel actual (`paqueteria-saas`) hasta renombrarlo allí.
+
+**Resultado esperado:** No quedan textos ni recursos Docker locales del nombre anterior; el único pendiente externo es renombrar el proyecto en Vercel si se quiere el dominio `boxario.vercel.app`.

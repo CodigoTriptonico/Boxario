@@ -31,15 +31,14 @@ export function CompactInfoDisclosure({
 
   const updatePosition = useCallback(() => {
     const trigger = triggerRef.current;
-    const panel = panelRef.current;
-    if (!trigger || !panel) return;
+    if (!trigger) return;
 
     const triggerRect = trigger.getBoundingClientRect();
     setPosition(
       resolveFloatingPanelPosition({
         trigger: triggerRect,
         panelWidth: 320,
-        panelHeight: panel.scrollHeight,
+        panelHeight: panelRef.current?.scrollHeight || 160,
         viewportWidth: window.innerWidth,
         viewportHeight: window.innerHeight,
         align,
@@ -48,7 +47,14 @@ export function CompactInfoDisclosure({
   }, [align]);
 
   useLayoutEffect(() => {
-    if (open && mounted) updatePosition();
+    if (!open || !mounted) {
+      setPosition(null);
+      return;
+    }
+
+    updatePosition();
+    const frame = window.requestAnimationFrame(() => updatePosition());
+    return () => window.cancelAnimationFrame(frame);
   }, [mounted, open, updatePosition]);
 
   useEffect(() => {
@@ -60,19 +66,24 @@ export function CompactInfoDisclosure({
       triggerRef.current?.focus();
     }
 
-    function closeOnOutsideClick(event: MouseEvent) {
+    function closeOnOutsidePointer(event: PointerEvent) {
       const target = event.target as Node;
       if (triggerRef.current?.contains(target) || panelRef.current?.contains(target)) return;
       setOpen(false);
     }
 
+    // Attach after the opening gesture so the same pointerdown cannot close immediately.
+    const attachId = window.setTimeout(() => {
+      window.addEventListener("pointerdown", closeOnOutsidePointer);
+    }, 0);
+
     window.addEventListener("keydown", closeOnEscape);
-    window.addEventListener("mousedown", closeOnOutsideClick);
     window.addEventListener("resize", updatePosition);
     window.addEventListener("scroll", updatePosition, true);
     return () => {
+      window.clearTimeout(attachId);
       window.removeEventListener("keydown", closeOnEscape);
-      window.removeEventListener("mousedown", closeOnOutsideClick);
+      window.removeEventListener("pointerdown", closeOnOutsidePointer);
       window.removeEventListener("resize", updatePosition);
       window.removeEventListener("scroll", updatePosition, true);
     };
@@ -92,7 +103,6 @@ export function CompactInfoDisclosure({
               left: position?.left ?? 12,
               width: position?.width ?? "min(20rem, calc(100vw - 1.5rem))",
               maxHeight: position?.maxHeight ?? "calc(100vh - 1.5rem)",
-              visibility: position ? "visible" : "hidden",
             }}
           >
             <div className="flex items-start gap-2">
