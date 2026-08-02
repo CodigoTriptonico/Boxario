@@ -1,6 +1,11 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { fail, publicActionErrorMessage } from "@/lib/actions/errors";
+import {
+  ActionError,
+  actionErrorMessage,
+  fail,
+  publicActionErrorMessage,
+} from "@/lib/actions/errors";
 
 describe("public action errors", () => {
   it("keeps stable business messages", () => {
@@ -16,6 +21,18 @@ describe("public action errors", () => {
     assert.equal(
       publicActionErrorMessage("PGRST202 Could not find function public.secret_rpc"),
       "No se pudo completar la operacion",
+    );
+  });
+
+  it("maps ActionError codes to stable user messages", () => {
+    assert.equal(actionErrorMessage(new ActionError("FORBIDDEN", "x")), "No tienes permiso para esta accion");
+    assert.equal(
+      actionErrorMessage(new ActionError("CONFLICT", "ruta cerrada")),
+      "El estado actual no permite esta operacion",
+    );
+    assert.equal(
+      actionErrorMessage(new ActionError("VALIDATION", "Fecha invalida")),
+      "Fecha invalida",
     );
   });
 });

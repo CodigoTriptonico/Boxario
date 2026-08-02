@@ -24,7 +24,20 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 
 ## Registro de decisiones
 
-### 2026-08-02 - Codegen de tipos DB reproducible
+### 2026-08-02 - Fase 3A: arquitectura documentada y quality gates
+
+**Contexto:** Tras Fases 1–2, faltaba un mapa onboarding-friendly y gates agregados sin mezclar Knip residual con el gate rápido.
+
+**Decisión:**
+- `docs/ARQUITECTURA.md` describe capas reales, fuentes de verdad y puntos de extensión.
+- `docs/GUIA_DESARROLLO.md` fija el checklist de contribución.
+- `docs/FASE3_LINEA_BASE.md` confirma qué está verde y qué son huecos de claridad/escala.
+- `npm run quality:gate` = typecheck + lint + architecture + duplicates + test:gate (sin Docker, sin Knip).
+- `npm run quality:db` = integrity + logistics + phase1 + overpayment + check:db-types (requiere Supabase local).
+- Knip sigue en `check:code` / ejecución manual; residuals documentados no se ocultan con `|| true`.
+
+**Resultado:** un desarrollador nuevo tiene ruta clara; CI local distingue gate rápido vs DB.
+
 
 **Contexto:** Tipos `*DbRow` manuales desalineados con PostgreSQL; Fase 2D pide generación controlada sin migrar todo de golpe.
 
