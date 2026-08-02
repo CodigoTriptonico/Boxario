@@ -454,7 +454,7 @@ export function useLogisticsRouteActions({
 
   async function cancelRoute(route: LogisticsRouteRow) {
     setBusyId(`cancel:${route.id}`);
-    const result = await cancelLogisticsRouteAction(route.id);
+    const result = await cancelLogisticsRouteAction({ routeId: route.id });
     setBusyId(null);
 
     if (!result.ok) {

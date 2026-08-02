@@ -1,3 +1,8 @@
+/**
+ * Read-model rollup of where empty-box SKU stock sits (warehouse / truck / agency).
+ * Aggregates inventory quantities for ops views — NOT the package custody event
+ * ledger (see `package-custody.ts` for physical package timeline events).
+ */
 import { catalogKeyFromStockItem } from "@/lib/pricing-catalog";
 import type { ConductorTruckBalance } from "@/lib/conductor-truck-inventory";
 import type { InventoryStockItem } from "@/lib/inventory-stock";

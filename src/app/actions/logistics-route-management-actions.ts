@@ -2,10 +2,17 @@
 
 import { requireAppSession } from "@/lib/auth/session";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
-import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
+import {
+  ActionError,
+  actionErrorMessage,
+  fail,
+  ok,
+  type ActionResult,
+} from "@/lib/actions/errors";
 import { recordActivityHistory } from "@/lib/activity-history";
 import { assertLogisticsRouteTransition } from "@/lib/logistics-state-machine";
 import { type LogisticsRouteRow } from "@/lib/logistics-routing";
+import { logOperation } from "@/lib/observability/operation-log";
 import { listLogisticsVehiclesAction } from "@/app/actions/logistics-fleet";
 import { suggestVehicleIdForDriver } from "@/lib/logistics-route-vehicle";
 
@@ -14,6 +21,10 @@ import {
   loadRouteById,
   syncRouteDriver,
 } from "@/app/actions/logistics-routes-shared";
+
+export type CancelLogisticsRouteCommand = {
+  routeId: string;
+};
 
 export async function assignLogisticsRouteDriverAction(input: {
   routeId: string;
@@ -24,7 +35,7 @@ export async function assignLogisticsRouteDriverAction(input: {
     const session = await requireAppSession();
 
     if (!canManageRoutes(session)) {
-      throw new Error("FORBIDDEN");
+      throw new ActionError("FORBIDDEN", "FORBIDDEN");
     }
 
     const supabase = await createScopedSupabase(session);
@@ -78,7 +89,7 @@ export async function assignLogisticsRouteVehicleAction(input: {
     const session = await requireAppSession();
 
     if (!canManageRoutes(session)) {
-      throw new Error("FORBIDDEN");
+      throw new ActionError("FORBIDDEN", "FORBIDDEN");
     }
 
     const supabase = await createScopedSupabase(session);
@@ -111,22 +122,53 @@ export async function assignLogisticsRouteVehicleAction(input: {
 }
 
 
-export async function cancelLogisticsRouteAction(routeId: string): Promise<ActionResult<null>> {
+export async function cancelLogisticsRouteAction(
+  command: CancelLogisticsRouteCommand,
+): Promise<ActionResult<null>> {
+  const startedAt = Date.now();
+  let organizationId: string | undefined;
+  let actorUserId: string | undefined;
+  let resourceId: string | undefined;
+
   try {
     const session = await requireAppSession();
+    organizationId = session.organizationId;
+    actorUserId = session.userId;
+    resourceId = command.routeId;
 
     if (!canManageRoutes(session)) {
-      throw new Error("FORBIDDEN");
+      throw new ActionError("FORBIDDEN", "FORBIDDEN");
     }
 
     const supabase = await createScopedSupabase(session);
     if (!supabase) {
+      logOperation({
+        operation: "logistics.route_cancel",
+        organizationId,
+        actorUserId,
+        resourceType: "logistics_route",
+        resourceId,
+        durationMs: Date.now() - startedAt,
+        result: "error",
+        errorCode: "INTERNAL",
+      });
       return fail("Supabase no configurado");
     }
 
-    const route = await loadRouteById(supabase, session, routeId);
+    const route = await loadRouteById(supabase, session, command.routeId);
+    resourceId = route.id;
     assertLogisticsRouteTransition(route.status, "cancelled");
     if (route.status !== "draft" && route.status !== "planned") {
+      logOperation({
+        operation: "logistics.route_cancel",
+        organizationId,
+        actorUserId,
+        resourceType: "logistics_route",
+        resourceId,
+        durationMs: Date.now() - startedAt,
+        result: "error",
+        errorCode: "CONFLICT",
+      });
       return fail("Solo puedes cancelar rutas en borrador o enviadas");
     }
 
@@ -145,6 +187,16 @@ export async function cancelLogisticsRouteAction(routeId: string): Promise<Actio
       .eq("organization_id", session.organizationId);
 
     if (releaseStopsError) {
+      logOperation({
+        operation: "logistics.route_cancel",
+        organizationId,
+        actorUserId,
+        resourceType: "logistics_route",
+        resourceId,
+        durationMs: Date.now() - startedAt,
+        result: "error",
+        errorCode: "INTERNAL",
+      });
       return fail(releaseStopsError.message);
     }
 
@@ -159,6 +211,16 @@ export async function cancelLogisticsRouteAction(routeId: string): Promise<Actio
       .eq("organization_id", session.organizationId);
 
     if (error) {
+      logOperation({
+        operation: "logistics.route_cancel",
+        organizationId,
+        actorUserId,
+        resourceType: "logistics_route",
+        resourceId,
+        durationMs: Date.now() - startedAt,
+        result: "error",
+        errorCode: "INTERNAL",
+      });
       return fail(error.message);
     }
 
@@ -170,8 +232,27 @@ export async function cancelLogisticsRouteAction(routeId: string): Promise<Actio
       description: `${route.routeDate} · ${route.stops.length} paradas liberadas`,
     });
 
+    logOperation({
+      operation: "logistics.route_cancel",
+      organizationId,
+      actorUserId,
+      resourceType: "logistics_route",
+      resourceId,
+      durationMs: Date.now() - startedAt,
+      result: "ok",
+    });
     return ok(null);
   } catch (error) {
+    logOperation({
+      operation: "logistics.route_cancel",
+      organizationId,
+      actorUserId,
+      resourceType: "logistics_route",
+      resourceId,
+      durationMs: Date.now() - startedAt,
+      result: "error",
+      errorCode: error instanceof ActionError ? error.code : "INTERNAL",
+    });
     return fail(actionErrorMessage(error));
   }
 }

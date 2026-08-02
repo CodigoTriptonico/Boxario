@@ -1,3 +1,8 @@
+/**
+ * Physical package custody timeline (`package_custody_events` / holders).
+ * Tracks where a concrete package is and handoff history — NOT SKU stock rollup
+ * (see `inventory-custody.ts` for empty-box stock location aggregates).
+ */
 export type PackageCustodyEventType =
   | "created"
   | "collected"

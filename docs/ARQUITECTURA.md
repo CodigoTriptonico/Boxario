@@ -87,6 +87,20 @@ Flujos cross-dominio: preferir **RPC atómico** o **caso de uso coordinador** en
 | Nueva transición de estado | SQL + `logistics-state-machine.ts` (paridad) | tests de transición |
 | Nueva notificación de ruta | RPC `notify_logistics_route_change` / tabla | panel conductor |
 
+## Simulación de extensión
+
+Mapa rápido de archivos que suelen cambiar al extender el producto (sin alterar reglas de negocio existentes). Preferir paridad SQL↔TS y documentar en `REGLAS_…` cuando la semántica sea nueva.
+
+| Extensión | Archivos típicos |
+| --- | --- |
+| Nuevo tipo de tarea logística | `logistics-routing.ts` (`LogisticsTaskType`), `logistics-state-machine.ts`, enum/check SQL + RPC de tareas, `shipment-types.ts`, UI conductor/logística (`conductor-tasks`, paneles de ruta) |
+| Nuevo estado de paquete físico | `physical-packages.ts`, `logistics-state-machine.ts` (transiciones), triggers/`package_custody_*` SQL, labels UI bodega, `package-custody.ts` si hay evento nuevo |
+| Nuevo método de pago | `payment-methods.ts`, validación en cobro (`conductor-driver-payment`, RPC `collect_shipment_invoice_payment` / check SQL si aplica), UI Ventas/Conductor |
+| Nuevo filtro de rutas | UI logística (`src/components/logistica/**`), helpers de vista en `logistics-view.ts` / filtros del board; sin tocar máquina de estados |
+| Nueva categoría de inventario | tabla `inventory_categories` + seed/migración, `inventory-tree` / `inventory-leaf-state`, pantallas de inventario y enlaces de catálogo (`pricing_country_boxes.catalog_key`) |
+| Nueva notificación | RPC/`notify_logistics_route_change` o tabla de notificaciones, actions list/mark-read, panel conductor; RLS por destinatario |
+| Nuevo permiso | catálogo SQL `permissions` + `role_permissions`, `src/lib/auth/permissions.ts` (`PATH_PERMISSIONS` / keys), gates en actions y UI |
+
 ## Qué pruebas ejecutar
 
 | Cambio | Mínimo |
