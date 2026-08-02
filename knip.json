@@ -1,8 +1,22 @@
 {
   "$schema": "https://unpkg.com/knip@6/schema.json",
   "entry": [
-    "scripts/**/*.{mjs,ts,ps1}",
+    "scripts/auto-github-backup.mjs",
+    "scripts/business-migration-audit.mjs",
+    "scripts/db-rename-user-email.mjs",
+    "scripts/delete-tracking-shipments.mjs",
+    "scripts/phase1-closeout-verify.mjs",
+    "scripts/report-overpayment-adjustments.mjs",
+    "scripts/reset-onboarding.mjs",
+    "scripts/reset-operational-data-keep-catalog.mjs",
+    "scripts/run-full-user-test.mjs",
+    "scripts/seed-conductors.mjs",
+    "scripts/test-logistics-route-integrity.mjs",
+    "scripts/test-user-deep.mjs",
+    "scripts/test-user-flow-simulation.mjs",
+    "scripts/**/*.test.mjs",
     "src/app/actions/business-commands.ts",
+    "src/lib/db/index.ts",
     "src/**/*.test.{ts,tsx}",
     "tests/**/*.test.mjs"
   ],
