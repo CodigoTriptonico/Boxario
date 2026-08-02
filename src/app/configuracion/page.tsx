@@ -4,6 +4,7 @@ import { requirePathAccess } from "@/lib/auth/require";
 import { loadTimeClockDashboard, syncTimeClockAlertsForOrganization } from "@/lib/time-clock-data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { redirect } from "next/navigation";
+import { loadAxisSettingsAction } from "@/app/actions/axis-settings";
 
 async function loadTimeClockInitialSnapshot(
   session: NonNullable<Awaited<ReturnType<typeof requirePathAccess>>>,
@@ -30,9 +31,15 @@ export default async function ConfiguracionPage({
     redirect("/seguimiento?view=configuracion");
   }
   const canManageTimeClock = Boolean(session && sessionHasPermission(session, "time_clock.manage"));
+  const canManageLogisticsSettings = Boolean(
+    session &&
+      (sessionHasPermission(session, "logistics.settings.manage") ||
+        sessionHasPermission(session, "settings.manage")),
+  );
 
   let initialPricing;
   let timeClockInitialSnapshot;
+  let initialLogisticsSettings;
 
   if (isSupabaseConfigured() && session) {
     if (view === "timeclock") {
@@ -44,6 +51,13 @@ export default async function ConfiguracionPage({
       } catch {
         initialPricing = undefined;
       }
+
+      if (view === "prices" && canManageLogisticsSettings) {
+        const axisSettingsResult = await loadAxisSettingsAction();
+        if (axisSettingsResult.ok) {
+          initialLogisticsSettings = axisSettingsResult.data?.logistics;
+        }
+      }
     }
   }
 
@@ -53,6 +67,8 @@ export default async function ConfiguracionPage({
       timeClockInitialSnapshot={timeClockInitialSnapshot}
       canManageTimeClock={canManageTimeClock}
       agencyModuleEnabled={session?.agencyModuleEnabled ?? false}
+      initialLogisticsSettings={initialLogisticsSettings}
+      canManageOperatingCosts={canManageLogisticsSettings}
     />
   );
 }

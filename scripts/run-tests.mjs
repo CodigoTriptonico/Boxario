@@ -5,6 +5,7 @@ import { fileURLToPath } from "node:url";
 import { testFilesForLane } from "./lib/test-files.mjs";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
+const userInfoPreload = join(root, "scripts", "lib", "test-user-info-preload.cjs");
 const lane = process.argv[2];
 if (lane !== "gate" && lane !== "eval") {
   console.error("Uso: node scripts/run-tests.mjs <gate|eval>");
@@ -21,6 +22,12 @@ function run(label, args, fileCount) {
   const result = spawnSync(process.execPath, args, {
     cwd: root,
     stdio: "inherit",
+    env: {
+      ...process.env,
+      NODE_OPTIONS: [process.env.NODE_OPTIONS, `--require=${userInfoPreload}`]
+        .filter(Boolean)
+        .join(" "),
+    },
   });
 
   if (result.status !== 0) {

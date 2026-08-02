@@ -12,9 +12,8 @@ const source = readFileSync(
 describe("shipment compact progress UI eval", () => {
   it("shows readable step names and current state instead of number-only bars", () => {
     assert.equal(source.includes("function compactStepName"), true);
-    assert.equal(source.includes("compactStepName(step.kind)"), true);
-    assert.equal(source.includes("return EMPTY_BOX_LEG_LABELS.short;"), true);
-    assert.equal(source.includes("return FULL_BOX_LEG_LABELS.short;"), true);
+    assert.equal(source.includes("compactStepName(step, row)"), true);
+    assert.equal(source.includes("logisticsLegCompactLabel"), true);
     assert.equal(source.includes("shipment-step-active-pulse"), true);
     assert.equal(source.includes("grid h-12"), false);
   });

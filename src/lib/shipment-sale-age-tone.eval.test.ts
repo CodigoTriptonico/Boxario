@@ -3,16 +3,14 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readShipmentTimingSource } from "@/test-utils/shipment-domain-source";
 
 const progressSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/shipment-progress-steps.tsx"),
   "utf8",
 );
 
-const timingSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "./shipment-timing.ts"),
-  "utf8",
-);
+const timingSource = readShipmentTimingSource();
 
 describe("shipment sale age tone eval", () => {
   it("colors sale age label from elapsed time instead of flat slate", () => {

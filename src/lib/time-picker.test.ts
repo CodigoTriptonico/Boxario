@@ -4,6 +4,7 @@ import {
   formatTimeInput24,
   formatTimeInputDisplay,
   from12HourParts,
+  MINUTE_OPTIONS,
   parseTimeInput,
   resolveTimePickerView,
 } from "./time-picker.ts";
@@ -25,6 +26,10 @@ describe("time picker", () => {
     assert.equal(from12HourParts(12, 0, "AM"), "00:00");
     assert.equal(from12HourParts(12, 0, "PM"), "12:00");
     assert.equal(from12HourParts(1, 15, "PM"), "13:15");
+  });
+
+  it("offers minutes in five-minute increments", () => {
+    assert.deepEqual(MINUTE_OPTIONS, [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55]);
   });
 
   it("resolves a default view when the value is empty", () => {

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 const configClient = readFileSync(
-  join(process.cwd(), "src/components/configuracion-client.tsx"),
+  join(process.cwd(), "src/components/config/time-range-select.tsx"),
   "utf8",
 );
 

@@ -25,13 +25,15 @@ for (const scriptName of criticalScripts) {
   });
 }
 
-test("clear-sales-history deletes custody facts before shipments", () => {
+test("clear-sales-history deletes custody facts and sale ops before shipments", () => {
   const source = readFileSync(join(scriptsDir, "clear-sales-history.mjs"), "utf8");
   assert.match(source, /package_custody_events_immutable/);
   assert.match(source, /disable trigger package_custody_events_immutable/);
+  assert.match(source, /shipment_sale_operations_immutable/);
   const custodyIdx = source.indexOf('deleteByOrg(client, "package_custody_events"');
-  const shipmentsIdx = source.indexOf('deleteByOrg(client, "shipments"');
-  assert.ok(custodyIdx >= 0 && shipmentsIdx > custodyIdx);
+  const saleOpsIdx = source.indexOf('deleteByOrg(client, "shipment_sale_operations"');
+  const shipmentsIdx = source.indexOf('"shipments"');
+  assert.ok(custodyIdx >= 0 && saleOpsIdx > custodyIdx && shipmentsIdx > saleOpsIdx);
 });
 
 test("scripts/lib has at least one test file", () => {

@@ -4,6 +4,7 @@ import type { LogisticsTaskType } from "@/lib/logistics-routing";
 export type ConductorPaymentChoice = "expected" | "custom" | "none";
 export type ConductorPaymentOutcome = "collected" | "not_collected" | "not_applicable";
 
+/** Cent-rounded money helper shared by conductor collection rules (FIN-004). */
 function money(value: number) {
   return Math.round(Math.max(0, Number(value) || 0) * 100) / 100;
 }
@@ -29,6 +30,7 @@ export function conductorPaymentChoiceError(input: {
   choice: ConductorPaymentChoice | null;
   expectedAmount: number;
   customAmount: number;
+  balanceDue?: number;
 }) {
   if (!input.choice) {
     return "Indica si recibiste el depósito.";
@@ -36,6 +38,14 @@ export function conductorPaymentChoiceError(input: {
 
   if (input.choice === "custom" && money(input.customAmount) <= 0) {
     return "Indica un monto recibido válido.";
+  }
+
+  if (input.choice !== "none" && input.balanceDue !== undefined) {
+    const amount =
+      input.choice === "expected" ? money(input.expectedAmount) : money(input.customAmount);
+    if (amount - money(input.balanceDue) > 0.009) {
+      return "El monto no puede superar el saldo pendiente.";
+    }
   }
 
   return null;
@@ -56,6 +66,10 @@ export function resolveConductorPaymentAmount(input: {
   };
 }
 
+/**
+ * FIN-004: never raise quotedTotal to absorb an overpayment.
+ * Overpayment must be rejected by the caller / SQL collector.
+ */
 export function settleConductorPayment(input: {
   quotedTotal: number;
   alreadyPaid: number;
@@ -64,17 +78,27 @@ export function settleConductorPayment(input: {
   const quotedTotal = money(input.quotedTotal);
   const alreadyPaid = money(input.alreadyPaid);
   const receivedAmount = money(input.receivedAmount);
+  const balanceDueBefore = money(Math.max(quotedTotal - alreadyPaid, 0));
+
+  if (receivedAmount <= 0) {
+    throw new Error("El monto debe ser mayor a cero");
+  }
+
+  if (receivedAmount - balanceDueBefore > 0.009) {
+    throw new Error(`El monto no puede superar ${formatMoneyValue(balanceDueBefore)}`);
+  }
+
   const paid = money(alreadyPaid + receivedAmount);
-  const adjustedQuotedTotal = Math.max(quotedTotal, paid);
-  const balanceDue = money(adjustedQuotedTotal - paid);
+  const balanceDue = money(Math.max(quotedTotal - paid, 0));
 
   return {
     paid,
     balanceDue,
-    adjustedQuotedTotal,
-    totalAdjusted: adjustedQuotedTotal > quotedTotal,
-    totalAdjustment: money(adjustedQuotedTotal - quotedTotal),
-    isPaidInFull: balanceDue === 0,
+    quotedTotal,
+    adjustedQuotedTotal: quotedTotal,
+    totalAdjusted: false,
+    totalAdjustment: 0,
+    isPaidInFull: balanceDue <= 0.009,
   };
 }
 

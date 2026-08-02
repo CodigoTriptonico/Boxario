@@ -3,11 +3,14 @@
  * Conserva: remitentes, destinatarios, inventario, precios y configuración.
  *
  * Uso: node scripts/clear-sales-history.mjs
- * Opcional: SCGS_ORG_ID=<uuid> para una sola org
+ * Opcional: SCGS_ORG_ID=<uuid> para una sola org (si no, resuelve la org SCGS por slug)
+ * Opcional: CLEAR_ALL_ORGS=1 para todas las orgs
  */
 import { connectPg, loadEnvLocal } from "./lib/db-connection.mjs";
+import { resolveScgsOrgId } from "./lib/scgs-demo-recipients.mjs";
 
 const TARGET_ORG_ID = process.env.SCGS_ORG_ID?.trim() || "";
+const CLEAR_ALL_ORGS = process.env.CLEAR_ALL_ORGS === "1";
 
 async function count(client, sql, params = []) {
   const { rows } = await client.query(sql, params);
@@ -109,22 +112,44 @@ async function clearOrgSalesHistory(client, orgId) {
     () => deleteByOrg(client, "package_custody_handoffs", orgId),
   );
 
-  deleted.agency_box_allocations = await deleteByOrg(client, "agency_box_allocations", orgId);
-  deleted.agency_shipment_box_sources = await deleteByOrg(
+  // Idempotencia de ventas: referencia shipments con on delete restrict.
+  deleted.shipment_sale_operations = await withDisabledTriggers(
     client,
-    "agency_shipment_box_sources",
-    orgId,
+    [
+      {
+        disable:
+          "alter table public.shipment_sale_operations disable trigger shipment_sale_operations_immutable",
+        enable:
+          "alter table public.shipment_sale_operations enable trigger shipment_sale_operations_immutable",
+      },
+    ],
+    () => deleteByOrg(client, "shipment_sale_operations", orgId),
   );
-  deleted.operational_exceptions = await deleteByOrg(client, "operational_exceptions", orgId);
 
-  deleted.logistics_routes = await deleteByOrg(client, "logistics_routes", orgId);
-  deleted.shipments = await deleteByOrg(client, "shipments", orgId);
-  deleted.activity_history = await deleteByOrg(client, "activity_history", orgId);
-  deleted.organization_invoice_counters = await deleteByOrg(
-    client,
+  // Hijos de envíos / rutas antes de borrar shipments y logistics_routes.
+  for (const table of [
+    "shipment_payments",
+    "shipment_contact_logs",
+    "shipment_logistics_task_attempts",
+    "shipment_logistics_tasks",
+    "shipment_packages",
+    "inventory_sale_reservations",
+    "agency_box_allocations",
+    "agency_shipment_box_sources",
+    "customer_route_assignment_requests",
+    "operational_exceptions",
+    "logistics_truck_inventory_events",
+    "logistics_route_location_samples",
+    "logistics_route_live_locations",
+    "logistics_route_stops",
+    "warehouse_intake_sessions",
+    "logistics_routes",
+    "shipments",
+    "activity_history",
     "organization_invoice_counters",
-    orgId,
-  );
+  ]) {
+    deleted[table] = await deleteByOrg(client, table, orgId);
+  }
 
   return deleted;
 }
@@ -134,17 +159,26 @@ async function main() {
   const { client, label } = await connectPg();
   console.log("Conectado a", label);
 
-  const orgQuery = TARGET_ORG_ID
-    ? {
-        text: "select id, name, slug from public.organizations where id = $1",
-        values: [TARGET_ORG_ID],
-      }
-    : {
-        text: "select id, name, slug from public.organizations order by created_at asc",
-        values: [],
-      };
-
-  const { rows: orgs } = await client.query(orgQuery);
+  let orgs;
+  if (CLEAR_ALL_ORGS) {
+    const { rows } = await client.query(
+      "select id, name, slug from public.organizations order by created_at asc",
+    );
+    orgs = rows;
+  } else if (TARGET_ORG_ID) {
+    const { rows } = await client.query(
+      "select id, name, slug from public.organizations where id = $1",
+      [TARGET_ORG_ID],
+    );
+    orgs = rows;
+  } else {
+    const org = await resolveScgsOrgId(client);
+    const { rows } = await client.query(
+      "select id, name, slug from public.organizations where id = $1",
+      [org.id],
+    );
+    orgs = rows;
+  }
 
   if (!orgs.length) {
     console.error(TARGET_ORG_ID ? `No existe la org ${TARGET_ORG_ID}` : "No hay organizaciones");

@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readVentaClientSource, readVentaPartsSource } from "@/test-utils/venta-source";
 
 const senderListSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/sale/sale-sender-list.tsx"),
@@ -16,18 +17,12 @@ const personCardSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/sale/sale-person-card.tsx"),
   "utf8",
 );
-const ventaPartsSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/sale/venta-parts.tsx"),
-  "utf8",
-);
+const ventaPartsSource = readVentaPartsSource();
 const flowStylesSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/flow-form-styles.ts"),
   "utf8",
 );
-const ventaClientSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/venta-client.tsx"),
-  "utf8",
-);
+const ventaClientSource = readVentaClientSource();
 
 describe("sale person row layout eval", () => {
   it("supports row and card layouts for senders and recipients", () => {
@@ -67,15 +62,43 @@ describe("sale person row layout eval", () => {
       true,
     );
     assert.equal(personCardSource.includes("divide-y"), false);
-    assert.equal(personCardSource.includes("salePersonAddressSummary"), true);
+    assert.equal(personCardSource.includes("salePersonAddressLines"), true);
     assert.equal(personCardSource.includes("break-words sm:truncate"), true);
     assert.equal(personCardSource.includes("whitespace-nowrap text-[11px]"), true);
-    assert.equal(ventaPartsSource.includes("grid-cols-5 items-start"), true);
+    assert.equal(ventaPartsSource.includes("min-w-max items-start gap-0 lg:min-w-0 lg:w-full"), true);
     assert.equal(ventaPartsSource.includes("max-sm:hidden"), true);
     assert.equal(ventaPartsSource.includes("hidden lg:mt-[2.125rem] lg:flex"), true);
     assert.match(
       personCardSource,
       /inline-flex h-9 items-center[\s\S]*?sm:h-10[\s\S]*?>\s*<Package[\s\S]*?>\s*<span>Rápido<\/span>/,
+    );
+  });
+
+  it("shows the destination country flag beside the person name in rows", () => {
+    const rowSource = personCardSource.slice(
+      personCardSource.indexOf("export function SalePersonRow"),
+    );
+    assert.match(rowSource, /country,/);
+    assert.match(
+      rowSource,
+      /flex min-w-0 items-center gap-2[\s\S]*?<Flag country=\{country\} \/>[\s\S]*?\{name\}/,
+    );
+    assert.equal(recipientListSource.includes("country={recipient.country}"), true);
+  });
+
+  it("stacks recipient address lines instead of one mashed summary", () => {
+    const rowSource = personCardSource.slice(
+      personCardSource.indexOf("export function SalePersonRow"),
+    );
+    assert.match(rowSource, /salePersonAddressLines\(address\)/);
+    assert.match(
+      rowSource,
+      /MapPin className="mt-0\.5 h-3\.5 w-3\.5 shrink-0 text-slate-500"/,
+    );
+    assert.match(rowSource, /addressLines\.map/);
+    assert.doesNotMatch(
+      rowSource,
+      /MapPin className="mr-1 inline/,
     );
   });
 
@@ -110,7 +133,6 @@ describe("sale person row layout eval", () => {
       flowStylesSource,
       /flowPersonToolbarShellClass =\s*\n\s*"[^"]*overflow-x-auto/,
     );
-    assert.match(flowStylesSource, /flowPersonToolbarRecentsClass[\s\S]*?scrollbar-width:none/);
     assert.equal(senderListSource.includes("flowPersonToolbarSearchShellClass"), true);
     assert.equal(senderListSource.includes("SalePersonListToolbar"), true);
   });

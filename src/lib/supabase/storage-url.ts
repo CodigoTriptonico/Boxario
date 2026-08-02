@@ -118,6 +118,71 @@ export async function createStorageSignedUrl(
   return data.signedUrl;
 }
 
+/**
+ * Firma varias rutas en una sola llamada a Storage.
+ * Mantiene el control de ownership por organización; no comparte firmas entre orgs.
+ */
+export async function createStorageSignedUrls(
+  client: SupabaseClient,
+  bucket: string,
+  pathOrUrls: string[],
+  options: CreateStorageSignedUrlOptions = {},
+): Promise<Map<string, string>> {
+  const expiresIn = options.expiresInSeconds ?? SIGNED_URL_TTL_SECONDS;
+  const uniquePaths: string[] = [];
+  const pathByInput = new Map<string, string>();
+
+  for (const pathOrUrl of pathOrUrls) {
+    const path = extractStorageObjectPath(bucket, pathOrUrl);
+    if (!path || !isSafeStorageObjectPath(path)) {
+      continue;
+    }
+    if (options.ownerId && !storagePathOwnedBy(path, options.ownerId)) {
+      continue;
+    }
+    pathByInput.set(pathOrUrl, path);
+    if (!uniquePaths.includes(path)) {
+      uniquePaths.push(path);
+    }
+  }
+
+  const signedByPath = new Map<string, string>();
+  if (uniquePaths.length === 0) {
+    return new Map();
+  }
+
+  const { data, error } = await client.storage
+    .from(bucket)
+    .createSignedUrls(uniquePaths, expiresIn);
+
+  if (!error && data) {
+    for (const row of data) {
+      if (row.path && row.signedUrl && !row.error) {
+        signedByPath.set(row.path, row.signedUrl);
+      }
+    }
+  } else {
+    // Fallback: firmar una a una si el batch no está disponible.
+    await Promise.all(
+      uniquePaths.map(async (path) => {
+        const signed = await createStorageSignedUrl(client, bucket, path, options);
+        if (signed) {
+          signedByPath.set(path, signed);
+        }
+      }),
+    );
+  }
+
+  const result = new Map<string, string>();
+  for (const [input, path] of pathByInput) {
+    const signed = signedByPath.get(path);
+    if (signed) {
+      result.set(input, signed);
+    }
+  }
+  return result;
+}
+
 export function buildStorageObjectPath(organizationId: string, fileName: string): string {
   const extension = fileName.split(".").pop()?.toLowerCase().replace(/[^a-z0-9]/g, "") || "webp";
   const unique = randomUUID();

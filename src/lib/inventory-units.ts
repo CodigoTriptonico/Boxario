@@ -1,4 +1,4 @@
-import type { InventoryStockItem } from "@/lib/inventory-stock";
+import type { InventoryStockItem } from "@/lib/inventory-stock-contracts";
 
 export const DEFAULT_INVENTORY_UNIT = "pieza";
 
@@ -68,4 +68,8 @@ export function formatInventoryStockLabel(
 ) {
   const unit = resolveInventoryItemUnit(stockItem, leafItems);
   return formatInventoryUnitPlural(unit, qty);
+}
+
+export function formatInventoryAvailableLabel(qty: number) {
+  return qty === 1 ? "disponible" : "disponibles";
 }

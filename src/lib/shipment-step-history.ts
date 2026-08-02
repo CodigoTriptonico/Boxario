@@ -1,5 +1,5 @@
-import type { ActivityHistoryRow } from "@/app/actions/history";
-import type { ShipmentProgressStep } from "@/lib/shipment-display";
+import type { ActivityHistoryRow } from "@/lib/activity-history-types";
+import type { ShipmentProgressStep } from "@/lib/shipment-types";
 import { milestoneKeyForProgressKind, SHIPMENT_MILESTONE_ACTION } from "@/lib/shipment-milestones";
 import { formatShipmentAbsolute, formatShipmentDuration, formatShipmentRelative } from "@/lib/shipment-timing";
 import {

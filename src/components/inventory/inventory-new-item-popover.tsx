@@ -1,6 +1,6 @@
 "use client";
 
-import { Plus, X } from "lucide-react";
+import { Check, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -119,15 +119,6 @@ export function InventoryNewItemPopover({
         </Link>
       ) : null}
       <div className="inset-shell flex items-center gap-2 rounded-xl border border-black bg-[#111827] p-2">
-        <button
-          type="button"
-          onClick={onAdd}
-          className={addBtnClass}
-          title="Agregar item"
-          aria-label="Agregar item"
-        >
-          <Plus className="h-3.5 w-3.5" />
-        </button>
         <input
           ref={inputRef}
           className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm font-black text-[#f8fafc] outline-none placeholder:text-slate-500"
@@ -140,6 +131,15 @@ export function InventoryNewItemPopover({
             }
           }}
         />
+        <button
+          type="button"
+          onClick={onAdd}
+          className={addBtnClass}
+          title="Crear item"
+          aria-label="Crear item"
+        >
+          <Check className="h-3.5 w-3.5" />
+        </button>
         <button
           type="button"
           onClick={onClose}

@@ -3,15 +3,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const loadSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "load.ts"),
   "utf8",
 );
-const ventaSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../../components/venta-client.tsx"),
-  "utf8",
-);
+const ventaSource = readVentaClientSource();
 
 describe("customer recipients load eval", () => {
   it("loads recipients in a separate query instead of nested embed", () => {

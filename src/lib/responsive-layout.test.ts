@@ -9,7 +9,8 @@ const source = (path: string) => readFileSync(join(root, path), "utf8");
 test("shared responsive foundations protect intrinsic content without clipping it", () => {
   const css = source("src/app/globals.css");
 
-  assert.match(css, /\*::before,[\s\S]*box-sizing: inherit/);
+  assert.match(css, /\*::before,[\s\S]*box-sizing: border-box/);
+  assert.doesNotMatch(css, /box-sizing: inherit/);
   assert.match(css, /overflow-wrap: anywhere/);
   assert.match(css, /\.text-truncate-safe/);
   assert.match(css, /overflow-clip-margin:\s*0\.25em/);
@@ -25,8 +26,10 @@ test("core dialogs scroll inside the available phone viewport", () => {
   const dialogSources = [
     "src/components/action-confirm-dialog.tsx",
     "src/components/logistica/logistics-task-edit-panel.tsx",
-    "src/components/logistica/logistics-task-schedule-confirm-panel.tsx",
+    "src/components/logistica/task-schedule/schedule-confirm-view.tsx",
     "src/components/logistica/logistics-driver-change-dialog.tsx",
+    "src/components/logistica/live-route-change-reason-dialog.tsx",
+    "src/components/logistica/logistics-admin-task-exception-dialog.tsx",
     "src/components/sale/sale-invoice-confirm-dialog.tsx",
     "src/components/sale/sale-quick-empty-box-modal.tsx",
     "src/components/sale/sale-quick-checkout-modal.tsx",
@@ -60,5 +63,5 @@ test("dense navigation and date controls reflow instead of being clipped on 320p
   assert.match(logisticsNav, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
   assert.match(salesMetrics, /grid h-10 w-full grid-cols-4[\s\S]*sm:w-auto/);
   assert.match(salesMetrics, /min-w-0 whitespace-nowrap px-1 text-\[11px\][\s\S]*sm:px-3 sm:text-xs/);
-  assert.match(datePicker, /w-full max-w-\[17\.5rem\]/);
+  assert.match(datePicker, /w-\[17\.5rem\]/);
 });

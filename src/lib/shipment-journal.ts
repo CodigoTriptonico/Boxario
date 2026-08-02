@@ -46,6 +46,75 @@ export function shipmentJournalCategoryLabel(value: ShipmentJournalCategory | st
   return SHIPMENT_JOURNAL_CATEGORIES.find((entry) => entry.value === value)?.label || "Nota";
 }
 
+export function shipmentJournalDisplayTitle(title: string, shipmentCode: string) {
+  const normalizedTitle = String(title || "").trim();
+  const normalizedCode = String(shipmentCode || "").trim();
+  const repeatedSuffix = normalizedCode ? `: ${normalizedCode}` : "";
+
+  return repeatedSuffix && normalizedTitle.endsWith(repeatedSuffix)
+    ? normalizedTitle.slice(0, -repeatedSuffix.length)
+    : normalizedTitle;
+}
+
+export function shipmentJournalDisplayBody(
+  body: string,
+  kind: ShipmentJournalEntry["kind"],
+) {
+  const normalizedBody = String(body || "").trim();
+  if (kind !== "system") {
+    return normalizedBody;
+  }
+
+  return normalizedBody
+    .replace(/\s+\|\s+/g, "\n")
+    .replace(
+      /^Caja llena:\s*Recolecci[oó]n pendiente.*$/gim,
+      "",
+    )
+    .replace(
+      /^Caja vac[ií]a:\s*Programar entrega de caja vac[ií]a\s*-\s*/gim,
+      "Entrega de caja vacía · ",
+    )
+    .replace(
+      /\b(\d{4})-(\d{2})-(\d{2})\b/g,
+      (_, year: string, month: string, day: string) => {
+        const monthNames = [
+          "enero",
+          "febrero",
+          "marzo",
+          "abril",
+          "mayo",
+          "junio",
+          "julio",
+          "agosto",
+          "septiembre",
+          "octubre",
+          "noviembre",
+          "diciembre",
+        ];
+        const monthName = monthNames[Number(month) - 1];
+        return monthName ? `${Number(day)} de ${monthName} de ${year}` : `${year}-${month}-${day}`;
+      },
+    )
+    .replace(/\n{2,}/g, "\n")
+    .trim();
+}
+
+export function shipmentJournalReminderBadge(
+  entry: Pick<
+    ShipmentJournalEntry,
+    "followUpAt" | "reminderStatus" | "dueState"
+  >,
+) {
+  if (!entry.followUpAt) return "";
+  if (entry.reminderStatus === "completed") return "Completado";
+  if (entry.reminderStatus === "cancelled") return "Cancelado";
+  if (entry.dueState === "overdue") return "Vencido";
+  if (entry.dueState === "today") return "Hoy";
+  if (entry.dueState === "pending") return "Pendiente";
+  return "";
+}
+
 export function shipmentJournalDueState(
   followUpAt: string | null,
   status: ShipmentJournalReminderState,
@@ -93,4 +162,3 @@ export function readShipmentJournalFollowUp(value: unknown) {
   }
   return { ok: true as const, value: date.toISOString() };
 }
-

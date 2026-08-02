@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const ventaSource = readFileSync(join(root, "components/venta-client.tsx"), "utf8");
+const ventaSource = readVentaClientSource();
 const senderListSource = readFileSync(join(root, "components/sale/sale-sender-list.tsx"), "utf8");
 const recipientListSource = readFileSync(join(root, "components/sale/sale-recipient-list.tsx"), "utf8");
 const sidebarControls = readFileSync(

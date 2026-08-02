@@ -2,11 +2,12 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+import { readConductorTruckInventoryClientSource } from "@/test-utils/conductor-truck-inventory-client-source";
+import { readInventoryStructureEditorSource } from "@/test-utils/inventory-structure-editor-source";
 
-const actionsSource = readFileSync(
-  join(process.cwd(), "src/app/actions/conductor-tasks.ts"),
-  "utf8",
-);
+const actionsSource = readConductorTaskActionsSource();
 const migrationSource = readFileSync(
   join(process.cwd(), "supabase/migrations/045_conductor_truck_inventory.sql"),
   "utf8",
@@ -23,18 +24,9 @@ const tareasViewSource = readFileSync(
   join(process.cwd(), "src/lib/conductor-tareas-view.ts"),
   "utf8",
 );
-const tareasClientSource = readFileSync(
-  join(process.cwd(), "src/components/conductor/conductor-tareas-client.tsx"),
-  "utf8",
-);
-const inventarioClientSource = readFileSync(
-  join(process.cwd(), "src/components/conductor/conductor-truck-inventory-client.tsx"),
-  "utf8",
-);
-const inventoryTabSource = readFileSync(
-  join(process.cwd(), "src/components/inventory-structure-editor.tsx"),
-  "utf8",
-);
+const tareasClientSource = readConductorTareasClientSource();
+const inventarioClientSource = readConductorTruckInventoryClientSource();
+const inventoryTabSource = readInventoryStructureEditorSource();
 const inventoryTruckPanelSource = readFileSync(
   join(process.cwd(), "src/components/inventory/inventory-truck-panel.tsx"),
   "utf8",
@@ -49,11 +41,13 @@ describe("conductor route eval", () => {
     assert.match(actionsSource, /shipment_logistics_task_attempts/);
   });
 
-  it("keeps failures visible in contact logs and audit history", () => {
-    assert.match(actionsSource, /shipment_contact_logs/);
-    assert.match(actionsSource, /shipment\.contact_log_created/);
+  it("keeps failures visible in the shared Bitácora and audit history", () => {
+    // SEG-001: conductor failures feed activity_history, which the Bitácora merges
+    // as system entries. shipment_contact_logs is legacy read-only and must not receive writes.
     assert.match(actionsSource, /shipment\.logistics_task_failed/);
     assert.match(actionsSource, /recordActivityHistory/);
+    assert.match(actionsSource, /Reprogramar con Logística/);
+    assert.doesNotMatch(actionsSource, /from\("shipment_contact_logs"\)/);
   });
 
   it("keeps payments and route ownership guarded", () => {

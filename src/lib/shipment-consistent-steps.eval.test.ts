@@ -1,13 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readShipmentDisplaySource } from "@/test-utils/shipment-domain-source";
 
-const source = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "shipment-display.ts"),
-  "utf8",
-);
+const source = readShipmentDisplaySource();
 
 const shipmentLogisticsStepsBody =
   source.match(/export function shipmentLogisticsSteps[\s\S]*?\n}\n\nexport function shipmentStatusDisplayLabel/)?.[0] ?? "";

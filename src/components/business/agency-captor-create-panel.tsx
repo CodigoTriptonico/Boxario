@@ -7,7 +7,7 @@ import { createCaptorAgencyAction, listCaptorRouteTemplatesAction } from "@/app/
 import { EmailDomainSuggestionsInput } from "@/components/email-domain-suggestions-input";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { passwordConfirmationMessage } from "@/lib/auth/password-confirmation";
-import { generateTemporaryPassword } from "@/lib/organizations/slug";
+import { generateOrganizationAdminTemporaryPassword } from "@/lib/organizations/slug";
 import { useNotify } from "@/hooks/use-notify";
 import { formatPersonNameInput } from "@/lib/person-name";
 
@@ -19,14 +19,14 @@ export function AgencyCaptorCreatePanel() {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const [form, setForm] = useState(() => {
-    const password = generateTemporaryPassword();
+    const password = generateOrganizationAdminTemporaryPassword();
     return { name: "", administratorFullName: "", administratorEmail: "", password, confirmation: password, routeTemplateId: "", proposalName: "", proposalWeekday: "1", proposalNote: "" };
   });
   const [routes, setRoutes] = useState<Array<{ id: string; name: string; weekday: number }>>([]);
   const confirmationError = passwordConfirmationMessage(form.password, form.confirmation);
 
   function generatePassword() {
-    const password = generateTemporaryPassword();
+    const password = generateOrganizationAdminTemporaryPassword();
     setForm((current) => ({ ...current, password, confirmation: password }));
   }
 

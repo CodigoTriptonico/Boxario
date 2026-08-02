@@ -14,7 +14,7 @@ import {
   type LucideIcon,
 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
-import type { ShipmentRow, ShipmentStatus } from "@/app/actions/shipments";
+import type { ShipmentRow, ShipmentStatus } from "@/lib/shipment-types";
 import {
   legHasScheduleChange,
   planLegRecord,
@@ -23,6 +23,7 @@ import {
 import {
   EMPTY_BOX_LEG_LABELS,
   FULL_BOX_LEG_LABELS,
+  logisticsLegCompactLabel,
 } from "@/lib/shipment-leg-labels";
 import type { ShipmentAuditContext } from "@/lib/shipment-audit";
 import {
@@ -74,6 +75,11 @@ type ShipmentProgressStepsProps = {
   onStatusChange?: (status: ShipmentStatus, audit: ShipmentAuditContext) => void;
   onFullBoxReceivedAtOffice?: (audit: ShipmentAuditContext) => void;
   onProgramRoute?: (kind: "empty_box" | "full_box") => void;
+  routeByTaskId?: (taskId: string) => {
+    routeName: string;
+    assignedTo: string | null;
+    routeTemplateId: string | null;
+  } | undefined;
   onLockedLeg?: (message: string) => void;
 };
 
@@ -188,20 +194,30 @@ function compactStepClass(
   return `border-black bg-surface-card-header text-slate-500 ${detailRing}`;
 }
 
-function compactStepName(kind: ShipmentProgressKind) {
-  if (kind === "empty_box") {
-    return EMPTY_BOX_LEG_LABELS.short;
+function compactStepName(
+  step: ShipmentProgressStep,
+  row?: ShipmentRow,
+) {
+  if (step.kind === "empty_box" || step.kind === "full_box") {
+    const taskType =
+      step.kind === "empty_box" ? "deliver_empty_box" : "pickup_full_box";
+    const task = row?.logisticsTasks.find(
+      (candidate) =>
+        candidate.taskType === taskType && candidate.status !== "cancelled",
+    );
+
+    return logisticsLegCompactLabel(step.kind, {
+      active: step.state === "active",
+      ordered: step.driverTaskOrdered === true,
+      scheduledAt: task?.scheduledAt || task?.requestedScheduleAt || null,
+    });
   }
 
-  if (kind === "full_box") {
-    return FULL_BOX_LEG_LABELS.short;
-  }
-
-  if (kind === "pickup") {
+  if (step.kind === "pickup") {
     return "Salida";
   }
 
-  return stepShortName(kind);
+  return stepShortName(step.kind);
 }
 
 function legLockReason(row: ShipmentRow, kind: ShipmentProgressKind) {
@@ -258,6 +274,7 @@ export function ShipmentProgressSteps({
   onStatusChange,
   onFullBoxReceivedAtOffice,
   onProgramRoute,
+  routeByTaskId,
   onLockedLeg,
 }: ShipmentProgressStepsProps) {
   const [menu, setMenu] = useState<ShipmentStepMenuState>(null);
@@ -308,15 +325,16 @@ export function ShipmentProgressSteps({
     }
 
     const taskType = kind === "empty_box" ? "deliver_empty_box" : "pickup_full_box";
-    const legOrdered = Boolean(
-      row?.logisticsTasks.some(
-        (task) => task.taskType === taskType && task.status !== "cancelled",
-      ),
+    const activeTask = row?.logisticsTasks.find(
+      (task) => task.taskType === taskType && task.status !== "cancelled",
     );
+    const legOrdered = Boolean(activeTask);
+    const assignedRoute = activeTask ? routeByTaskId?.(activeTask.id) : undefined;
 
     return {
       currentLegMode: kind === "empty_box" ? editorState.emptyBoxMode : editorState.fullBoxMode,
       legOrdered,
+      routeName: assignedRoute?.routeName || "",
       emptyBoxHandingNow: editorState.emptyBoxHandingNow,
       currentSummary: logisticsLegMenuSummary(kind, editorState),
       scheduleChanged: legHasScheduleChange(
@@ -604,7 +622,7 @@ export function ShipmentProgressSteps({
           >
             <Icon className={stepIconClass} strokeWidth={2.25} aria-hidden />
           </span>
-          <span className={stepLabelClass}>{compactStepName(step.kind)}</span>
+          <span className={stepLabelClass}>{compactStepName(step, row)}</span>
           {isDetailOpen ? (
             <span
               className="pointer-events-none absolute -bottom-2 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-emerald-400"

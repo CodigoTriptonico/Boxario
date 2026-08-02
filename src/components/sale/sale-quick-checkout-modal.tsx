@@ -17,8 +17,11 @@ import {
   logisticsAdditionalChargeRequiresReason,
   type LogisticsAdditionalCharge,
 } from "@/lib/invoice-billing";
-import { moneyInputDisplayValue, normalizeMoneyInput } from "@/lib/logistics-fees";
-import type { SalePaymentSelection } from "@/lib/sale-payment-choice";
+import { moneyInputDisplayValue, normalizeMoneyInput, parseMoneyValue } from "@/lib/logistics-fees";
+import {
+  defaultSalePaymentSelection,
+  type SalePaymentSelection,
+} from "@/lib/sale-payment-choice";
 import { SaleInvoiceConfirmDialog } from "@/components/sale/sale-invoice-confirm-dialog";
 import { useState } from "react";
 
@@ -34,6 +37,7 @@ type SaleQuickCheckoutModalProps = {
   payNowDraft: string;
   payNowDraftTouched?: boolean;
   onPayNowDraftChange: (value: string) => void;
+  onInitialPaymentWaivedChange: (waived: boolean) => void;
   paymentMethod: SalePaymentSelection;
   paymentNote: string;
   onPaymentMethodChange: (method: SalePaymentSelection) => void;
@@ -62,6 +66,7 @@ export function SaleQuickCheckoutModal({
   payNowDraft,
   payNowDraftTouched = false,
   onPayNowDraftChange,
+  onInitialPaymentWaivedChange,
   paymentMethod,
   paymentNote,
   onPaymentMethodChange,
@@ -126,6 +131,9 @@ export function SaleQuickCheckoutModal({
                 payNowDraft={completed ? undefined : payNowDraft}
                 payNowDraftTouched={completed ? false : payNowDraftTouched}
                 onPayNowDraftChange={completed ? undefined : onPayNowDraftChange}
+                onInitialPaymentWaivedChange={
+                  completed ? undefined : onInitialPaymentWaivedChange
+                }
               />
               {!completed && billing && billing.promotionCandidates.length > 1 ? (
                 <div className="no-print w-full max-w-[210mm]">
@@ -213,7 +221,7 @@ export function SaleQuickCheckoutModal({
           </section>
         ) : null}
 
-        {stockMessage ? (
+        {stockMessage && !completed ? (
           <p className="no-print mt-4 rounded-lg border border-amber-700/70 bg-amber-950/25 px-3 py-2 text-center text-sm font-bold text-amber-100" role="alert">
             {stockMessage}
           </p>
@@ -255,6 +263,11 @@ export function SaleQuickCheckoutModal({
                 type="button"
                 onClick={() => {
                   onPaymentNoteChange("");
+                  onPaymentMethodChange(
+                    billing && parseMoneyValue(billing.payNow) > 0
+                      ? defaultSalePaymentSelection()
+                      : "pending",
+                  );
                   setConfirmOpen(true);
                 }}
                 disabled={!billing || billing.promotionSelectionRequired || confirming}
@@ -274,13 +287,16 @@ export function SaleQuickCheckoutModal({
           invoiceLabel={`Factura ${invoiceNumber}`}
           lines={
             billing
-              ? [
-                  { label: "Total", value: billing.quotedTotal },
-                  { label: "Depósito", value: billing.payNow },
-                  { label: "Pendiente", value: billing.balanceDue },
-                ]
+              ? parseMoneyValue(billing.payNow) > 0
+                ? [
+                    { label: "Total", value: billing.quotedTotal },
+                    { label: "Abono", value: `−${billing.payNow}` },
+                    { label: "Saldo pendiente", value: billing.balanceDue },
+                  ]
+                : [{ label: "Debe", value: billing.balanceDue }]
               : []
           }
+          paymentAmount={billing?.payNow || "$0"}
           confirmLabel={saleFinishActionLabel(billingForPayment)}
           confirming={confirming}
           paymentMethod={paymentMethod}

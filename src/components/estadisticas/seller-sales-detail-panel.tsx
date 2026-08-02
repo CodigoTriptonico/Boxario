@@ -12,7 +12,7 @@ import { Panel, StatCard, textMutedClass } from "@/components/ui-blocks";
 import { formatMoneyValue } from "@/lib/logistics-fees";
 import type { PeriodGranularity } from "@/lib/seller-metrics/period-buckets";
 import { invoiceStatusLabel, shipmentStatusDisplayLabel } from "@/lib/shipment-display";
-import type { ShipmentStatus } from "@/app/actions/shipments";
+import type { ShipmentStatus } from "@/lib/shipment-types";
 
 type SellerSalesDetailPanelProps = {
   sellerId: string;

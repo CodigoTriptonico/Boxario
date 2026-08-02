@@ -3,11 +3,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readShipmentDisplaySource } from "@/test-utils/shipment-domain-source";
 
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
+const enviosSource = readEnviosClientSource();
 const badgesSource = readFileSync(
   join(
     dirname(fileURLToPath(import.meta.url)),
@@ -15,10 +14,7 @@ const badgesSource = readFileSync(
   ),
   "utf8",
 );
-const displaySource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "shipment-display.ts"),
-  "utf8",
-);
+const displaySource = readShipmentDisplaySource();
 const progressSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/shipment-progress-steps.tsx"),
   "utf8",

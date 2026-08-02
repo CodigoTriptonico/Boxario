@@ -5,66 +5,22 @@ import { sessionHasPermission } from "@/lib/auth/permissions";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
-import { availableDistributionCredit, distributionBalance, type DistributionLedgerEntry } from "@/lib/distribution/ledger";
+import { availableDistributionCredit, distributionBalance } from "@/lib/distribution/ledger";
+import type {
+  DistributionCatalogItem,
+  DistributionCaptor,
+  DistributionLedgerRow,
+  DistributionPartner,
+  DistributionWorkspace,
+} from "@/lib/distribution/types";
 import { normalizePersonName, normalizePersonNameSnapshot } from "@/lib/person-name";
 
-type DistributionOffer = {
-  id: string;
-  countryName: string;
-  catalogKey: string;
-  productName: string;
-  wholesalePrice: number;
-  publicPrice: number | null;
-  isActive: boolean;
-};
-
-type DistributionLedgerRow = DistributionLedgerEntry & {
-  id: string;
-  shipmentCode: string | null;
-  note: string;
-};
-
-export type DistributionPartner = {
-  id: string;
-  name: string;
-  distributorOrganizationId: string;
-  acquisitionOwnerId: string | null;
-  acquisitionOwnerName: string | null;
-  ownerId: string | null;
-  ownerName: string | null;
-  ownerEmail: string | null;
-  createdAt: string;
-  creditLimit: number;
-  balance: number;
-  availableCredit: number;
-  isActive: boolean;
-  offers: DistributionOffer[];
-  ledger: DistributionLedgerRow[];
-  shipments: DistributionShipment[];
-};
-
-type DistributionShipment = {
-  id: string;
-  code: string;
-  status: string;
-  publicPrice: number;
-  createdAt: string;
-};
-
-export type DistributionCatalogItem = {
-  countryName: string;
-  catalogKey: string;
-  productName: string;
-};
-
-export type DistributionWorkspace = {
-  mode: "matrix" | "distributor";
-  partners: DistributionPartner[];
-  catalog: DistributionCatalogItem[];
-  captors: DistributionCaptor[];
-};
-
-export type DistributionCaptor = { id: string; name: string };
+export type {
+  DistributionCatalogItem,
+  DistributionCaptor,
+  DistributionPartner,
+  DistributionWorkspace,
+} from "@/lib/distribution/types";
 
 type PartnerDbRow = {
   id: string;
@@ -471,14 +427,13 @@ export async function createAcquiredDistributionPartnerAction(input: {
     if (roleError || !distributorRole) throw new Error(roleError?.message || "No se pudo crear el rol distribuidor");
     const { data: permission } = await admin.from("permissions").select("id").eq("key", "distribution.sell").single();
     if (!permission) throw new Error("Permiso de distribuidor no encontrado");
-    const [permissionResult, profileResult, organizationResult] = await Promise.all([
-      admin.from("role_permissions").insert({ role_id: distributorRole.id, permission_id: permission.id, granted: true }),
-      admin.from("profiles").update({ role_id: distributorRole.id, is_active: false }).eq("id", created.user.id).eq("organization_id", distributorOrganizationId),
-      admin.from("organizations").update({ is_active: false }).eq("id", distributorOrganizationId),
-    ]);
-    if (permissionResult.error) throw new Error(permissionResult.error.message);
-    if (profileResult.error) throw new Error(profileResult.error.message);
-    if (organizationResult.error) throw new Error(organizationResult.error.message);
+    const { error: finalizeError } = await admin.rpc("distribution_finalize_acquired_partner_atomic", {
+      p_distributor_organization_id: distributorOrganizationId,
+      p_distributor_user_id: created.user.id,
+      p_distributor_role_id: distributorRole.id,
+      p_permission_id: permission.id,
+    });
+    if (finalizeError) throw new Error(finalizeError.message);
     const { data: partner, error: partnerError } = await admin
       .from("distribution_partners")
       .insert({
@@ -571,11 +526,9 @@ export async function updateDistributionPartnerAction(input: {
     if (!profile) throw new Error("No se encontró el acceso del distribuidor");
     const { error: authError } = await admin.auth.admin.updateUserById(profile.id, { email: ownerEmail });
     if (authError) throw new Error(authError.message);
-    const [organizationResult, profileResult] = await Promise.all([
-      admin.from("organizations").update({ name }).eq("id", partner.distributor_organization_id),
-      admin.from("profiles").update({ email: ownerEmail, full_name: ownerName || null }).eq("id", profile.id),
-    ]);
+    const organizationResult = await admin.from("organizations").update({ name }).eq("id", partner.distributor_organization_id);
     if (organizationResult.error) throw new Error(organizationResult.error.message);
+    const profileResult = await admin.from("profiles").update({ email: ownerEmail, full_name: ownerName || null }).eq("id", profile.id);
     if (profileResult.error) throw new Error(profileResult.error.message);
     return ok(null);
   } catch (error) {
@@ -628,14 +581,12 @@ export async function setDistributionPartnerStatusAction(input: {
         return fail("Configura al menos un producto activo y un límite de crédito antes de activar al distribuidor.");
       }
     }
-    const [partnerResult, organizationResult, profilesResult] = await Promise.all([
-      admin.from("distribution_partners").update({ is_active: input.isActive }).eq("id", partner.id),
-      admin.from("organizations").update({ is_active: input.isActive }).eq("id", partner.distributor_organization_id),
-      admin.from("profiles").update({ is_active: input.isActive }).eq("organization_id", partner.distributor_organization_id),
-    ]);
-    if (partnerResult.error) throw new Error(partnerResult.error.message);
-    if (organizationResult.error) throw new Error(organizationResult.error.message);
-    if (profilesResult.error) throw new Error(profilesResult.error.message);
+    const { error } = await admin.rpc("distribution_set_partner_active_atomic", {
+      p_partner_id: partner.id,
+      p_is_active: input.isActive,
+      p_reason: null,
+    });
+    if (error) throw new Error(error.message);
     return ok(null);
   } catch (error) {
     return fail(actionErrorMessage(error));

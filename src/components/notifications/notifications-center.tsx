@@ -4,7 +4,7 @@ import Link from "next/link";
 import { ArrowLeft, Bell, CheckCircle2, ChevronsDownUp, PanelLeftClose, PanelLeftOpen, Sparkles, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { OnboardingProgress } from "@/app/actions/onboarding";
+import type { OnboardingProgress } from "@/lib/onboarding/types";
 import { listMyShipmentJournalRemindersAction } from "@/app/actions/shipment-journal";
 import { OnboardingPanel } from "@/components/onboarding/onboarding-panel";
 import { OnboardingStartPanel } from "@/components/onboarding/onboarding-start-panel";
@@ -234,7 +234,14 @@ export function NotificationsCenter({
 
   const isSidebar = variant === "sidebar";
   const isBrand = variant === "brand";
-  const totalPendingCount = pendingCount + journalReminders.length;
+  const inventoryPendingReminders = journalReminders.filter(
+    (reminder) => reminder.source === "inventory_pending",
+  );
+  const otherJournalReminders = journalReminders.filter(
+    (reminder) => reminder.source !== "inventory_pending",
+  );
+  const totalPendingCount =
+    pendingCount + inventoryPendingReminders.length + otherJournalReminders.length;
   const hasPending = totalPendingCount > 0;
 
   useEffect(() => {
@@ -467,10 +474,41 @@ export function NotificationsCenter({
             />
           ) : null}
 
-          {journalReminders.length ? (
+          {inventoryPendingReminders.length ? (
+            <section className="mb-3 grid gap-2">
+              <p className={labelMutedClass}>Pendiente de inventario</p>
+              {inventoryPendingReminders.map((reminder) => {
+                const shipmentCode = String(
+                  reminder.details.shipmentCode || reminder.shipmentId,
+                );
+                return (
+                  <Link
+                    key={reminder.id}
+                    href={`/seguimiento?q=${encodeURIComponent(shipmentCode)}`}
+                    onClick={close}
+                    className="rounded-lg border border-amber-700/50 bg-amber-950/25 p-3 transition hover:bg-amber-950/40"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="text-xs font-black text-amber-100">
+                        {shipmentCode || "Factura"}
+                      </span>
+                      <span className="text-[10px] font-black uppercase text-amber-300">
+                        Stock
+                      </span>
+                    </div>
+                    <p className="mt-1 line-clamp-2 text-xs font-semibold text-amber-200/90">
+                      {reminder.body || "La venta quedó pendiente de inventario."}
+                    </p>
+                  </Link>
+                );
+              })}
+            </section>
+          ) : null}
+
+          {otherJournalReminders.length ? (
             <section className="mb-3 grid gap-2">
               <p className={labelMutedClass}>Recordatorios de envíos</p>
-              {journalReminders.map((reminder) => (
+              {otherJournalReminders.map((reminder) => (
                 <Link
                   key={reminder.id}
                   href={`/seguimiento?q=${encodeURIComponent(String(reminder.details.shipmentCode || reminder.shipmentId))}`}
@@ -491,7 +529,12 @@ export function NotificationsCenter({
             </section>
           ) : null}
 
-          {ready && !hasOnboarding && journalReminders.length === 0 ? <NotificationsEmptyState /> : null}
+          {ready &&
+          !hasOnboarding &&
+          inventoryPendingReminders.length === 0 &&
+          otherJournalReminders.length === 0 ? (
+            <NotificationsEmptyState />
+          ) : null}
         </div>
       </div>
     ) : null;

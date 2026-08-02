@@ -2,11 +2,13 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
 
 const root = process.cwd();
 const paymentSource = readFileSync(join(root, "src/lib/conductor-driver-payment.ts"), "utf8");
-const actionSource = readFileSync(join(root, "src/app/actions/conductor-tasks.ts"), "utf8");
-const clientSource = readFileSync(join(root, "src/components/conductor/conductor-tareas-client.tsx"), "utf8");
+const actionSource = readConductorTaskActionsSource(root);
+const clientSource = readConductorTareasClientSource(root);
 
 describe("conductor driver payment eval", () => {
   it("keeps the conductor choice explicit through UI, action and settlement", () => {

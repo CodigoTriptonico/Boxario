@@ -8,24 +8,9 @@ import {
   type InventoryTreeItem,
 } from "@/lib/inventory-tree";
 import { DEFAULT_INVENTORY_UNIT } from "@/lib/inventory-units";
+import type { InventoryStockItem } from "@/lib/inventory-stock-contracts";
 
-export type InventoryStockItem = {
-  id: string;
-  name: string;
-  category: string;
-  kind: string;
-  subcategory?: string;
-  size?: string;
-  stock: number;
-  reserved: number;
-  assigned: number;
-  unavailable: number;
-  minStock: number;
-  avgCost?: number;
-  location?: string;
-  unit?: string;
-  photoUrl?: string;
-};
+export type { InventoryStockItem } from "@/lib/inventory-stock-contracts";
 
 export type StockLevel = "ok" | "low" | "empty" | "neutral";
 

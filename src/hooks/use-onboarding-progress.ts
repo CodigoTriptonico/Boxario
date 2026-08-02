@@ -1,10 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import {
-  getOnboardingProgressAction,
-  type OnboardingProgress,
-} from "@/app/actions/onboarding";
+import { getOnboardingProgressAction } from "@/app/actions/onboarding";
 import {
   ONBOARDING_PROGRESS_CHANGED,
 } from "@/lib/onboarding/refresh";
@@ -12,6 +9,7 @@ import {
   isOnboardingTutorialEnabled,
   onboardingTutorialDisabledProgress,
 } from "@/lib/onboarding/feature";
+import type { OnboardingProgress } from "@/lib/onboarding/types";
 import {
   markOnboardingStartedLocally,
   mergeOnboardingStarted,

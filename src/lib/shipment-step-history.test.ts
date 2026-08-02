@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ActivityHistoryRow } from "@/app/actions/history";
+import type { ActivityHistoryRow } from "@/lib/activity-history-types";
 import { buildAuditHistorySegments, stepHistoryEntryDetail, stepHistoryEntryTitle } from "./shipment-step-history";
 import { SHIPMENT_SCHEDULE_UPDATED_ACTION } from "./shipment-schedule-history";
 

@@ -42,12 +42,9 @@ export const flowPersonCardGridClass =
 export const flowPersonRowListFrameClass = `${cardClass} flex flex-col`;
 export const flowPersonRowListSlotClass = "flex min-h-0 flex-1 flex-col overflow-y-auto";
 export const flowPersonRowListInnerClass = "divide-y divide-black/70";
-/** Marco unificado: recientes + buscador + acciones en una sola fila. */
+/** Marco unificado: buscador + acciones en una sola fila. */
 export const flowPersonToolbarShellClass =
   "flex w-full min-w-0 shrink-0 flex-col items-stretch gap-2 overflow-hidden sm:flex-row";
-
-export const flowPersonToolbarRecentsClass =
-  "hidden min-w-0 max-w-[15rem] items-center overflow-x-auto rounded-lg border border-black/80 bg-[#18211d] px-1.5 shadow-[0_8px_20px_rgba(0,0,0,0.22)] [scrollbar-width:none] [-ms-overflow-style:none] md:flex [&::-webkit-scrollbar]:hidden";
 
 export const flowPersonToolbarSearchSlotClass =
   `inset-shell flex min-w-0 flex-1 items-stretch overflow-hidden rounded-lg border border-black/80 bg-surface-card shadow-[inset_0_1px_0_rgba(255,255,255,0.04),0_8px_20px_rgba(0,0,0,0.2)]`;

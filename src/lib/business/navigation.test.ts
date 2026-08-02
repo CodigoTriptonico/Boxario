@@ -4,7 +4,7 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 import { resolveAppNavActiveLabel } from "../app-navigation";
 
-const shell = readFileSync(join(process.cwd(), "src/components/app-shell.tsx"), "utf8");
+const shell = readFileSync(join(process.cwd(), "src/components/app-shell-nav.tsx"), "utf8");
 const commandCenter = readFileSync(join(process.cwd(), "src/components/business/business-command-center.tsx"), "utf8");
 
 describe("business navigation", () => {

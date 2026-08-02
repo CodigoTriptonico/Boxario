@@ -6,6 +6,7 @@ import {
   listOrgMembersForInventoryAction,
   type InventoryMemberRow,
 } from "@/app/actions/users";
+import { DateInput } from "@/components/date-input";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import { inputClass } from "@/components/ui-blocks";
 import type { InventoryAssignment, InventoryAssignmentOutcome } from "@/lib/inventory-types";
@@ -17,7 +18,14 @@ type AssignInventoryModalProps = {
   maxQty: number;
   saving: boolean;
   onClose: () => void;
-  onSubmit: (input: { assigneeId: string; qty: number; note: string }) => void;
+  onSubmit: (input: {
+    assigneeId: string;
+    qty: number;
+    purpose: string;
+    deliveryDate: string;
+    expectedReturnAt: string;
+    note: string;
+  }) => void;
 };
 
 export function AssignInventoryModal({
@@ -31,7 +39,20 @@ export function AssignInventoryModal({
   const [members, setMembers] = useState<InventoryMemberRow[]>([]);
   const [assigneeId, setAssigneeId] = useState("");
   const [qty, setQty] = useState("1");
+  const [purpose, setPurpose] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [expectedReturnAt, setExpectedReturnAt] = useState("");
   const [note, setNote] = useState("");
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      setDeliveryDate(new Date().toISOString().slice(0, 10));
+    });
+  }, [open]);
 
   useEffect(() => {
     if (!open) {
@@ -79,6 +100,9 @@ export function AssignInventoryModal({
           onSubmit({
             assigneeId,
             qty: Number(qty),
+            purpose: purpose.trim(),
+            deliveryDate,
+            expectedReturnAt,
             note: note.trim(),
           });
         }}
@@ -122,6 +146,39 @@ export function AssignInventoryModal({
         </label>
 
         <label className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
+          Motivo o propósito
+          <input
+            className={`${inputClass} h-10 text-sm`}
+            value={purpose}
+            onChange={(event) => setPurpose(event.target.value)}
+            placeholder="Ej. herramientas para ruta"
+            required
+          />
+        </label>
+
+        <div className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
+          <span>Fecha de entrega</span>
+          <DateInput
+            compact={false}
+            value={deliveryDate}
+            className="w-full"
+            ariaLabel="Fecha de entrega"
+            onChange={setDeliveryDate}
+          />
+        </div>
+
+        <div className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
+          <span>Devolución estimada</span>
+          <DateInput
+            compact={false}
+            value={expectedReturnAt}
+            className="w-full"
+            ariaLabel="Devolución estimada"
+            onChange={setExpectedReturnAt}
+          />
+        </div>
+
+        <label className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
           Nota
           <input
             className={`${inputClass} h-10 text-sm`}
@@ -141,7 +198,14 @@ export function AssignInventoryModal({
           </button>
           <button
             type="submit"
-            disabled={saving || !assigneeId || Number(qty) <= 0 || Number(qty) > maxQty}
+            disabled={
+              saving ||
+              !assigneeId ||
+              !purpose.trim() ||
+              !deliveryDate ||
+              Number(qty) <= 0 ||
+              Number(qty) > maxQty
+            }
             className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"
           >
             {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

@@ -21,6 +21,9 @@ function localIpv4Addresses(): string[] {
 }
 
 const nextConfig: NextConfig = {
+  turbopack: {
+    root: resolve(__dirname),
+  },
   experimental: {
     proxyClientMaxBodySize: "10mb",
   },

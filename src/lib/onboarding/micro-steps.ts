@@ -1,4 +1,4 @@
-import type { OnboardingProgress, OnboardingStepId } from "@/app/actions/onboarding";
+import type { OnboardingProgress, OnboardingStepId } from "@/lib/onboarding/types";
 import { configPricesCountryHref } from "@/lib/country-options";
 import { inventarioHrefWithReturn } from "@/lib/inventario-return";
 
@@ -33,7 +33,6 @@ const CONFIG_SECTIONS = new Set([
   "prices",
   "distributors",
   "inventory",
-  "deliveries",
   "appearance",
   "company",
   "users",
@@ -93,11 +92,11 @@ function resolveCountriesGuide(
       actionLabel: "Ir a Configuración",
     },
     {
-      label: "Abrir Países y precios",
-      title: "Abre Países y precios",
-      body: "En la cuadrícula de opciones pulsa la tarjeta Países y precios (icono de globo).",
+      label: "Abrir Costos",
+      title: "Abre Costos",
+      body: "En la cuadrícula de opciones pulsa la tarjeta Costos (icono de dólar).",
       actionHref: "/configuracion?view=prices",
-      actionLabel: "Abrir Países y precios",
+      actionLabel: "Abrir Costos",
     },
     {
       label: "Agregar un país",
@@ -175,9 +174,9 @@ function resolvePricingGuide(
     {
       label: "Ir a Configuración",
       title: "Abre Configuración",
-      body: "Los precios por país se configuran en Configuración → Países y precios.",
+      body: "Los precios por país se configuran en Configuración → Costos.",
       actionHref: "/configuracion?view=prices",
-      actionLabel: "Ir a Países y precios",
+      actionLabel: "Ir a Costos",
     },
     {
       label: "Elegir país",

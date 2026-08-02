@@ -13,22 +13,28 @@ const datePickerCalendarSource = readFileSync(
 );
 
 const consumerFiles = [
-  "components/logistica-client.tsx",
+  "components/logistica/panels/logistics-toolbar.tsx",
   "components/estadisticas/period-range-toolbar.tsx",
   "components/inventory-movements-panel.tsx",
-  "components/logistica/logistics-task-schedule-confirm-panel.tsx",
-  "components/shipment-contact-log-dialog.tsx",
+  "components/logistica/task-schedule/logistics-task-schedule-confirm-panel-view.tsx",
+  "components/inventory-assignment-modals.tsx",
+  "components/inventory/inventory-item-movement-draft-modal.tsx",
+  "components/agency-daily-close-client.tsx",
+  "components/shipment-journal-dialog.tsx",
+  "components/time-clock/time-clock-admin-client.tsx",
 ];
 
 describe("date input standard", () => {
   it("uses a custom grid calendar with click-to-open picker", () => {
     assert.equal(dateInputSource.includes('type="date"'), false);
     assert.equal(dateInputSource.includes("DatePickerCalendar"), true);
-    assert.equal(dateInputSource.includes('className="fixed z-[160]"'), true);
+    assert.equal(dateInputSource.includes("PickerPanelPortal"), true);
     assert.equal(dateInputSource.includes("formatDateInputDisplay(value)"), true);
     assert.equal(dateInputSource.includes("aria-haspopup=\"dialog\""), true);
     assert.match(dateInputSource, /onChange=\{pickDate\}/);
     assert.match(dateInputSource, /h-9 min-w-0 px-2\.5/);
+    assert.match(dateInputSource, /h-11 w-full min-w-0 px-3/);
+    assert.match(dateInputSource, /max-w-full/);
     assert.match(dateInputSource, /togglePicker/);
     assert.match(dateInputSource, /leading-none/);
     assert.match(dateInputSource, /items-center truncate/);

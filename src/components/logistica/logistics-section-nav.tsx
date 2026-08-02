@@ -1,10 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { ChevronDown, ClipboardList, Route, Settings2, Truck, Users } from "lucide-react";
+import { ChevronDown, ClipboardList, Route, Truck, Users } from "lucide-react";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 
-export type LogisticsSection = "tasks" | "routes" | "drivers" | "vehicles" | "settings";
+export type LogisticsSection = "tasks" | "routes" | "drivers" | "vehicles";
 
 type LogisticsSectionNavProps = {
   active: LogisticsSection;
@@ -12,7 +12,6 @@ type LogisticsSectionNavProps = {
   routesOnClick?: () => void;
   routesHref?: string;
   extraActions?: React.ReactNode;
-  showSettings?: boolean;
 };
 
 function sectionButtonClass(active: LogisticsSection, section: LogisticsSection) {
@@ -24,7 +23,6 @@ const sectionDetails = {
   drivers: { label: "Conductores", Icon: Users },
   vehicles: { label: "Vehiculos", Icon: Truck },
   routes: { label: "Rutas", Icon: Route },
-  settings: { label: "Configuración", Icon: Settings2 },
 } satisfies Record<LogisticsSection, { label: string; Icon: typeof ClipboardList }>;
 
 export function LogisticsSectionNav({
@@ -33,7 +31,6 @@ export function LogisticsSectionNav({
   routesOnClick,
   routesHref = "/logistica?view=rutas",
   extraActions,
-  showSettings = false,
 }: LogisticsSectionNavProps) {
   const activeSection = sectionDetails[active];
   const ActiveIcon = activeSection.Icon;
@@ -76,12 +73,6 @@ export function LogisticsSectionNav({
               Rutas
             </Link>
           )}
-          {showSettings ? (
-            <Link href="/logistica?view=configuracion" className={sectionButtonClass(active, "settings")}>
-              <Settings2 className="h-4 w-4 shrink-0" aria-hidden />
-              Configuración
-            </Link>
-          ) : null}
           {extraActions}
         </div>
       </details>
@@ -110,12 +101,6 @@ export function LogisticsSectionNav({
             Rutas
           </Link>
         )}
-        {showSettings ? (
-          <Link href="/logistica?view=configuracion" className={sectionButtonClass(active, "settings")}>
-            <Settings2 className="h-4 w-4 shrink-0" aria-hidden />
-            Configuración
-          </Link>
-        ) : null}
         {extraActions}
       </div>
     </div>

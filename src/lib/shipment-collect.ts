@@ -50,11 +50,11 @@ export function shipmentCollectCopy(balanceDue: number, mode: ShipmentCollectMod
 
   if (mode === "partial") {
     return {
-      title: "Registrar abono",
-      amountLabel: "Monto del abono",
+      title: "Registrar pago",
+      amountLabel: "Monto recibido",
       pendingLineLabel: "Pendiente después",
-      confirmLabel: "Registrar abono",
-      confirmingLabel: "Registrando...",
+      confirmLabel: "Registrar pago",
+      confirmingLabel: "Registrando pago...",
     };
   }
 

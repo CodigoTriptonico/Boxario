@@ -35,19 +35,19 @@ export function ShipmentPaymentProgress({
         <div className="grid grid-cols-3 divide-x divide-black/50 overflow-hidden rounded border border-black/40 bg-surface-card-header">
           <div className="min-w-0 px-1.5 py-1">
             <p className="text-[8px] font-black uppercase leading-none text-slate-500">Total</p>
-            <p className="mt-0.5 truncate text-[11px] font-black tabular-nums text-[#f8fafc]">
+            <p className="mt-0.5 whitespace-nowrap text-[11px] font-black tabular-nums text-[#f8fafc]">
               {formatMoneyValue(progress.total)}
             </p>
           </div>
           <div className="min-w-0 px-1.5 py-1">
             <p className="text-[8px] font-black uppercase leading-none text-slate-500">Pagado</p>
-            <p className="mt-0.5 truncate text-[11px] font-black tabular-nums text-emerald-300">
+            <p className="mt-0.5 whitespace-nowrap text-[11px] font-black tabular-nums text-emerald-300">
               {formatMoneyValue(progress.paid)}
             </p>
           </div>
           <div className="min-w-0 px-1.5 py-1">
             <p className="text-[8px] font-black uppercase leading-none text-slate-500">Debe</p>
-            <p className="mt-0.5 truncate text-[11px] font-black tabular-nums text-amber-200">
+            <p className="mt-0.5 whitespace-nowrap text-[11px] font-black tabular-nums text-amber-200">
               {formatMoneyValue(progress.pending)}
             </p>
           </div>

@@ -1,13 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
-const shipmentsActionsSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/shipments.ts"),
-  "utf8",
-);
+const shipmentsActionsSource = readShipmentActionsSource();
 
 describe("logistica invoice loading eval", () => {
   it("does not hide missing shipment columns as zero invoices", () => {

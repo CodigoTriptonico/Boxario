@@ -9,8 +9,8 @@ function component(path: string) {
 const distribution = component("distribution/distribution-workspace.tsx");
 const collectDialog = component("shipment-collect-dialog.tsx");
 const invoiceDialog = component("sale/sale-invoice-confirm-dialog.tsx");
-const contactDialog = component("shipment-contact-log-dialog.tsx");
-const platformWizard = component("platform/platform-create-client-wizard.tsx");
+const journalDialog = component("shipment-journal-dialog.tsx");
+const platformWizardHelpers = component("platform/platform-create-client-wizard-helpers.ts");
 const planSettings = component("config/plan-settings-panel.tsx");
 const warehouseAccess = component("config/user-warehouse-access-editor.tsx");
 const driverChange = component("logistica/logistics-driver-change-dialog.tsx");
@@ -22,7 +22,7 @@ describe("visual density cleanup contract", () => {
     assert.match(invoiceDialog, /<dl className="[^"]*divide-y divide-black\/70 border-y border-black\/70/);
     assert.doesNotMatch(collectDialog, /<dl className="[^"]*rounded-xl[^"]*bg-surface-card/);
     assert.doesNotMatch(invoiceDialog, /<dl className="[^"]*rounded-xl[^"]*bg-surface-card/);
-    assert.match(contactDialog, /divide-y divide-black\/70/);
+    assert.match(journalDialog, /divide-y divide-black\/70/);
   });
 
   it("flattens form groups while preserving all controls", () => {
@@ -30,8 +30,8 @@ describe("visual density cleanup contract", () => {
     assert.match(distribution, /border-t border-black\/70 pt-3/);
     assert.doesNotMatch(distribution, /<Panel title="Productos" hideHeader/);
     assert.doesNotMatch(distribution, /<Panel title="Cuenta" hideHeader/);
-    assert.match(platformWizard, /const createOrgStepBodyClass\s*=\s*\n?\s*"w-full p-1 sm:p-2"/);
-    assert.match(platformWizard, /const configBoxClass\s*=\s*\n?\s*"border-l border-emerald-400\/35 pl-4"/);
+    assert.match(platformWizardHelpers, /export const createOrgStepBodyClass = "w-full p-1 sm:p-2"/);
+    assert.match(platformWizardHelpers, /export const configBoxClass = "border-l border-emerald-400\/35 pl-4"/);
   });
 
   it("keeps critical and actionable information visible", () => {

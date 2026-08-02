@@ -76,11 +76,15 @@ describe("sale payment choice", () => {
     assert.equal(fieldSource.includes("paymentUnset"), true);
     assert.equal(confirmDialogSource.includes("paymentSelectionRequired"), true);
     assert.equal(confirmDialogSource.includes("Elige cómo cobrar"), true);
+    assert.equal(confirmDialogSource.includes("hideDepositStatus"), true);
+    assert.equal(confirmDialogSource.includes("hasInitialPayment"), true);
+    assert.equal(confirmDialogSource.includes("Sin abono inicial"), true);
   });
 
   it("shows the collapsed payment field only in the create-invoice confirm dialog", () => {
     assert.equal(confirmDialogSource.includes("SalePaymentMethodField"), true);
     assert.equal(confirmDialogSource.includes("onPaymentMethodChange"), true);
+    assert.equal(confirmDialogSource.includes("paymentAmount"), true);
     assert.equal(confirmDialogSource.includes("pendingCollectionAmount"), false);
     assert.equal(confirmDialogSource.includes("pendingPaymentSource"), false);
   });

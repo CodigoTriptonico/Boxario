@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, ListTodo, Truck } from "lucide-react";
 import type { ConductorHomeVehicleStatus } from "@/app/actions/conductor-tasks";
+import { ConductorRouteNotificationsPanel } from "@/components/conductor/conductor-route-notifications-panel";
 import { BigAction, labelMutedClass, Panel, StatCard, textMutedClass } from "@/components/ui-blocks";
 import type { ConductorTaskSummary } from "@/lib/conductor-dashboard";
 import type { ConductorTruckInventorySummary } from "@/lib/conductor-truck-inventory";
@@ -119,6 +120,8 @@ export function ConductorHomePanel({
           </p>
         </div>
       </div>
+
+      <ConductorRouteNotificationsPanel />
 
       <div className="mb-4 grid gap-3 sm:grid-cols-2">
         <DeliverBoxesCard deliverCount={summary.deliverCount} truckSummary={truckSummary} />

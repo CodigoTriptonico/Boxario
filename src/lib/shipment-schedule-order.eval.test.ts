@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+
 const logisticsEditSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "shipment-logistics-edit.ts"),
   "utf8",
@@ -12,10 +14,7 @@ const contextMenuSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/shipment-step-context-menu.tsx"),
   "utf8",
 );
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
+const enviosSource = readEnviosClientSource();
 
 describe("schedule vs driver order eval", () => {
   it("requires an explicit order flag before syncing driver logistics tasks", () => {

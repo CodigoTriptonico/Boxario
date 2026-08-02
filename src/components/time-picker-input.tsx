@@ -2,6 +2,7 @@
 
 import { ChevronDown, Clock } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { PickerPanelPortal } from "@/components/picker-panel-portal";
 import { TimePickerCalendar } from "@/components/time-picker-calendar";
 import { PICKER_PANEL_SELECTOR } from "@/lib/date-picker";
 import {
@@ -169,22 +170,14 @@ export function TimePickerInput({
         />
       </div>
 
-      {open && panelPosition ? (
-        <div
-          className="fixed z-[160]"
-          style={{
-            top: panelPosition.top,
-            left: panelPosition.left,
-          }}
-        >
-          <TimePickerCalendar
-            key={pickerSession}
-            view={view}
-            onChange={pickTime}
-            onComplete={closePicker}
-          />
-        </div>
-      ) : null}
+      <PickerPanelPortal open={open} position={panelPosition}>
+        <TimePickerCalendar
+          key={pickerSession}
+          view={view}
+          onChange={pickTime}
+          onComplete={closePicker}
+        />
+      </PickerPanelPortal>
     </>
   );
 }

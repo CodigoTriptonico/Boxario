@@ -8,7 +8,12 @@ export function slugifyOrgName(name: string) {
     .slice(0, 80);
 }
 
-export function generateTemporaryPassword(length = 12) {
+/**
+ * Contraseña temporal para administradores de organización / captadores.
+ * Contrato distinto de `generateTemporaryPassword` en auth (10 chars alfanuméricos
+ * sin símbolos ambiguos): aquí se exige mayúscula, minúscula, dígito y símbolo.
+ */
+export function generateOrganizationAdminTemporaryPassword(length = 12) {
   const upper = "ABCDEFGHJKLMNPQRSTUVWXYZ";
   const lower = "abcdefghjkmnpqrstuvwxyz";
   const digits = "23456789";
@@ -24,3 +29,4 @@ export function generateTemporaryPassword(length = 12) {
     .sort(() => Math.random() - 0.5)
     .join("");
 }
+

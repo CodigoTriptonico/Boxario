@@ -1,17 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
-const shipmentsSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/shipments.ts"),
-  "utf8",
-);
+const enviosSource = readEnviosClientSource();
+const shipmentsSource = readShipmentActionsSource();
 
 describe("scheduled leg auto-order eval", () => {
   it("orders the driver task only inside an explicit route decision", () => {

@@ -1,48 +1,22 @@
-export type InventoryMovementReasonCode =
-  | "unspecified"
-  | "manual_entry"
-  | "manual_exit"
-  | "physical_count"
-  | "sale_fulfillment"
-  | "warehouse_transfer_out"
-  | "warehouse_transfer_in"
-  | "warehouse_transfer_cancel"
-  | "assignment_issue"
-  | "assignment_return"
-  | "assignment_consume"
-  | "assignment_damage"
-  | "assignment_loss"
-  | "agency_delivery"
-  | "correction_reversal"
-  | "other";
+import type {
+  InventoryMovementAuditFields,
+  InventoryMovementEvidence,
+  InventoryMovementReasonCode,
+  InventoryMovementReferenceType,
+  ManualInventoryMovementType,
+} from "@/lib/inventory-movement-contracts";
 
-export type InventoryMovementLocationType =
-  | "warehouse"
-  | "assignee"
-  | "truck"
-  | "agency"
-  | "external"
-  | "shipment"
-  | "unknown";
-
-export type InventoryMovementReferenceType =
-  | "shipment"
-  | "assignment"
-  | "warehouse_transfer"
-  | "sale_reservation"
-  | "agency_visit"
-  | "physical_count"
-  | "manual";
-
-export type InventoryMovementEvidence = {
-  photos?: string[];
-  note?: string;
-  supplierName?: string;
-};
+export type {
+  InventoryMovementEvidence,
+  InventoryMovementLocationType,
+  InventoryMovementReasonCode,
+  InventoryMovementReferenceType,
+  ManualInventoryMovementType,
+} from "@/lib/inventory-movement-contracts";
 
 export const inventoryMovementReasonLabel: Record<InventoryMovementReasonCode, string> = {
   unspecified: "Sin clasificar",
-  manual_entry: "Entrada manual",
+  manual_entry: "Compra o recepción",
   manual_exit: "Salida manual",
   physical_count: "Conteo físico",
   sale_fulfillment: "Venta / envío",
@@ -69,18 +43,48 @@ const inventoryMovementReferenceLabel: Record<InventoryMovementReferenceType, st
   manual: "Manual",
 };
 
-export const manualMovementReasonOptions: Array<{
-  value: InventoryMovementReasonCode;
-  label: string;
-}> = [
-  { value: "manual_entry", label: "Entrada manual" },
-  { value: "manual_exit", label: "Salida manual" },
-  { value: "physical_count", label: "Conteo físico" },
-  { value: "other", label: "Otro" },
-];
+const manualMovementReasonCodesByType: Record<
+  ManualInventoryMovementType,
+  InventoryMovementReasonCode[]
+> = {
+  entrada: ["manual_entry", "other"],
+  salida: [
+    "manual_exit",
+    "assignment_damage",
+    "assignment_loss",
+    "assignment_consume",
+    "other",
+  ],
+  ajuste: ["physical_count", "other"],
+};
+
+export function manualMovementReasonOptionsForType(type: ManualInventoryMovementType) {
+  return manualMovementReasonCodesByType[type].map((value) => ({
+    value,
+    label: inventoryMovementReasonLabel[value],
+  }));
+}
+
+export function isReasonCodeAllowedForMovementType(
+  type: ManualInventoryMovementType,
+  reasonCode: InventoryMovementReasonCode,
+) {
+  return manualMovementReasonCodesByType[type].includes(reasonCode);
+}
+
+export function normalizeReasonCodeForMovementType(
+  type: ManualInventoryMovementType,
+  reasonCode?: InventoryMovementReasonCode | null,
+): InventoryMovementReasonCode {
+  if (reasonCode && isReasonCodeAllowedForMovementType(type, reasonCode)) {
+    return reasonCode;
+  }
+
+  return defaultReasonCodeForMovementType(type);
+}
 
 export function defaultReasonCodeForMovementType(
-  type: "entrada" | "salida" | "ajuste",
+  type: ManualInventoryMovementType,
 ): InventoryMovementReasonCode {
   if (type === "entrada") {
     return "manual_entry";
@@ -94,7 +98,36 @@ export function defaultReasonCodeForMovementType(
 }
 
 export function movementReasonRequiresDetail(reasonCode: InventoryMovementReasonCode) {
-  return reasonCode === "other" || reasonCode === "physical_count";
+  return (
+    reasonCode === "other" ||
+    reasonCode === "physical_count" ||
+    reasonCode === "assignment_damage" ||
+    reasonCode === "assignment_loss"
+  );
+}
+
+export function computeInventoryAdjustmentDelta(currentStock: number, countedQty: number) {
+  return countedQty - currentStock;
+}
+
+export function formatInventoryAdjustmentDelta(delta: number) {
+  if (delta === 0) {
+    return "0";
+  }
+
+  return delta > 0 ? `+${delta}` : String(delta);
+}
+
+export function movementReasonDetailPlaceholder(reasonCode: InventoryMovementReasonCode) {
+  if (reasonCode === "physical_count") {
+    return "Ej. conté más de lo registrado";
+  }
+
+  if (reasonCode === "other") {
+    return "Explica el motivo";
+  }
+
+  return "Opcional";
 }
 
 export function isAgencyInventoryMovement(input: {
@@ -160,20 +193,7 @@ export function readInventoryMovementSupplierName(
   return typeof supplierName === "string" ? supplierName.trim() : "";
 }
 
-export function emptyInventoryMovementAuditFields(): Pick<
-  import("@/lib/inventory-types").InventoryMovement,
-  | "reasonCode"
-  | "fromLocationType"
-  | "fromLocationId"
-  | "fromLocationLabel"
-  | "toLocationType"
-  | "toLocationId"
-  | "toLocationLabel"
-  | "referenceType"
-  | "referenceId"
-  | "evidence"
-  | "reversalOfMovementId"
-> {
+export function emptyInventoryMovementAuditFields(): InventoryMovementAuditFields {
   return {
     reasonCode: "unspecified",
     fromLocationType: null,

@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
 
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+
 const root = process.cwd();
 const source = (path: string) => readFileSync(join(root, path), "utf8");
 
@@ -16,7 +18,7 @@ describe("mobile header layout eval", () => {
   });
 
   it("uses a viewport-bound disclosure on phones and an anchored one from small screens up", () => {
-    const conductorTasks = source("src/components/conductor/conductor-tareas-client.tsx");
+    const conductorTasks = readConductorTareasClientSource(root);
 
     assert.match(conductorTasks, /fixed inset-x-4 top-1\/2/);
     assert.match(conductorTasks, /sm:absolute sm:inset-x-auto sm:top-full/);

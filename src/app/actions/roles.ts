@@ -1,13 +1,11 @@
 "use server";
 
-import { requireAppSession } from "@/lib/auth/session";
-import { sessionHasPermission } from "@/lib/auth/permissions";
 import {
   findRoleCatalogEntry,
   listSuggestedRoleCatalog,
   type RoleCatalogEntry,
 } from "@/lib/auth/role-catalog";
-import { createScopedSupabase } from "@/lib/supabase/scoped";
+import { requireScopedActionContext } from "@/lib/actions/context";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
 import type { PermissionKey, PermissionRow, RoleRow } from "@/lib/auth/types";
 
@@ -47,6 +45,10 @@ const AGENCY_ROLE_SLUGS = new Set([
   "operador_agencia",
 ]);
 
+async function roleActionContext() {
+  return requireScopedActionContext(["permissions.manage"]);
+}
+
 export async function listRolesAndPermissionsAction(): Promise<
   ActionResult<{
     roles: RoleRow[];
@@ -57,16 +59,7 @@ export async function listRolesAndPermissionsAction(): Promise<
   }>
 > {
   try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await roleActionContext();
 
     const [{ data: roles, error: rolesError }, { data: permissions, error: permsError }] =
       await Promise.all([
@@ -131,11 +124,7 @@ export async function addSuggestedRoleAction(
   slug: string,
 ): Promise<ActionResult<RoleRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
+    const { session, supabase } = await roleActionContext();
 
     const entry = findRoleCatalogEntry(slug);
     if (!entry || entry.base) {
@@ -144,11 +133,6 @@ export async function addSuggestedRoleAction(
 
     if (entry.agencyModule && !session.agencyModuleEnabled) {
       return fail("Activa el módulo de agencias para agregar este rol");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
     }
 
     const { data: existing } = await supabase
@@ -215,16 +199,7 @@ export async function createRoleAction(input: {
   copyFromRoleId?: string;
 }): Promise<ActionResult<RoleRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await roleActionContext();
 
     const name = input.name.trim();
     const baseSlug = roleSlugFromName(name);
@@ -296,16 +271,7 @@ export async function updateRoleAction(input: {
   name: string;
 }): Promise<ActionResult<RoleRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await roleActionContext();
 
     const name = input.name.trim();
 
@@ -348,16 +314,7 @@ export async function updateRoleAction(input: {
 
 export async function deleteRoleAction(roleId: string): Promise<ActionResult<null>> {
   try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await roleActionContext();
 
     const { data: role } = await supabase
       .from("roles")
@@ -400,68 +357,14 @@ export async function deleteRoleAction(roleId: string): Promise<ActionResult<nul
   }
 }
 
-export async function setRolePermissionAction(
-  roleId: string,
-  permissionId: string,
-  granted: boolean,
-): Promise<ActionResult<null>> {
-  try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
-    const { data: role } = await supabase
-      .from("roles")
-      .select("id")
-      .eq("id", roleId)
-      .eq("organization_id", session.organizationId)
-      .maybeSingle();
-
-    if (!role) {
-      return fail("Rol no encontrado");
-    }
-
-    const { error } = await supabase.from("role_permissions").upsert({
-      role_id: roleId,
-      permission_id: permissionId,
-      granted,
-    });
-
-    if (error) {
-      return fail(error.message);
-    }
-
-    return ok(null);
-  } catch (error) {
-    return fail(actionErrorMessage(error));
-  }
-}
-
-export async function setRolePermissionsBatchAction(
+async function setRolePermissions(
   roleId: string,
   updates: { permissionId: string; granted: boolean }[],
 ): Promise<ActionResult<null>> {
   try {
-    const session = await requireAppSession();
-
-    if (!sessionHasPermission(session, "permissions.manage")) {
-      throw new Error("FORBIDDEN");
-    }
-
+    const { session, supabase } = await roleActionContext();
     if (!updates.length) {
       return ok(null);
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
     }
 
     const { data: role } = await supabase
@@ -491,4 +394,19 @@ export async function setRolePermissionsBatchAction(
   } catch (error) {
     return fail(actionErrorMessage(error));
   }
+}
+
+export async function setRolePermissionAction(
+  roleId: string,
+  permissionId: string,
+  granted: boolean,
+): Promise<ActionResult<null>> {
+  return setRolePermissions(roleId, [{ permissionId, granted }]);
+}
+
+export async function setRolePermissionsBatchAction(
+  roleId: string,
+  updates: { permissionId: string; granted: boolean }[],
+): Promise<ActionResult<null>> {
+  return setRolePermissions(roleId, updates);
 }

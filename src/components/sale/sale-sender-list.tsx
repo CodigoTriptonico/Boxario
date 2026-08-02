@@ -19,7 +19,6 @@ import {
   salePersonRowEmptyClass,
 } from "@/components/sale/sale-person-card";
 import { SalePersonListToolbar } from "@/components/sale/sale-person-list-toolbar";
-import { SaleRecentSenders } from "@/components/sale/sale-recent-senders";
 import {
   personFullName,
   type Sender,
@@ -35,7 +34,6 @@ type SaleSenderListProps = {
   senders: Sender[];
   totalCount?: number;
   searchActive?: boolean;
-  recentSenders: Sender[];
   viewLayout: ViewLayout;
   onQueryChange: (value: string) => void;
   onNewClient: () => void;
@@ -70,7 +68,6 @@ export function SaleSenderList({
   query,
   matchingSenders,
   senders,
-  recentSenders,
   viewLayout,
   onQueryChange,
   onNewClient,
@@ -108,15 +105,6 @@ export function SaleSenderList({
         createLabel="Nuevo remitente"
         createShortLabel="Nuevo"
         createOnboardingTarget={ONBOARDING_TARGETS.VENTA_NEW_SENDER}
-        recents={
-          recentSenders.length ? (
-            <SaleRecentSenders
-              senders={recentSenders}
-              onChoose={onChoose}
-              onQuickEmptyBox={onQuickEmptyBox}
-            />
-          ) : undefined
-        }
         search={
           <InlineSearchCombobox
             value={query}
@@ -164,6 +152,7 @@ export function SaleSenderList({
                       }}
                       country="USA"
                       cardStyle={sender.cardStyle as SalePersonCardVariantId}
+                      hint={sender.recipients.length === 0 ? "Sin dest." : undefined}
                       className={getCardClass(sender)}
                       contextProps={senderContextProps(sender)}
                       onClick={() => onChoose(sender)}
@@ -213,6 +202,7 @@ export function SaleSenderList({
                     }}
                     country="USA"
                     cardStyle={sender.cardStyle as SalePersonCardVariantId}
+                    hint={sender.recipients.length === 0 ? "Sin dest." : undefined}
                     className={getCardClass(sender)}
                     contextProps={senderContextProps(sender)}
                     onClick={() => onChoose(sender)}

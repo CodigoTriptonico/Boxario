@@ -1,19 +1,17 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+
+const enviosSource = readEnviosClientSource();
 
 describe("shipment schedule confirm eval", () => {
   it("opens one explicit route panel before creating the driver task", () => {
     assert.match(enviosSource, /setRouteProgramTarget\(\{ row, kind \}\)/);
     assert.match(enviosSource, /<LogisticsTaskScheduleConfirmPanel/);
-    assert.match(enviosSource, /confirmLabel="Asignar ruta"/);
+    assert.match(enviosSource, /hasExistingProgramming/);
+    assert.match(enviosSource, /"Guardar cambios"/);
+    assert.match(enviosSource, /initialRouteTemplateId/);
     assert.match(enviosSource, /onConfirm=\{\(input\) => void confirmProgramRoute\(input\)\}/);
   });
 

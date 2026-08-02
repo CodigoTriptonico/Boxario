@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
 const root = process.cwd();
 
@@ -11,8 +13,8 @@ function readSource(relativePath: string) {
 
 describe("logistics nice-to-have eval", () => {
   it("wires ETA, delivery evidence and fleet capacity into active logistics flows", () => {
-    const logisticaSource = readSource("src/components/logistica-client.tsx");
-    const conductorSource = readSource("src/components/conductor/conductor-tareas-client.tsx");
+    const logisticaSource = readLogisticaClientSource(root);
+    const conductorSource = readConductorTareasClientSource(root);
     const conductorOfflineQueueSource = readSource("src/lib/conductor-offline/queue.ts");
     const routingSource = readSource("src/lib/logistics-routing.ts");
 

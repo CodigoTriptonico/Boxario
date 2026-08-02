@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readInventoryActionsSource } from "@/test-utils/inventory-route-actions-source";
 
 const permissionsSource = readFileSync(
   join(process.cwd(), "src", "lib", "auth", "permissions.ts"),
@@ -40,7 +41,7 @@ const businessWorkspaceActionSource = readFileSync(
   "utf8",
 );
 const inventoryActionsSource = [
-  readFileSync(join(process.cwd(), "src", "app", "actions", "inventory.ts"), "utf8"),
+  readInventoryActionsSource(),
   readFileSync(join(process.cwd(), "src", "app", "actions", "inventory-assignments.ts"), "utf8"),
 ].join("\n");
 

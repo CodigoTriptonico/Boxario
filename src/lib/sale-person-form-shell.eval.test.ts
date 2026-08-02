@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const ventaClient = readFileSync(join(root, "src/components/venta-client.tsx"), "utf8");
+const ventaClient = readVentaClientSource();
 const flowStyles = readFileSync(join(root, "src/components/flow-form-styles.ts"), "utf8");
 
 describe("sale person form shell eval", () => {

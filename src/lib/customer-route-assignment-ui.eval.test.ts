@@ -2,23 +2,39 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { readCustomerRouteAssignmentActionsSource } from "@/test-utils/inventory-route-actions-source";
+import { readLogisticsRouteActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
 const root = process.cwd();
+const logisticsRouteActionsSource = readLogisticsRouteActionsSource(root);
 
 function read(rel: string) {
   return readFileSync(path.join(root, rel), "utf8");
 }
 
 test("seguimiento wires program-route into logistics approval flow", () => {
-  const envios = read("src/components/envios-client.tsx");
+  const envios = readEnviosClientSource(root);
   const menu = read("src/components/shipment-step-context-menu.tsx");
-  const panel = read("src/components/logistica/logistics-task-schedule-confirm-panel.tsx");
-  const logistics = read("src/components/logistica-client.tsx");
+  const panel = [
+    read(
+      "src/components/logistica/logistics-task-schedule-confirm-panel.tsx",
+    ),
+    read(
+      "src/components/logistica/task-schedule/logistics-task-schedule-confirm-panel-view.tsx",
+    ),
+    read("src/components/logistica/task-schedule/shared.ts"),
+    read(
+      "src/components/logistica/task-schedule/schedule-confirm-view.tsx",
+    ),
+  ].join("\n");
+  const logistics = readLogisticaClientSource(root);
   const approval = read("src/components/logistica/customer-route-approval-panel.tsx");
-  const actions = read("src/app/actions/customer-route-assignments.ts");
+  const actions = readCustomerRouteAssignmentActionsSource();
   const labels = read("src/lib/shipment-leg-labels.ts");
 
-  assert.match(menu, /Programar entrega|readyLabel/);
+  assert.match(menu, /actionCopy\.title/);
   assert.equal(menu.includes("onMarkReady"), false);
   assert.equal(menu.includes("Establecer una fecha"), false);
   assert.match(labels, /Programar entrega/);
@@ -41,9 +57,9 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     ),
     false,
   );
-  assert.match(read("src/app/actions/logistics-routes.ts"), /Completa fecha y ruta/);
+  assert.match(logisticsRouteActionsSource, /Completa fecha y ruta/);
   assert.equal(
-    read("src/app/actions/logistics-routes.ts").includes("Completa fecha, conductor y ruta"),
+    logisticsRouteActionsSource.includes("Completa fecha, conductor y ruta"),
     false,
   );
   assert.match(approval, /Sin conductor todavía/);
@@ -82,6 +98,15 @@ test("seguimiento wires program-route into logistics approval flow", () => {
   assert.match(logistics, /enabledDays=\{routeCatalog\?\.enabledDays/);
   assert.match(envios, /enabledDays=\{routeCatalog\.enabledDays\}/);
   assert.match(actions, /pending_approval/);
+  assert.match(actions, /hasRouteGeo/);
+  assert.doesNotMatch(
+    actions,
+    /El remitente necesita geo antes de asignar ruta/,
+  );
+  assert.match(
+    actions,
+    /Geo sólo hace falta para autoaceptar|la solicitud queda pendiente/,
+  );
   assert.match(actions, /replaceCustomerRouteAssignmentRequestAction/);
   assert.match(actions, /customer\.route_assignment\.replaced/);
   assert.match(approval, /usePageViewLayout\("logistics\.tasks"\)/);
@@ -114,7 +139,7 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.ok(dayIdx < routeIdx && routeIdx < timeIdx && timeIdx < driverIdx);
     assert.equal(approval.includes("grid gap-3 sm:grid-cols-2"), false);
   }
-  // Date-first confirm panel wizard: Día y hora → Ruta (fecha bloqueada hasta elegir día).
+  // Date-first confirm panel wizard: Día y hora → Ruta only when the day has named subroutes.
   {
     const dayStepIdx = panel.indexOf("const dayStepField =");
     const dateStepIdx = panel.indexOf("const dateStepField =");
@@ -123,14 +148,25 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.ok(dayStepIdx > -1 && dateStepIdx > -1 && routeStepIdx > -1 && timeStepIdx > -1);
     assert.ok(dayStepIdx < dateStepIdx && dateStepIdx < routeStepIdx && routeStepIdx < timeStepIdx);
     assert.match(panel, /DATE_FIRST_STEPS/);
+    assert.match(panel, /const IMPLICIT_DAY_STEPS:[^=]+ = \["day"\]/);
     assert.match(panel, /const DATE_FIRST_STEPS:[^=]+ = \["day", "route"\]/);
+    assert.match(panel, /requiresNamedRouteChoice = pendingDayRouteMode \|\| dayTemplates\.length > 0/);
+    assert.match(
+      panel,
+      /requiresNamedRouteChoice\s*\?\s*DATE_FIRST_STEPS\s*:\s*IMPLICIT_DAY_STEPS/,
+    );
     assert.match(panel, /day: "Día y hora"/);
     assert.match(panel, /step === "day"[\s\S]*?\{timeField\}/);
     assert.match(panel, /ScheduleTimeField/);
     assert.match(panel, /scheduleTimeComplete/);
     assert.doesNotMatch(panel, /\{shipmentCode\} · \{customerName\}/);
     assert.doesNotMatch(panel, /id="confirm-task-schedule-title"/);
-    assert.match(panel, /routeFirst \? step === "time" : step === "route"/);
+    assert.match(panel, /wizardSteps\[wizardSteps\.length - 1\] === step/);
+    assert.match(panel, /dayAsRoute \? driverField : null/);
+    assert.match(
+      panel,
+      /step === "route" &&\s*allowPendingRoute &&\s*requiresNamedRouteChoice/,
+    );
     assert.match(panel, /weekdayChosen/);
     assert.match(panel, /Elige un día arriba para desbloquear la fecha/);
     assert.equal(panel.includes("dateTimeFields"), false);
@@ -138,11 +174,11 @@ test("seguimiento wires program-route into logistics approval flow", () => {
   assert.equal(approval.includes("Solo días con rutas"), false);
   assert.equal(panel.includes("Solo días con rutas"), false);
   assert.doesNotMatch(
-    read("src/app/actions/logistics-routes.ts"),
+    logisticsRouteActionsSource,
     /ensureLogisticsDayRouteTemplateAction/,
   );
   assert.match(
-    read("src/app/actions/logistics-routes.ts"),
+    logisticsRouteActionsSource,
     /dayAsRoute[\s\S]*?route_template_id: template\.id/,
   );
   assert.match(read("src/lib/logistics-day-route.ts"), /DAY_AS_ROUTE_TEMPLATE_ID/);

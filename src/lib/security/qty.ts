@@ -39,3 +39,24 @@ export function readPositiveIntegerQty(value: unknown, fallback?: number): numbe
 
   return rounded;
 }
+
+export function readNonNegativeIntegerQty(value: unknown): number {
+  if (value === null || value === undefined || value === "") {
+    throw new InvalidQuantityError();
+  }
+
+  if (typeof value === "string") {
+    const trimmed = value.trim();
+    if (!trimmed || !/^\d+$/.test(trimmed)) {
+      throw new InvalidQuantityError();
+    }
+  }
+
+  const parsed = Number(value);
+
+  if (!Number.isFinite(parsed) || parsed < 0 || Math.floor(parsed) !== parsed) {
+    throw new InvalidQuantityError("Cantidad debe ser un entero mayor o igual a cero");
+  }
+
+  return parsed;
+}

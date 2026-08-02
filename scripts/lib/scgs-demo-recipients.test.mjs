@@ -1,7 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
+  BOX_SIZES,
   COUNTRIES,
+  boxPricingForCountry,
   isSameCountry,
   normalizeCountryName,
   pickRandomRecipientCountries,
@@ -24,7 +26,7 @@ test("shuffle conserva elementos", () => {
   assert.deepEqual([...output].sort(), input);
 });
 
-test("pickRandomRecipientCountries devuelve entre 2 y 6 países únicos", () => {
+test("pickRandomRecipientCountries devuelve países únicos dentro del catálogo", () => {
   let sequence = 0;
   const random = () => {
     sequence += 1;
@@ -37,6 +39,32 @@ test("pickRandomRecipientCountries devuelve entre 2 y 6 países únicos", () => 
     assert.ok(picked.length <= COUNTRIES.length);
     assert.equal(new Set(picked.map((country) => country.code)).size, picked.length);
   }
+});
+
+test("cada país del catálogo tiene destinatarios de ejemplo", () => {
+  for (const country of COUNTRIES) {
+    const recipient = recipientForSenderRandom({ last_name: "Demo" }, country.name, () => 0);
+    assert.ok(recipient, `sin plantillas para ${country.name}`);
+  }
+});
+
+test("las medidas de caja son únicas", () => {
+  const names = BOX_SIZES.map((box) => box.name);
+  assert.equal(new Set(names).size, names.length);
+});
+
+test("boxPricingForCountry aplica el factor del país", () => {
+  const box = { name: "14x14x14", price: 100, cost: 60 };
+
+  assert.deepEqual(boxPricingForCountry(box, { priceFactor: 1 }), {
+    price: "$100",
+    cost: "$60",
+  });
+  assert.deepEqual(boxPricingForCountry(box, { priceFactor: 1.35 }), {
+    price: "$135",
+    cost: "$81",
+  });
+  assert.deepEqual(boxPricingForCountry(box, {}), { price: "$100", cost: "$60" });
 });
 
 test("recipientForSenderRandom usa apellido del remitente", () => {

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readInventoryActionsSource } from "@/test-utils/inventory-route-actions-source";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
 const root = process.cwd();
 const validateAddressSource = readFileSync(
@@ -19,8 +21,8 @@ const loginFormSource = readFileSync(
   "utf8",
 );
 const usersSource = readFileSync(join(root, "src", "app", "actions", "users.ts"), "utf8");
-const inventorySource = readFileSync(join(root, "src", "app", "actions", "inventory.ts"), "utf8");
-const shipmentsSource = readFileSync(join(root, "src", "app", "actions", "shipments.ts"), "utf8");
+const inventorySource = readInventoryActionsSource(root);
+const shipmentsSource = readShipmentActionsSource(root);
 const pricingSource = readFileSync(join(root, "src", "app", "actions", "pricing.ts"), "utf8");
 
 describe("phase 1 security wiring", () => {

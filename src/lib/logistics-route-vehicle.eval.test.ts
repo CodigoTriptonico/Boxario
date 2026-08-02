@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readLogisticsRouteActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
 const migrationSource = readFileSync(
   join(
@@ -11,14 +13,8 @@ const migrationSource = readFileSync(
   ),
   "utf8",
 );
-const routesSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/logistics-routes.ts"),
-  "utf8",
-);
-const logisticaSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica-client.tsx"),
-  "utf8",
-);
+const routesSource = readLogisticsRouteActionsSource();
+const logisticaSource = readLogisticaClientSource();
 
 describe("logistics route vehicle eval", () => {
   it("adds vehicle_id to logistics routes schema and actions", () => {

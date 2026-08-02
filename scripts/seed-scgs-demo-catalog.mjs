@@ -1,25 +1,20 @@
 /**
- * Catálogo demo SCGS: países, cajas por medida, precios y destinatarios por país.
+ * Catálogo demo SCGS: países con precio por caja y un destinatario por país
+ * para cada remitente existente.
  * Uso: node scripts/seed-scgs-demo-catalog.mjs
  */
 import { randomUUID } from "node:crypto";
 import { connectPg } from "./lib/db-connection.mjs";
 import {
-  SCGS_ORG_ID,
+  BOX_SIZES,
   COUNTRIES,
-  isSameCountry,
+  boxPricingForCountry,
+  normalizeCountryName,
   recipientForSenderIndexed,
+  resolveScgsOrgId,
 } from "./lib/scgs-demo-recipients.mjs";
 
 const CATEGORY_NAME = "cajas";
-
-const BOX_SIZES = [
-  { name: "14x14x14", price: "$35", cost: "$22" },
-  { name: "16x16x16", price: "$50", cost: "$31" },
-  { name: "18x18x18", price: "$65", cost: "$40" },
-];
-
-const BASELINE_RECIPIENTS_PER_COUNTRY = 5;
 
 function normalizeLabel(value) {
   return value
@@ -30,11 +25,7 @@ function normalizeLabel(value) {
 }
 
 function catalogKey(kind) {
-  return [
-    normalizeLabel(CATEGORY_NAME),
-    normalizeLabel(kind),
-    "",
-  ].join("|");
+  return [normalizeLabel(CATEGORY_NAME), normalizeLabel(kind), ""].join("|");
 }
 
 function collectLeafNames(items) {
@@ -70,27 +61,13 @@ function mergeDirectBoxSizes(treeData) {
   return next;
 }
 
-function buildCategoryTree() {
-  return BOX_SIZES.map((box) => ({
-    id: randomUUID(),
-    name: box.name,
-  }));
-}
-
 const { client } = await connectPg();
 
 try {
-  const orgCheck = await client.query(
-    "SELECT id, name FROM public.organizations WHERE id = $1",
-    [SCGS_ORG_ID],
-  );
+  const org = await resolveScgsOrgId(client);
+  const orgId = org.id;
 
-  if (!orgCheck.rows.length) {
-    console.error("No se encontró la org SCGS.");
-    process.exit(1);
-  }
-
-  console.log(`Sembrando catálogo demo para: ${orgCheck.rows[0].name}\n`);
+  console.log(`Sembrando catálogo demo para: ${org.name}\n`);
 
   await client.query("BEGIN");
 
@@ -100,18 +77,16 @@ try {
      WHERE organization_id = $1
        AND lower(name) = lower($2)
      LIMIT 1`,
-    [SCGS_ORG_ID, CATEGORY_NAME],
+    [orgId, CATEGORY_NAME],
   );
 
-  const treeData = categoryRow.rows.length
-    ? mergeDirectBoxSizes(categoryRow.rows[0].tree_data)
-    : buildCategoryTree();
+  const treeData = mergeDirectBoxSizes(categoryRow.rows[0]?.tree_data);
 
   if (!categoryRow.rows.length) {
     await client.query(
       `INSERT INTO public.inventory_categories (organization_id, name, tree_data)
        VALUES ($1, $2, $3::jsonb)`,
-      [SCGS_ORG_ID, CATEGORY_NAME, JSON.stringify(treeData)],
+      [orgId, CATEGORY_NAME, JSON.stringify(treeData)],
     );
     console.log("OK: categoría cajas creada");
   } else {
@@ -136,7 +111,7 @@ try {
               lower(translate($3, 'áéíóúÁÉÍÓÚ', 'aeiouAEIOU'))
          )
        LIMIT 1`,
-      [SCGS_ORG_ID, country.code, country.name],
+      [orgId, country.code, country.name],
     );
 
     if (existing.rows.length) {
@@ -156,7 +131,7 @@ try {
         organization_id, code, name, delivery_time, sort_order
       ) VALUES ($1, $2, $3, $4, $5)
       RETURNING id`,
-      [SCGS_ORG_ID, country.code, country.name, country.deliveryTime, index],
+      [orgId, country.code, country.name, country.deliveryTime, index],
     );
 
     countryIds.set(country.name, inserted.rows[0].id);
@@ -171,6 +146,7 @@ try {
 
     for (const box of BOX_SIZES) {
       const key = catalogKey(box.name);
+      const { price, cost } = boxPricingForCountry(box, country);
       const exists = await client.query(
         `SELECT id FROM public.pricing_country_boxes
          WHERE country_id = $1 AND catalog_key = $2`,
@@ -182,7 +158,7 @@ try {
           `UPDATE public.pricing_country_boxes
            SET size = $1, price = $2, cost = $3
            WHERE id = $4`,
-          [box.name, box.price, box.cost, exists.rows[0].id],
+          [box.name, price, cost, exists.rows[0].id],
         );
         boxesUpdated += 1;
         continue;
@@ -192,7 +168,7 @@ try {
         `INSERT INTO public.pricing_country_boxes (
           organization_id, country_id, size, price, cost, catalog_key
         ) VALUES ($1, $2, $3, $4, $5, $6)`,
-        [SCGS_ORG_ID, countryId, box.name, box.price, box.cost, key],
+        [orgId, countryId, box.name, price, cost, key],
       );
       boxesInserted += 1;
     }
@@ -205,51 +181,59 @@ try {
      FROM public.customers
      WHERE organization_id = $1
      ORDER BY created_at, last_name, first_name`,
-    [SCGS_ORG_ID],
+    [orgId],
   );
 
   if (!senders.rows.length) {
     console.log("Sin remitentes. Ejecuta primero: npm run db:seed:senders");
   }
 
+  const existingRecipients = await client.query(
+    `SELECT customer_id, country
+     FROM public.customer_recipients
+     WHERE organization_id = $1`,
+    [orgId],
+  );
+
+  const senderCountryPairs = new Set(
+    existingRecipients.rows.map(
+      (row) => `${row.customer_id}|${normalizeCountryName(row.country)}`,
+    ),
+  );
+
   let recipientsInserted = 0;
   let recipientsSkipped = 0;
 
-  for (const [countryIndex, country] of COUNTRIES.entries()) {
-    const existing = await client.query(
-      `SELECT customer_id, country
-       FROM public.customer_recipients
-       WHERE organization_id = $1`,
-      [SCGS_ORG_ID],
-    );
+  for (const [senderIndex, sender] of senders.rows.entries()) {
+    for (const [countryIndex, country] of COUNTRIES.entries()) {
+      const pairKey = `${sender.id}|${normalizeCountryName(country.name)}`;
 
-    const existingForCountry = existing.rows.filter((row) =>
-      isSameCountry(row.country, country.name),
-    );
-    const existingSenderIds = new Set(existingForCountry.map((row) => row.customer_id));
-    const sendersToSeed = senders.rows
-      .filter((sender) => !existingSenderIds.has(sender.id))
-      .slice(0, Math.max(0, BASELINE_RECIPIENTS_PER_COUNTRY - existingForCountry.length));
+      if (senderCountryPairs.has(pairKey)) {
+        recipientsSkipped += 1;
+        continue;
+      }
 
-    recipientsSkipped += existingForCountry.length;
-
-    for (const sender of sendersToSeed) {
-      const senderIndex = senders.rows.findIndex((candidate) => candidate.id === sender.id);
-      const recipient = recipientForSenderIndexed(sender, country.name, senderIndex, countryIndex);
+      const recipient = recipientForSenderIndexed(
+        sender,
+        country.name,
+        senderIndex,
+        countryIndex,
+      );
 
       await client.query(
         `INSERT INTO public.customer_recipients (
           organization_id, customer_id,
-          first_name, last_name, phone, country,
+          first_name, last_name, phone, country, country_id,
           street, house_number, neighborhood, city, state, postal_code
-        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+        ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
         [
-          SCGS_ORG_ID,
+          orgId,
           sender.id,
           recipient.first_name,
           recipient.last_name,
           recipient.phone,
           country.name,
+          countryIds.get(country.name),
           recipient.street,
           recipient.house_number,
           recipient.neighborhood,
@@ -259,6 +243,7 @@ try {
         ],
       );
 
+      senderCountryPairs.add(pairKey);
       recipientsInserted += 1;
       console.log(
         `Destinatario: ${sender.first_name} ${sender.last_name} → ${recipient.first_name} ${recipient.last_name} (${country.name})`,
@@ -274,7 +259,7 @@ try {
        (SELECT count(*)::int FROM public.pricing_country_boxes WHERE organization_id = $1) AS country_boxes,
        (SELECT count(*)::int FROM public.customers WHERE organization_id = $1) AS senders,
        (SELECT count(*)::int FROM public.customer_recipients WHERE organization_id = $1) AS recipients`,
-    [SCGS_ORG_ID],
+    [orgId],
   );
 
   console.log("\n--- Resumen ---");

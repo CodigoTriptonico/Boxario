@@ -3,15 +3,17 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
-const enviosSource = readFileSync(join(root, "src/components/envios-client.tsx"), "utf8");
-const dialogSource = readFileSync(
+const enviosSource = readEnviosClientSource(root);
+const contactLineSource = readFileSync(
   join(root, "src/components/shipment-contact-log-dialog.tsx"),
   "utf8",
 );
 const contactLogSource = readFileSync(join(root, "src/lib/shipment-contact-log.ts"), "utf8");
-const actionsSource = readFileSync(join(root, "src/app/actions/shipments.ts"), "utf8");
+const actionsSource = readShipmentActionsSource(root);
 const migrationSource = readFileSync(
   join(root, "supabase/migrations/042_shipment_contact_logs.sql"),
   "utf8",
@@ -23,50 +25,39 @@ const channelOtherMigrationSource = readFileSync(
 
 describe("envios contact log eval", () => {
   it("adds a compact seller follow-up action to shipment cards", () => {
-    assert.equal(enviosSource.includes("ShipmentContactLogDialog"), true);
+    // SEG-001 / preferencia UI: una sola Bitácora; el diálogo de contactos legacy ya no se abre desde envíos.
+    assert.equal(enviosSource.includes("ShipmentJournalDialog"), true);
     assert.equal(enviosSource.includes("ShipmentContactLogLine"), true);
     assert.equal(enviosSource.includes("onContactLogOpen(row.id)"), true);
-    assert.equal(enviosSource.includes("Registrar seguimiento"), true);
+    assert.equal(enviosSource.includes("Abrir Bitácora"), true);
     assert.equal(enviosSource.includes("<PhoneCall"), true);
     assert.equal(enviosSource.includes("readinessFilter"), true);
   });
 
-  it("keeps the dialog simple for non-technical sellers", () => {
-    assert.equal(dialogSource.includes("Qué pasó"), true);
-    assert.equal(dialogSource.includes("Qué dijo"), true);
-    assert.equal(dialogSource.includes("Qué sigue"), true);
-    assert.equal(dialogSource.includes("Recordarme"), true);
-    assert.equal(dialogSource.includes("Contestó"), true);
-    assert.equal(dialogSource.includes("No contestó"), true);
-    assert.equal(dialogSource.includes("Mensaje"), true);
-    assert.equal(dialogSource.includes("Llamar después"), true);
-    assert.equal(dialogSource.includes("Número mal"), true);
-    assert.equal(dialogSource.includes("Hoy 5 PM"), true);
-    assert.equal(dialogSource.includes("Mañana 9 AM"), true);
-    assert.equal(dialogSource.includes("En 2 días"), true);
-    assert.equal(dialogSource.includes("createShipmentContactLogAction"), true);
-    assert.equal(dialogSource.includes("Guardar seguimiento"), true);
-    assert.equal(dialogSource.includes('channel === "other"'), true);
-    assert.equal(dialogSource.includes("¿Cuál?"), true);
-    assert.equal(dialogSource.includes("channelOther"), true);
+  it("keeps the active compact legacy summary without the retired contact dialog", () => {
+    assert.equal(contactLineSource.includes("ShipmentContactLogLine"), true);
+    assert.equal(contactLineSource.includes("ShipmentContactLogDialog"), false);
+    assert.equal(contactLineSource.includes("createShipmentContactLogAction"), false);
+    assert.equal(contactLineSource.includes("DateTimeInput"), false);
   });
 
   it("keeps reminders driven by the latest log only", () => {
     assert.equal(contactLogSource.includes("latestShipmentContactLog"), true);
     assert.equal(contactLogSource.includes("latestShipmentContactReminderStatus"), true);
-    assert.equal(dialogSource.includes("latestShipmentContactLog(shipment.contactLogs)"), true);
-    assert.equal(dialogSource.includes("shipmentContactReminderLabel"), true);
-    assert.equal(dialogSource.includes("Prioridad"), false);
-    assert.equal(dialogSource.includes("Motivo"), false);
+    assert.equal(contactLineSource.includes("latestShipmentContactLog(shipment.contactLogs)"), true);
+    assert.equal(contactLineSource.includes("shipmentContactReminderLabel"), true);
+    assert.equal(contactLineSource.includes("Prioridad"), false);
+    assert.equal(contactLineSource.includes("Motivo"), false);
   });
 
   it("persists contact logs with auth, organization scope, audit, and mapped reload", () => {
+    // New seller follow-ups write to shipment_journal_entries (Bitácora); contact_logs remain read-only legacy.
     assert.equal(actionsSource.includes("export async function createShipmentContactLogAction"), true);
     assert.equal(actionsSource.includes('sessionHasPermission(session, "sales.manage")'), true);
     assert.equal(actionsSource.includes("canWriteShipmentContactLog"), true);
-    assert.equal(actionsSource.includes("shipment_contact_logs"), true);
+    assert.equal(actionsSource.includes("shipment_journal_entries"), true);
     assert.equal(actionsSource.includes("channel_other"), true);
-    assert.equal(actionsSource.includes("shipment.contact_log_created"), true);
+    assert.equal(actionsSource.includes("shipment.journal_entry_created"), true);
     assert.equal(actionsSource.includes("contactLogs"), true);
   });
 

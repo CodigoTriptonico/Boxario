@@ -15,16 +15,6 @@ import {
 import type { PricingConfigPayload } from "@/lib/pricing/types";
 import { buildPricingRpcPayload } from "@/lib/pricing/rpc-payload";
 
-export type {
-  PricingBoxConfig,
-  PricingConfigPayload,
-  PricingCountryConfig,
-  PricingDistributorConfig,
-  PricingDistributorPrices,
-  PricingRouteConfig,
-} from "@/lib/pricing/types";
-;
-
 export async function loadPricingConfigAction(): Promise<ActionResult<PricingConfigPayload>> {
   try {
     const session = await requireAppSession();

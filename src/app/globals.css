@@ -4,10 +4,15 @@ html {
   box-sizing: border-box;
 }
 
+/*
+  border-box directo, no inherit: dentro de <details> la herencia pasa por el
+  árbol interno del navegador (content-box) y los campos con w-full se
+  desbordan del contenedor. Además inherit anula la utilidad box-border.
+*/
 *,
 *::before,
 *::after {
-  box-sizing: inherit;
+  box-sizing: border-box;
 }
 
 :root {
@@ -46,6 +51,25 @@ body {
   overflow-wrap: anywhere;
   /* Evita caret parpadeante en texto no editable (botones / caret browsing). */
   caret-color: transparent;
+}
+
+/*
+  En Chrome móvil, alejar el zoom aumenta el viewport CSS y puede activar `lg:`
+  aunque el dispositivo siga siendo táctil. Conservamos el shell móvil en esos
+  dispositivos para evitar una barra lateral de escritorio y ancho residual.
+*/
+@media (hover: none) and (pointer: coarse) {
+  .app-shell-desktop-sidebar {
+    display: none !important;
+  }
+
+  .app-shell-mobile-header {
+    display: flex !important;
+  }
+
+  .app-shell-mobile-nav {
+    display: block !important;
+  }
 }
 
 input,
@@ -246,7 +270,8 @@ input.client-form-field {
   .sale-box-label,
   .sale-box-label *,
   .sale-document-shell,
-  #sale-print-documents {
+  #sale-print-documents,
+  #expediente-print-documents {
     visibility: visible;
   }
 
@@ -268,6 +293,50 @@ input.client-form-field {
     inset: 0;
     display: block;
     width: 100%;
+  }
+
+  #expediente-print-documents {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+  }
+
+  #expediente-print-documents .sale-invoice-paper {
+    position: relative;
+    inset: auto;
+  }
+
+  #expediente-print-documents .sale-box-label {
+    position: relative;
+    margin: 0 auto;
+    min-height: 150mm;
+    max-width: 100mm;
+    box-shadow: none !important;
+  }
+
+  #expediente-print-documents > .sale-document-shell {
+    display: block;
+    break-after: page;
+  }
+
+  #expediente-print-documents > .sale-document-shell:last-child {
+    break-after: auto;
+  }
+
+  html.sale-print-single #expediente-print-documents > .sale-document-shell {
+    display: none !important;
+  }
+
+  html.sale-print-single #expediente-print-documents > .sale-document-print-selected {
+    display: block !important;
+    break-after: page;
+  }
+
+  html.sale-print-single
+    #expediente-print-documents
+    > .sale-document-print-selected:not(:has(~ .sale-document-print-selected)) {
+    break-after: auto;
   }
 
   #sale-print-documents .sale-invoice-paper {

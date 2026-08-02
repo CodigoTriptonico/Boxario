@@ -1,19 +1,33 @@
 import assert from "node:assert/strict";
 import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readVentaClientSource, readVentaPartsSource } from "@/test-utils/venta-source";
 
 test("new shipments persist one child invoice per physical box without splitting the sale", async () => {
-  const source = await readFile(new URL("../app/actions/shipments.ts", import.meta.url), "utf8");
+  const [source, atomicSaleMigration] = await Promise.all([
+    Promise.resolve(readShipmentActionsSource()),
+    readFile(
+      new URL(
+        "../../supabase/migrations/132_atomic_sales_tracking_and_authoritative_writes.sql",
+        import.meta.url,
+      ),
+      "utf8",
+    ),
+  ]);
 
-  assert.match(source, /invoiceBoxCode\(shipment\.code, index\)/);
-  assert.match(source, /shipment_id: shipment\.id/);
-  assert.match(source, /invoice_code: invoiceBoxCode/);
+  assert.match(source, /invoiceBoxCode\(input\.invoiceNumber, index\)/);
+  assert.match(source, /create_shipment_sale_atomic/);
+  assert.match(atomicSaleMigration, /insert into public\.shipment_packages/i);
+  assert.match(atomicSaleMigration, /v_org_id, v_shipment_id, v_package->>'code'/i);
+  assert.match(atomicSaleMigration, /v_package->>'invoiceCode'/i);
 });
 
 test("the completed sale prints one compact label per physical box", async () => {
   const [saleSource, invoiceSource, globalStyles] = await Promise.all([
-    readFile(new URL("../components/venta-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8"),
+    Promise.resolve(readVentaClientSource()),
+    Promise.resolve(readVentaPartsSource()),
     readFile(new URL("../app/globals.css", import.meta.url), "utf8"),
   ]);
 
@@ -43,7 +57,7 @@ test("the completed sale prints one compact label per physical box", async () =>
 test("field and warehouse screens use the individual box invoice, not only the sale number", async () => {
   const [taskSource, conductorSource, warehouseSource] = await Promise.all([
     readFile(new URL("./conductor-tasks.ts", import.meta.url), "utf8"),
-    readFile(new URL("../components/conductor/conductor-tareas-client.tsx", import.meta.url), "utf8"),
+    Promise.resolve(readConductorTareasClientSource()),
     readFile(new URL("../components/warehouse/warehouse-intake-client.tsx", import.meta.url), "utf8"),
   ]);
 
@@ -54,9 +68,9 @@ test("field and warehouse screens use the individual box invoice, not only the s
 
 test("invoice and label parties can be corrected from finish with master + shipment sync and audit", async () => {
   const [saleSource, invoiceSource, shipmentsSource] = await Promise.all([
-    readFile(new URL("../components/venta-client.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8"),
-    readFile(new URL("../app/actions/shipments.ts", import.meta.url), "utf8"),
+    Promise.resolve(readVentaClientSource()),
+    Promise.resolve(readVentaPartsSource()),
+    Promise.resolve(readShipmentActionsSource()),
   ]);
 
   assert.match(invoiceSource, /senderSaleContextProps/);

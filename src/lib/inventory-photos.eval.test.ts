@@ -2,12 +2,10 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readInventoryActionsSource } from "@/test-utils/inventory-route-actions-source";
 
 const root = process.cwd();
-const inventoryActionSource = readFileSync(
-  join(root, "src/app/actions/inventory.ts"),
-  "utf8",
-);
+const inventoryActionSource = readInventoryActionsSource();
 const migrationSource = readFileSync(
   join(root, "supabase/migrations/103_inventory_item_photos.sql"),
   "utf8",

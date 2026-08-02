@@ -1,5 +1,5 @@
 import { execSync, spawnSync } from "node:child_process";
-import { existsSync, readFileSync, unlinkSync, writeFileSync } from "node:fs";
+import { existsSync, readFileSync, unlinkSync } from "node:fs";
 import { join } from "node:path";
 
 const DEV_PORT = 3000;
@@ -123,11 +123,6 @@ export function killDevServer(root) {
   }
 
   return targets;
-}
-
-/** @param {string} root @param {number} pid */
-export function writeDevServerPid(root, pid) {
-  writeFileSync(join(root, PID_FILE), `${pid}\n`, "utf8");
 }
 
 export function devServerPort() {

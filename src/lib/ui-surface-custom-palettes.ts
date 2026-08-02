@@ -1,5 +1,5 @@
-import type { SalePersonCardVariantId } from "@/components/sale/sale-person-card-variants";
-import { SALE_PERSON_CARD_VARIANTS } from "@/components/sale/sale-person-card-variants";
+import type { SalePersonCardVariantId } from "@/lib/sale-person-card-variants";
+import { SALE_PERSON_CARD_VARIANTS } from "@/lib/sale-person-card-variants";
 import {
   colorDistance,
   defaultHoverHex,

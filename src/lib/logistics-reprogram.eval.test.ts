@@ -1,21 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
-const shipmentsSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/shipments.ts"),
-  "utf8",
-);
-const logisticaSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica-client.tsx"),
-  "utf8",
-);
-const conductorSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/conductor/conductor-tareas-client.tsx"),
-  "utf8",
-);
+const shipmentsSource = readShipmentActionsSource();
+const logisticaSource = readLogisticaClientSource();
+const conductorSource = readConductorTareasClientSource();
 
 describe("logistics reprogram eval", () => {
   it("exports reactivate action with preserving stock patch", () => {

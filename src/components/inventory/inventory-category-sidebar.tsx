@@ -620,10 +620,10 @@ export function InventoryCategorySidebar({
                       type="button"
                       onClick={addCategory}
                       className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950 hover:brightness-110"
-                      title="Agregar categoría"
-                      aria-label="Agregar categoría"
+                      title="Crear categoría"
+                      aria-label="Crear categoría"
                     >
-                      <Plus className="h-3.5 w-3.5" />
+                      <Check className="h-3.5 w-3.5" />
                     </button>
                     <button
                       type="button"

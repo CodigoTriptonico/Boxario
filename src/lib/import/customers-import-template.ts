@@ -84,7 +84,7 @@ const INSTRUCTION_LINES = [
   "4. Obligatorios del remitente: rem_nombre, rem_apellido, rem_telefono.",
   "5. Si dejas el bloque destinatario vacío, se crea solo el remitente.",
   "6. Si llenas destinatario, son obligatorios: dest_nombre, dest_apellido, dest_telefono, dest_pais.",
-  "7. dest_pais debe coincidir EXACTAMENTE con un país ya creado en Configuración → Países y precios (ej. Mexico).",
+  "7. dest_pais debe coincidir EXACTAMENTE con un país ya creado en Configuración → Costos (ej. Mexico).",
   "8. Máximo " + CUSTOMERS_IMPORT_MAX_ROWS + " filas de datos por archivo.",
   "9. Borra las filas de ejemplo antes de importar tu información real (o reemplázalas).",
   "10. Guarda como .xlsx y súbelo desde Configuración → Organización → Importar.",

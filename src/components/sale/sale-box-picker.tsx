@@ -6,16 +6,24 @@ import {
   flowPersonRowListFrameClass,
   flowPersonRowListInnerClass,
 } from "@/components/flow-form-styles";
+import { listRowBaseClass, listRowHoverClass } from "@/components/ui-blocks";
+import { SaleBoxCartQtyBadge } from "@/components/sale/venta-parts";
+import { StockBadge } from "@/components/stock-badge";
+import {
+  lookupSaleBoxStock,
+  saleBoxStockLevel,
+  saleBoxStockTitle,
+  type SaleBoxStockSnapshot,
+} from "@/lib/sale/box-stock";
+import type { ViewLayout } from "@/lib/view-layout";
 
 const saleBoxCardGridClass =
   "grid w-full gap-3 grid-cols-[repeat(auto-fit,minmax(min(100%,18rem),1fr))]";
-import { listRowBaseClass, listRowHoverClass } from "@/components/ui-blocks";
-import { SaleBoxCartQtyBadge } from "@/components/sale/venta-parts";
-import type { ViewLayout } from "@/lib/view-layout";
 
 type SaleBoxPickerProps = {
   boxes: string[][];
   viewLayout: ViewLayout;
+  boxStockByKey?: Record<string, SaleBoxStockSnapshot>;
   getCartQuantity: (box: string[]) => number | null;
   getPromoCount: (box: string[]) => number;
   getCardClass: (box: string[], selected: boolean) => string;
@@ -24,11 +32,21 @@ type SaleBoxPickerProps = {
   firstBoxCoachTarget?: string;
 };
 
+function boxStockSnapshot(
+  box: string[],
+  boxStockByKey?: Record<string, SaleBoxStockSnapshot>,
+) {
+  return lookupSaleBoxStock(box[0] || "", boxStockByKey);
+}
+
 function boxInteractionProps(
   box: string[],
+  stock: SaleBoxStockSnapshot,
   onChoose: (box: string[]) => void,
   onRemove: (box: string[]) => void,
 ) {
+  const stockHint = saleBoxStockTitle(stock);
+
   return {
     type: "button" as const,
     onClick: () => onChoose(box),
@@ -50,12 +68,43 @@ function boxInteractionProps(
         event.stopPropagation();
       }
     },
-    title: `${box[0]}: clic izquierdo agrega, clic derecho quita`,
+    title: `${box[0]}: ${stockHint}. Clic izquierdo agrega, clic derecho quita`,
   };
+}
+
+function SaleBoxStockBadge({ stock }: { stock: SaleBoxStockSnapshot }) {
+  if (stock.available <= 0) {
+    return null;
+  }
+
+  return (
+    <StockBadge
+      value={stock.available}
+      level={saleBoxStockLevel(stock)}
+      title={saleBoxStockTitle(stock)}
+    />
+  );
+}
+
+function SaleBoxNoStockLabel({ stock }: { stock: SaleBoxStockSnapshot }) {
+  if (stock.available > 0) {
+    return null;
+  }
+
+  return (
+    <span
+      className="shrink-0 text-[10px] font-black uppercase tracking-[0.04em] text-rose-300"
+      title={saleBoxStockTitle(stock)}
+      aria-label={saleBoxStockTitle(stock)}
+    >
+      Sin stock
+    </span>
+  );
 }
 
 function SaleBoxCard({
   box,
+  stock,
   cartQuantity,
   promoCount,
   className,
@@ -64,6 +113,7 @@ function SaleBoxCard({
   onRemove,
 }: {
   box: string[];
+  stock: SaleBoxStockSnapshot;
   cartQuantity: number | null;
   promoCount: number;
   className: string;
@@ -73,14 +123,20 @@ function SaleBoxCard({
 }) {
   return (
     <button
-      {...boxInteractionProps(box, onChoose, onRemove)}
+      {...boxInteractionProps(box, stock, onChoose, onRemove)}
       data-onboarding-target={coachTarget}
       className={`group flex w-full select-none flex-col gap-3 rounded-xl border border-black bg-[#3f4b46] p-4 text-center shadow-[0_8px_18px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5 hover:bg-[#46544e] ${className}`}
     >
       <div className="flex min-w-0 flex-col items-center gap-2">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400 text-slate-950 shadow-[0_8px_14px_rgba(16,185,129,0.2)]">
-          <Package className="h-5 w-5" />
+        <div className="relative">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-400 text-slate-950 shadow-[0_8px_14px_rgba(16,185,129,0.2)]">
+            <Package className="h-5 w-5" />
+          </div>
+          <span className="absolute -right-2 -top-2">
+            <SaleBoxStockBadge stock={stock} />
+          </span>
         </div>
+        <SaleBoxNoStockLabel stock={stock} />
         <p className="text-lg font-black leading-tight text-[#f8fafc]">{box[0]}</p>
       </div>
 
@@ -108,6 +164,7 @@ function SaleBoxCard({
 
 function SaleBoxRow({
   box,
+  stock,
   cartQuantity,
   promoCount,
   className,
@@ -116,6 +173,7 @@ function SaleBoxRow({
   onRemove,
 }: {
   box: string[];
+  stock: SaleBoxStockSnapshot;
   cartQuantity: number | null;
   promoCount: number;
   className: string;
@@ -125,34 +183,34 @@ function SaleBoxRow({
 }) {
   return (
     <button
-      {...boxInteractionProps(box, onChoose, onRemove)}
+      {...boxInteractionProps(box, stock, onChoose, onRemove)}
       data-onboarding-target={coachTarget}
-      className={`${listRowBaseClass} group relative grid w-full grid-cols-[2rem_minmax(0,1fr)_auto] items-center gap-x-3 overflow-hidden px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_3px_10px_rgba(0,0,0,0.12)] outline-none select-none hover:border-emerald-950 focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202926] sm:px-4 ${listRowHoverClass}${className ? ` ${className}` : ""}`}
+      className={`${listRowBaseClass} group relative flex w-full items-center gap-x-3 overflow-hidden px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_3px_10px_rgba(0,0,0,0.12)] outline-none select-none hover:border-emerald-950 focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202926] sm:px-4 ${listRowHoverClass}${className ? ` ${className}` : ""}`}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-300/40 bg-emerald-400 text-slate-950 shadow-[0_5px_12px_rgba(16,185,129,0.18)] transition-transform motion-safe:group-hover:scale-105">
         <Package className="h-4 w-4" aria-hidden />
       </span>
       <div className="min-w-0">
-        <p className="truncate text-sm font-black leading-tight tracking-[-0.01em] text-[#f8fafc]">
-          {box[0]}
-        </p>
+        <div className="flex min-w-0 items-center gap-2">
+          <p className="truncate text-sm font-black leading-tight tracking-[-0.01em] text-[#f8fafc]">
+            {box[0]}
+          </p>
+          <p className="shrink-0 whitespace-nowrap text-sm font-black tabular-nums text-emerald-200">
+            {box[1]}
+          </p>
+          <SaleBoxStockBadge stock={stock} />
+          {cartQuantity ? <SaleBoxCartQtyBadge quantity={cartQuantity} /> : null}
+        </div>
         <div className="mt-0.5 flex min-w-0 items-center gap-1.5 text-[11px] font-bold leading-none">
           <span className="truncate text-slate-400">
             {box[4] || "Tiempo de entrega —"}
           </span>
+          <SaleBoxNoStockLabel stock={stock} />
           {promoCount > 0 ? (
             <span className="shrink-0 rounded-full bg-emerald-400/10 px-1.5 py-0.5 font-black uppercase text-emerald-300">
               {promoCount} promo
             </span>
           ) : null}
-        </div>
-      </div>
-      <div className="flex min-w-[4.5rem] flex-col items-end justify-center gap-1 text-right">
-        <p className="whitespace-nowrap rounded-lg border border-white/[0.06] bg-black/15 px-2.5 py-1 text-sm font-black tabular-nums text-slate-100 shadow-inner">
-          {box[1]}
-        </p>
-        <div className="flex h-8 min-w-[2.75rem] items-center justify-end">
-          {cartQuantity ? <SaleBoxCartQtyBadge quantity={cartQuantity} /> : null}
         </div>
       </div>
     </button>
@@ -162,6 +220,7 @@ function SaleBoxRow({
 export function SaleBoxPicker({
   boxes,
   viewLayout,
+  boxStockByKey,
   getCartQuantity,
   getPromoCount,
   getCardClass,
@@ -188,18 +247,23 @@ export function SaleBoxPicker({
     return (
       <div ref={rootRef} className={flowPersonRowListFrameClass}>
         <div className={flowPersonRowListInnerClass}>
-          {boxes.map((box, boxIndex) => (
-            <SaleBoxRow
-              key={box[0]}
-              box={box}
-              cartQuantity={getCartQuantity(box)}
-              promoCount={getPromoCount(box)}
-              className={getCardClass(box, Boolean(getCartQuantity(box)))}
-              coachTarget={boxIndex === 0 ? firstBoxCoachTarget : undefined}
-              onChoose={onChoose}
-              onRemove={onRemove}
-            />
-          ))}
+          {boxes.map((box, boxIndex) => {
+            const stock = boxStockSnapshot(box, boxStockByKey);
+
+            return (
+              <SaleBoxRow
+                key={box[0]}
+                box={box}
+                stock={stock}
+                cartQuantity={getCartQuantity(box)}
+                promoCount={getPromoCount(box)}
+                className={getCardClass(box, Boolean(getCartQuantity(box)))}
+                coachTarget={boxIndex === 0 ? firstBoxCoachTarget : undefined}
+                onChoose={onChoose}
+                onRemove={onRemove}
+              />
+            );
+          })}
         </div>
       </div>
     );
@@ -207,18 +271,23 @@ export function SaleBoxPicker({
 
   return (
     <div ref={rootRef} className={`${saleBoxCardGridClass} items-start`}>
-      {boxes.map((box, boxIndex) => (
-        <SaleBoxCard
-          key={box[0]}
-          box={box}
-          cartQuantity={getCartQuantity(box)}
-          promoCount={getPromoCount(box)}
-          className={getCardClass(box, Boolean(getCartQuantity(box)))}
-          coachTarget={boxIndex === 0 ? firstBoxCoachTarget : undefined}
-          onChoose={onChoose}
-          onRemove={onRemove}
-        />
-      ))}
+      {boxes.map((box, boxIndex) => {
+        const stock = boxStockSnapshot(box, boxStockByKey);
+
+        return (
+          <SaleBoxCard
+            key={box[0]}
+            box={box}
+            stock={stock}
+            cartQuantity={getCartQuantity(box)}
+            promoCount={getPromoCount(box)}
+            className={getCardClass(box, Boolean(getCartQuantity(box)))}
+            coachTarget={boxIndex === 0 ? firstBoxCoachTarget : undefined}
+            onChoose={onChoose}
+            onRemove={onRemove}
+          />
+        );
+      })}
     </div>
   );
 }

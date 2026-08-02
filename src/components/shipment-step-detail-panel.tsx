@@ -3,11 +3,9 @@
 import { X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { createPortal } from "react-dom";
-import {
-  listShipmentActivityHistoryAction,
-  type ActivityHistoryRow,
-} from "@/app/actions/history";
-import type { ShipmentRow } from "@/app/actions/shipments";
+import { listShipmentActivityHistoryAction } from "@/app/actions/history";
+import type { ActivityHistoryRow } from "@/lib/activity-history-types";
+import type { ShipmentRow } from "@/lib/shipment-types";
 import { SalePersonPager } from "@/components/sale/sale-person-card";
 import type { ShipmentProgressKind, ShipmentProgressStep } from "@/lib/shipment-display";
 import { milestoneKeyForProgressKind, SHIPMENT_MILESTONE_ACTION } from "@/lib/shipment-milestones";

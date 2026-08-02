@@ -10,7 +10,7 @@ import {
   type CustomerRouteAssignmentRequestRow,
 } from "@/app/actions/customer-route-assignments";
 import type { LogisticsRouteTemplateRow } from "@/app/actions/logistics-routes";
-import type { RouteMemberRow } from "@/app/actions/shipments";
+import type { RouteMemberRow } from "@/lib/shipment-types";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import { LogisticsWeekdayPicker } from "@/components/logistica/logistics-weekday-picker";
 import { ShipmentBoxLinesTrigger } from "@/components/shipment-box-lines-trigger";

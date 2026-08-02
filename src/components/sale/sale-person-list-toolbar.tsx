@@ -3,7 +3,6 @@
 import { type ReactNode } from "react";
 import {
   flowPersonToolbarActionsClass,
-  flowPersonToolbarRecentsClass,
   flowPersonToolbarSearchSlotClass,
   flowPersonToolbarShellClass,
   flowToolbarInlineCreateClass,
@@ -16,7 +15,6 @@ type SalePersonListToolbarProps = {
   createShortLabel: string;
   onCreate: () => void;
   createOnboardingTarget?: string;
-  recents?: ReactNode;
 };
 
 export function SalePersonListToolbar({
@@ -26,11 +24,9 @@ export function SalePersonListToolbar({
   createShortLabel,
   onCreate,
   createOnboardingTarget,
-  recents,
 }: SalePersonListToolbarProps) {
   return (
     <div className={flowPersonToolbarShellClass}>
-      {recents ? <div className={flowPersonToolbarRecentsClass}>{recents}</div> : null}
       <div className="flex min-w-0 flex-1 items-stretch gap-2">
         <div className={`${flowPersonToolbarSearchSlotClass} flex-1`}>{search}</div>
         <div className={flowPersonToolbarActionsClass}>

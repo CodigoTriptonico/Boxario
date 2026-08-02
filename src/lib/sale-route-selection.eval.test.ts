@@ -2,15 +2,17 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = process.cwd();
 const read = (rel: string) => readFileSync(path.join(root, rel), "utf8");
 
 test("venta creates driver tasks and keeps a recoverable route workflow", () => {
-  const venta = read("src/components/venta-client.tsx");
+  const venta = readVentaClientSource();
   const saleStep = read("src/components/sale/sale-logistics-step.tsx");
   const scheduler = read("src/components/logistica/logistics-task-schedule-confirm-panel.tsx");
-  const shipments = read("src/app/actions/shipments.ts");
+  const shipments = readShipmentActionsSource(root);
 
   assert.match(venta, /buildSaleLogisticsTasks/);
   assert.match(venta, /requestCustomerRouteAssignmentAction/);

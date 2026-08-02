@@ -14,6 +14,10 @@ const migration = readFileSync(
   "utf8",
 );
 const customerActions = readFileSync(join(root, "src/app/actions/customers.ts"), "utf8");
+const customerMutations = readFileSync(
+  join(root, "src/lib/customers/mutations.ts"),
+  "utf8",
+);
 const senderForm = readFileSync(join(root, "src/components/sale/sale-client-form.tsx"), "utf8");
 const recipientForm = readFileSync(
   join(root, "src/components/sale/sale-recipient-form.tsx"),
@@ -37,9 +41,12 @@ describe("capital-initial person name policy eval", () => {
   });
 
   it("normalizes sender and recipient names at the server boundary", () => {
-    assert.match(customerActions, /normalizePersonName/);
-    assert.doesNotMatch(customerActions, /first_name:\s*input\.firstName\.trim\(\)/);
-    assert.doesNotMatch(customerActions, /last_name:\s*input\.lastName\.trim\(\)/);
+    assert.match(customerActions, /normalizeCustomerMutation/);
+    assert.match(customerActions, /normalizeRecipientMutation/);
+    assert.match(customerMutations, /normalizePersonName\(input\.firstName\)/);
+    assert.match(customerMutations, /normalizePersonName\(input\.lastName\)/);
+    assert.doesNotMatch(customerMutations, /first_name:\s*input\.firstName\.trim\(\)/);
+    assert.doesNotMatch(customerMutations, /last_name:\s*input\.lastName\.trim\(\)/);
   });
 
   it("shows capital initials immediately in both sale forms", () => {

@@ -1,4 +1,4 @@
-import type { OnboardingProgress } from "@/app/actions/onboarding";
+import type { OnboardingProgress } from "@/lib/onboarding/types";
 
 /** Tutorial de configuración inicial en el panel de notificaciones. */
 export const ONBOARDING_TUTORIAL_ENABLED = false;

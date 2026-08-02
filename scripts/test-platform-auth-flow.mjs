@@ -1,9 +1,8 @@
 import {
   assertLocalCredentialScript,
   requireLocalCredential,
+  requireLoopbackHttpOrigin,
 } from "./lib/local-credential-guard.mjs";
-
-const BASE = process.env.APP_BASE_URL || "http://localhost:3000";
 
 function parseSetCookie(header) {
   const cookies = new Map();
@@ -35,14 +34,14 @@ function mergeCookies(jar, header) {
   }
 }
 
-async function fetchWithJar(path, jar, init = {}) {
+async function fetchWithJar(baseUrl, path, jar, init = {}) {
   const headers = new Headers(init.headers || {});
   const existing = cookieHeader(jar);
   if (existing) {
     headers.set("cookie", existing);
   }
 
-  const response = await fetch(`${BASE}${path}`, {
+  const response = await fetch(`${baseUrl}${path}`, {
     ...init,
     headers,
     redirect: "manual",
@@ -70,21 +69,16 @@ async function fetchWithJar(path, jar, init = {}) {
 async function main() {
   assertLocalCredentialScript();
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const serviceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-  const ownerEmail =
-    process.env.PLATFORM_OWNER_EMAIL?.trim().toLowerCase() || "pablo.isaza.i@gmail.com";
-
-  if (!url || !serviceKey) {
-    console.error("Falta configuración Supabase en .env.local");
-    process.exit(1);
-  }
-
+  const appBaseUrl = requireLoopbackHttpOrigin(
+    "APP_BASE_URL",
+    "http://localhost:3000",
+  );
+  const ownerEmail = requireLocalCredential("PLATFORM_OWNER_EMAIL").toLowerCase();
   const password = requireLocalCredential("PLATFORM_OWNER_PASSWORD");
   const jar = {};
 
   console.log("1. Login vía API…");
-  const signIn = await fetchWithJar("/api/auth/sign-in", jar, {
+  const signIn = await fetchWithJar(appBaseUrl, "/api/auth/sign-in", jar, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ email: ownerEmail, password }),
@@ -111,7 +105,7 @@ async function main() {
   }
 
   console.log("2. GET /platform…");
-  const platform = await fetchWithJar("/platform", jar);
+  const platform = await fetchWithJar(appBaseUrl, "/platform", jar);
   if (platform.status !== 200) {
     console.error(`Esperaba 200 en /platform, recibí ${platform.status}`);
     process.exit(1);
@@ -119,7 +113,7 @@ async function main() {
   console.log("   OK");
 
   console.log("3. GET /configuracion (debe ir a /platform, no /login)…");
-  const config = await fetchWithJar("/configuracion", jar);
+  const config = await fetchWithJar(appBaseUrl, "/configuracion", jar);
   const location = config.headers.get("location") || "";
   if (config.status >= 300 && config.status < 400 && location.includes("/login")) {
     console.error(`Redirigió a login: ${location}`);

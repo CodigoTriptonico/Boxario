@@ -5,7 +5,10 @@ import {
   formatInventoryMovementReference,
   formatInventoryMovementTrail,
   isAgencyInventoryMovement,
+  isReasonCodeAllowedForMovementType,
+  manualMovementReasonOptionsForType,
   movementReasonRequiresDetail,
+  normalizeReasonCodeForMovementType,
   readInventoryMovementEvidencePhotos,
 } from "./inventory-movement-audit";
 
@@ -16,10 +19,47 @@ describe("inventory-movement-audit", () => {
     assert.equal(defaultReasonCodeForMovementType("ajuste"), "physical_count");
   });
 
-  it("requires detail for physical count and other", () => {
+  it("requires detail for physical count, other, damage and loss", () => {
     assert.equal(movementReasonRequiresDetail("physical_count"), true);
     assert.equal(movementReasonRequiresDetail("other"), true);
+    assert.equal(movementReasonRequiresDetail("assignment_damage"), true);
+    assert.equal(movementReasonRequiresDetail("assignment_loss"), true);
     assert.equal(movementReasonRequiresDetail("manual_entry"), false);
+  });
+
+  it("exposes reason options by movement type", () => {
+    assert.deepEqual(
+      manualMovementReasonOptionsForType("entrada").map((option) => option.value),
+      ["manual_entry", "other"],
+    );
+    assert.deepEqual(
+      manualMovementReasonOptionsForType("salida").map((option) => option.value),
+      [
+        "manual_exit",
+        "assignment_damage",
+        "assignment_loss",
+        "assignment_consume",
+        "other",
+      ],
+    );
+    assert.deepEqual(
+      manualMovementReasonOptionsForType("ajuste").map((option) => option.value),
+      ["physical_count", "other"],
+    );
+    assert.equal(isReasonCodeAllowedForMovementType("entrada", "manual_exit"), false);
+    assert.equal(isReasonCodeAllowedForMovementType("salida", "manual_exit"), true);
+  });
+
+  it("normalizes invalid reason codes to the movement default", () => {
+    assert.equal(
+      normalizeReasonCodeForMovementType("entrada", "manual_exit"),
+      "manual_entry",
+    );
+    assert.equal(
+      normalizeReasonCodeForMovementType("salida", "assignment_damage"),
+      "assignment_damage",
+    );
+    assert.equal(normalizeReasonCodeForMovementType("ajuste", "manual_entry"), "physical_count");
   });
 
   it("formats origin destination trail", () => {

@@ -1,0 +1,21 @@
+export type InventoryStockItem = {
+  id: string;
+  name: string;
+  category: string;
+  kind: string;
+  subcategory?: string;
+  size?: string;
+  stock: number;
+  reserved: number;
+  assigned: number;
+  unavailable: number;
+  minStock: number;
+  avgCost?: number;
+  location?: string;
+  unit?: string;
+  photoUrl?: string;
+  sku?: string;
+  isCommercial?: boolean;
+  isActive?: boolean;
+  archivedAt?: string;
+};

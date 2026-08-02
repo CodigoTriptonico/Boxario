@@ -68,7 +68,7 @@ describe("schedule date picker eval", () => {
     const schedulePanelSource = readFileSync(
       join(
         dirname(fileURLToPath(import.meta.url)),
-        "../components/logistica/logistics-task-schedule-confirm-panel.tsx",
+        "../components/logistica/task-schedule/logistics-task-schedule-confirm-panel-view.tsx",
       ),
       "utf8",
     );

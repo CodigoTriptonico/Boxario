@@ -2,6 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import {
   buildStorageObjectPath,
   createStorageSignedUrl,
+  createStorageSignedUrls,
   extractStorageObjectPath,
   storagePathOwnedBy,
 } from "@/lib/supabase/storage-url";
@@ -60,6 +61,34 @@ export async function resolveInventoryItemPhotoUrl(
   }
 
   return createStorageSignedUrl(client, INVENTORY_ITEM_PHOTO_BUCKET, photoUrl, {
+    ownerId: organizationId,
+  });
+}
+
+/** Resuelve URLs firmadas en lote (evita N+1 de createSignedUrl por ítem). */
+export async function resolveInventoryItemPhotoUrls(
+  client: SupabaseClient | null,
+  photoUrls: Array<string | null | undefined>,
+  organizationId: string,
+): Promise<Map<string, string>> {
+  const inputs = photoUrls.filter((value): value is string => Boolean(value?.trim()));
+  if (!inputs.length) {
+    return new Map();
+  }
+
+  if (!client) {
+    const result = new Map<string, string>();
+    for (const photoUrl of inputs) {
+      const path =
+        extractStorageObjectPath(INVENTORY_ITEM_PHOTO_BUCKET, photoUrl) || photoUrl.trim();
+      if (storagePathOwnedBy(path, organizationId)) {
+        result.set(photoUrl, photoUrl);
+      }
+    }
+    return result;
+  }
+
+  return createStorageSignedUrls(client, INVENTORY_ITEM_PHOTO_BUCKET, inputs, {
     ownerId: organizationId,
   });
 }

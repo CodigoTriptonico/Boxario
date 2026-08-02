@@ -11,7 +11,6 @@ import {
   Flag,
   type SalePersonAddress,
   salePersonAddressLines,
-  salePersonAddressSummary,
 } from "@/components/sale/venta-parts";
 
 export const salePersonCardEmptyClass =
@@ -29,6 +28,7 @@ type SalePersonCardProps = {
   pageSurfaceTint?: boolean;
   hint?: string;
   hintHighlighted?: boolean;
+  onHintClick?: () => void;
   onQuickSale?: () => void;
   quickSaleLabel?: string;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -99,6 +99,7 @@ export function SalePersonCard({
   pageSurfaceTint = false,
   hint,
   hintHighlighted = false,
+  onHintClick,
   onQuickSale,
   quickSaleLabel = "Venta rápida",
   onIconClick,
@@ -177,13 +178,16 @@ export function SalePersonCard({
 
         <div className="flex min-h-[1.125rem] w-full items-center justify-center">
           {hint ? (
-            <p
-              className={`text-xs font-black uppercase tracking-wide ${
-                hintHighlighted ? variant.hintHighlighted : variant.hint
-              }`}
-            >
-              {hint}
-            </p>
+            <SalePersonHintControl
+              hint={hint}
+              highlighted={hintHighlighted}
+              onClick={onHintClick}
+              className={
+                hintHighlighted
+                  ? variant.hintHighlighted
+                  : variant.hint
+              }
+            />
           ) : null}
         </div>
       </div>
@@ -217,6 +221,7 @@ type SalePersonRowProps = {
   cardStyle?: SalePersonCardVariantId | string | null;
   hint?: string;
   hintHighlighted?: boolean;
+  onHintClick?: () => void;
   onQuickSale?: () => void;
   quickSaleLabel?: string;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -231,9 +236,11 @@ export function SalePersonRow({
   name,
   phone,
   address,
+  country,
   cardStyle,
   hint,
   hintHighlighted = false,
+  onHintClick,
   onQuickSale,
   quickSaleLabel = "Venta rápida",
   onIconClick,
@@ -244,7 +251,8 @@ export function SalePersonRow({
   contextProps,
 }: SalePersonRowProps) {
   const variant = resolveSalePersonCardVariant(cardStyle);
-  const addressSummary = salePersonAddressSummary(address);
+  const addressLines = salePersonAddressLines(address);
+  const addressSummary = addressLines.join(", ");
   const iconTitle = onIconClick ? "Cambiar estilo de tarjeta" : undefined;
 
   return (
@@ -258,7 +266,7 @@ export function SalePersonRow({
       className={`${listRowBaseClass} px-3 py-2.5 sm:px-4 sm:py-3 ${variant.focusRing} ${listRowHoverClass}${className ? ` ${className}` : ""}`}
       data-sale-person-row
     >
-      <div className="grid w-full min-w-0 cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden sm:grid-cols-[2.5rem_minmax(0,1fr)_minmax(0,1.4fr)_auto] sm:gap-x-3">
+      <div className="grid w-full min-w-0 cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden sm:gap-x-3">
         {onIconClick ? (
           <button
             type="button"
@@ -281,27 +289,40 @@ export function SalePersonRow({
         )}
 
         <div className="min-w-0 py-0.5">
-          <p className="truncate text-base font-black leading-tight text-[#f8fafc]">{name}</p>
+          <p className="flex min-w-0 items-center gap-2">
+            <Flag country={country} />
+            <span className="truncate text-base font-black leading-tight text-[#f8fafc]">
+              {name}
+            </span>
+          </p>
           <div className="mt-1 flex min-w-0 items-start gap-1.5 overflow-hidden text-xs font-bold leading-snug text-slate-500">
             <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
             <span className="min-w-0 flex-1 whitespace-nowrap text-[11px] sm:truncate sm:text-xs">{phone}</span>
           </div>
-        </div>
-
-        <div className="hidden min-w-0 sm:block">
-          <p
-            className={`truncate text-xs font-bold leading-snug sm:text-sm ${addressSummary ? "text-slate-400" : "text-slate-600"}`}
-            title={addressSummary || "Sin dirección registrada"}
-          >
-            {addressSummary ? (
-              <>
-                <MapPin className="mr-1 inline h-3.5 w-3.5 shrink-0 align-[-2px] text-slate-500" aria-hidden />
-                {addressSummary}
-              </>
-            ) : (
-              "Sin dirección"
-            )}
-          </p>
+          {addressLines.length ? (
+            <div
+              className="mt-1 flex min-w-0 items-start gap-1.5"
+              title={addressSummary}
+            >
+              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+              <div className="min-w-0">
+                {addressLines.map((line, index) => (
+                  <p
+                    key={`${line}-${index}`}
+                    className={`truncate text-xs font-bold leading-snug ${
+                      index === 0 ? "text-slate-300" : "text-slate-500"
+                    }`}
+                  >
+                    {line}
+                  </p>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <p className="mt-1 truncate text-xs font-bold leading-snug text-slate-600">
+              Sin dirección
+            </p>
+          )}
         </div>
 
         <div
@@ -310,7 +331,12 @@ export function SalePersonRow({
           onKeyDown={(event) => event.stopPropagation()}
         >
           {hint ? (
-            <SalePersonStatBadge highlighted={hintHighlighted}>{hint}</SalePersonStatBadge>
+            <SalePersonHintControl
+              hint={hint}
+              highlighted={hintHighlighted}
+              onClick={onHintClick}
+              badge
+            />
           ) : null}
           {onQuickSale ? (
             <button
@@ -330,6 +356,68 @@ export function SalePersonRow({
         </div>
       </div>
     </article>
+  );
+}
+
+function SalePersonHintControl({
+  hint,
+  highlighted = false,
+  onClick,
+  badge = false,
+  className = "",
+}: {
+  hint: string;
+  highlighted?: boolean;
+  onClick?: () => void;
+  badge?: boolean;
+  className?: string;
+}) {
+  if (badge) {
+    if (onClick) {
+      return (
+        <button
+          type="button"
+          onClick={(event) => {
+            event.stopPropagation();
+            onClick();
+          }}
+          className={`inline-flex h-8 items-center rounded-md border px-2 text-[11px] font-black transition hover:brightness-110 sm:h-9 sm:px-2.5 sm:text-xs ${
+            highlighted
+              ? "border-amber-600/40 bg-amber-400/15 text-amber-200"
+              : "border-amber-950/50 bg-amber-400/10 text-amber-200"
+          }`}
+          title={`Ver historial: ${hint}`}
+          aria-label={`Ver historial: ${hint}`}
+        >
+          {hint}
+        </button>
+      );
+    }
+
+    return (
+      <SalePersonStatBadge highlighted={highlighted}>{hint}</SalePersonStatBadge>
+    );
+  }
+
+  if (onClick) {
+    return (
+      <button
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          onClick();
+        }}
+        className={`text-xs font-black uppercase tracking-wide underline decoration-dotted underline-offset-2 transition hover:opacity-80 ${className}`}
+        title={`Ver historial: ${hint}`}
+        aria-label={`Ver historial: ${hint}`}
+      >
+        {hint}
+      </button>
+    );
+  }
+
+  return (
+    <p className={`text-xs font-black uppercase tracking-wide ${className}`}>{hint}</p>
   );
 }
 

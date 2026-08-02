@@ -7,6 +7,8 @@ import {
 } from "@/app/actions/shipments";
 import { EnviosClient } from "@/components/envios-client";
 import { canAccessPath, sessionHasPermission } from "@/lib/auth/permissions";
+import { ENVIOS_SHIPMENTS_PAGE_SIZE } from "@/lib/envios-pagination";
+import { LOGISTICS_ROUTES_PAGE_SIZE } from "@/lib/logistics-routes-pagination";
 import { requirePathAccess } from "@/lib/auth/require";
 import { canChangeShipmentSalesOwner } from "@/lib/shipment-visibility";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -35,12 +37,12 @@ export async function EnviosPageContent({ mode }: EnviosPageContentProps) {
     sessionHasPermission(session, "settings.manage");
   const [shipmentsResult, membersResult, ownersResult, routesResult, catalogResult, pendingRouteTasksResult] =
     await Promise.all([
-      listShipmentsAction(),
+      listShipmentsAction({ limit: ENVIOS_SHIPMENTS_PAGE_SIZE, offset: 0 }),
       listRouteMembersAction(),
       canManageShipmentOwners
         ? listSalesOwnersAction()
         : Promise.resolve({ ok: true as const, data: [] }),
-      listLogisticsRoutesAction(),
+      listLogisticsRoutesAction({ statusMode: "active", limit: LOGISTICS_ROUTES_PAGE_SIZE, offset: 0 }),
       canManageSales
         ? listLogisticsRouteCatalogAction()
         : Promise.resolve({ ok: true as const, data: null }),

@@ -1,9 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
-const source = readFileSync(join(process.cwd(), "src/components/venta-client.tsx"), "utf8");
+const source = readVentaClientSource();
 
 function sliceAround(marker: string, before = 500) {
   const index = source.indexOf(marker);

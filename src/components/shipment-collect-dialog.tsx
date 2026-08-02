@@ -1,6 +1,7 @@
 "use client";
 
-import { ChevronLeft } from "lucide-react";
+import { Calculator, ChevronLeft } from "lucide-react";
+import { useState } from "react";
 import { SalePaymentMethodField } from "@/components/sale/sale-payment-method-field";
 import {
   inputClass,
@@ -20,6 +21,7 @@ type ShipmentCollectDialogProps = {
   customerName: string;
   total: number;
   deposit: number;
+  depositRequired?: number;
   balanceDue: number;
   mode: ShipmentCollectMode;
   partialAmount: string;
@@ -40,6 +42,7 @@ export function ShipmentCollectDialog({
   customerName,
   total,
   deposit,
+  depositRequired = 0,
   balanceDue,
   mode,
   partialAmount,
@@ -104,7 +107,7 @@ export function ShipmentCollectDialog({
                 <dd className="font-black tabular-nums text-emerald-300">{formatMoneyValue(deposit)}</dd>
               </div>
               <div className="flex items-center justify-between gap-3 py-2">
-                <dt className="font-bold text-slate-400">Pendiente</dt>
+                <dt className="font-bold text-slate-400">Pendiente {depositRequired > 0 ? <span className="text-[10px] text-slate-500">· Mínimo de depósito {formatMoneyValue(depositRequired)}</span> : null}</dt>
                 <dd className="font-black tabular-nums text-amber-300">{formatMoneyValue(balanceDue)}</dd>
               </div>
             </dl>
@@ -114,10 +117,10 @@ export function ShipmentCollectDialog({
                 type="button"
                 onClick={() => onModeChange("full")}
                 disabled={confirming}
-                className={`${primaryButtonClass} h-auto min-h-11 px-4 py-3 text-left disabled:opacity-40`}
+                className={`${secondaryButtonClass} h-auto min-h-11 flex-col items-start gap-0.5 px-4 py-3 text-left disabled:opacity-40`}
               >
-                <span className="block text-sm font-black">{copy.fullOptionLabel}</span>
-                <span className="mt-0.5 block text-xs font-bold text-slate-950/70">
+                <span className="block text-sm font-black text-[#f8fafc]">{copy.fullOptionLabel}</span>
+                <span className="mt-0.5 block text-xs font-bold text-slate-400">
                   {copy.fullOptionDetail}
                 </span>
               </button>
@@ -125,7 +128,7 @@ export function ShipmentCollectDialog({
                 type="button"
                 onClick={() => onModeChange("partial")}
                 disabled={confirming}
-                className={`${secondaryButtonClass} h-auto min-h-11 px-4 py-3 text-left disabled:opacity-40`}
+                className={`${secondaryButtonClass} h-auto min-h-11 flex-col items-start gap-0.5 px-4 py-3 text-left disabled:opacity-40`}
               >
                 <span className="block text-sm font-black text-[#f8fafc]">{copy.partialOptionLabel}</span>
                 <span className="mt-0.5 block text-xs font-bold text-slate-400">
@@ -164,17 +167,19 @@ export function ShipmentCollectDialog({
               ) : (
                 <>
                   <div className="flex items-center justify-between gap-3 py-2">
-                    <dt className="font-bold text-slate-400">Pendiente</dt>
+                    <dt className="font-bold text-slate-400">Pendiente {depositRequired > 0 ? <span className="text-[10px] text-slate-500">· Mínimo de depósito {formatMoneyValue(depositRequired)}</span> : null}</dt>
                     <dd className="font-black tabular-nums text-amber-300">
                       {formatMoneyValue(balanceDue)}
                     </dd>
                   </div>
-                  <div className="flex items-center justify-between gap-3 py-2">
-                    <dt className="font-bold text-slate-400">{copy.pendingLineLabel}</dt>
-                    <dd className="font-black tabular-nums text-[#f8fafc]">
-                      {formatMoneyValue(projectedBalance)}
-                    </dd>
-                  </div>
+                  {partialAmountValue > 0 ? (
+                    <div className="flex items-center justify-between gap-3 py-2">
+                      <dt className="font-bold text-slate-400">{copy.pendingLineLabel}</dt>
+                      <dd className="font-black tabular-nums text-[#f8fafc]">
+                        {formatMoneyValue(projectedBalance)}
+                      </dd>
+                    </div>
+                  ) : null}
                 </>
               )}
             </dl>
@@ -196,6 +201,18 @@ export function ShipmentCollectDialog({
                     autoFocus
                   />
                 </div>
+                <button
+                  type="button"
+                  onClick={() => onPartialAmountChange(formatMoneyValue(balanceDue))}
+                  disabled={confirming}
+                  className="w-fit text-left normal-case text-xs font-black text-emerald-300 hover:text-emerald-200 disabled:opacity-40"
+                >
+                  Liquidar saldo: {formatMoneyValue(balanceDue)}
+                </button>
+                <span className="normal-case text-xs font-bold text-slate-500">
+                  Máximo permitido: {formatMoneyValue(balanceDue)}
+                </span>
+                {paymentMethod === "cash" && partialAmountValue > 0 ? <CashChangeCalculator paymentAmount={partialAmountValue} /> : null}
               </label>
             ) : null}
 
@@ -203,10 +220,12 @@ export function ShipmentCollectDialog({
               className="mt-4"
               value={paymentMethod}
               note={paymentNote}
+              hideDepositStatus
               disabled={confirming}
               onChange={onPaymentMethodChange}
               onNoteChange={onPaymentNoteChange}
             />
+
 
             <div className="mt-5 grid gap-3 sm:grid-cols-2">
               <button
@@ -235,4 +254,12 @@ export function ShipmentCollectDialog({
 
 function parseMoneyValueSafe(value: string) {
   return Number(value.replace(/[^\d.-]/g, "")) || 0;
+}
+
+function CashChangeCalculator({ paymentAmount }: { paymentAmount: number }) {
+  const [received, setReceived] = useState("");
+  const receivedAmount = parseMoneyValueSafe(received);
+  const difference = receivedAmount - paymentAmount;
+
+  return <div className="mt-3 rounded-lg border border-black bg-surface-inset p-3 normal-case"><p className="inline-flex items-center gap-1.5 text-xs font-black text-emerald-300"><Calculator className="h-4 w-4" />Efectivo y cambio</p><label className="mt-2 grid gap-1.5 text-xs font-black uppercase text-slate-400">Efectivo que entrega el cliente<div className="flex items-center gap-1"><span className="text-sm font-black text-slate-300">$</span><input className={`${inputClass} h-10 flex-1 text-sm tabular-nums`} inputMode="decimal" value={moneyInputDisplayValue(received)} onChange={(event) => setReceived(normalizeMoneyInput(event.target.value))} placeholder="0" autoFocus /></div></label><div className="mt-2 flex flex-wrap gap-2">{[20, 50, 100].map((bill) => <button key={bill} type="button" onClick={() => setReceived(String(receivedAmount + bill))} className="rounded-md border border-black bg-surface-card px-2 py-1 text-xs font-black text-slate-300">+${bill}</button>)}</div>{receivedAmount > 0 ? <p className={`mt-3 text-sm font-black ${difference > 0 ? "text-amber-200" : difference < 0 ? "text-rose-300" : "text-emerald-300"}`}>{difference > 0 ? `Devuelve ${formatMoneyValue(difference)}` : difference < 0 ? `Faltan ${formatMoneyValue(Math.abs(difference))}` : "Pago exacto"}</p> : <p className="mt-3 text-xs font-bold text-slate-500">Ingresa el efectivo para calcular el cambio.</p>}</div>;
 }

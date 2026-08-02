@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaPartsSource } from "@/test-utils/venta-source";
 
-const source = readFileSync(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8");
+const source = readVentaPartsSource();
 
 describe("sale step contact readability eval", () => {
   it("does not dim completed phone numbers or crowd mobile country names with flags", () => {

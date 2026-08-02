@@ -17,7 +17,7 @@ import {
 } from "@/lib/logistics-task-edit";
 import { logisticsReprogramStockNotice } from "@/lib/logistics-reprogram";
 import { buildDriverPickerOptions } from "@/lib/logistics-view";
-import type { LogisticsTaskStatus } from "@/app/actions/shipments";
+import type { LogisticsTaskStatus } from "@/lib/shipment-types";
 
 type LogisticsTaskReprogramPanelProps = {
   open: boolean;

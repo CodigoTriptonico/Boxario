@@ -1,9 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaClientSource, readVentaPartsSource } from "@/test-utils/venta-source";
 
-const ventaSource = readFileSync(new URL("../components/venta-client.tsx", import.meta.url), "utf8");
-const stepBarSource = readFileSync(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8");
+const ventaSource = readVentaClientSource();
+const stepBarSource = readVentaPartsSource();
 
 describe("venta mobile flow layout eval", () => {
   it("pins Siguiente under the catalog and keeps a scrollable stepper without clipping step popovers", () => {
@@ -22,7 +22,7 @@ describe("venta mobile flow layout eval", () => {
     );
     assert.match(
       stepBarSource,
-      /<ol className="grid min-w-0 grid-cols-5 items-start gap-0 lg:flex lg:min-w-0 lg:w-full lg:gap-0">/,
+      /<ol className="flex min-w-max items-start gap-0 lg:min-w-0 lg:w-full lg:gap-0">/,
     );
     assert.doesNotMatch(stepBarSource, /SaleMobileStepSummary|activeMobileStep/);
     assert.match(ventaSource, /<SaleHeaderCartTrigger/);

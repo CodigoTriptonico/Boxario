@@ -22,6 +22,7 @@ type SalePaymentMethodFieldProps = {
   pendingPaymentAmount?: string;
   disabled?: boolean;
   confirming?: boolean;
+  hideDepositStatus?: boolean;
   className?: string;
   onChange: (value: SalePaymentSelection) => void;
   onNoteChange?: (note: string) => void;
@@ -336,6 +337,7 @@ export function SalePaymentMethodField({
   pendingPaymentAmount = "$0",
   disabled = false,
   confirming = false,
+  hideDepositStatus = false,
   className = "",
   onChange,
   onNoteChange,
@@ -357,6 +359,20 @@ export function SalePaymentMethodField({
 
     onChange("pending");
     onNoteChange?.("");
+  }
+
+  if (hideDepositStatus) {
+    return (
+      <div className={`rounded-lg border border-black bg-surface-card px-3 py-3 ${className}`}>
+        <PaymentMethodSelector
+          value={paymentUnset ? "cash" : value}
+          note={note}
+          disabled={disabled || confirming}
+          onChange={onChange}
+          onNoteChange={onNoteChange}
+        />
+      </div>
+    );
   }
 
   return (

@@ -1,4 +1,4 @@
-import type { SaleShortcuts } from "@/app/actions/sale-shortcuts";
+import type { SaleShortcuts } from "@/lib/sale/shortcuts";
 
 const STORAGE_KEY = "boxario:venta:recent-sales";
 const MAX_ENTRIES = 10;

@@ -28,7 +28,7 @@ import {
 import { resolveAddressValidationUi, addressCardSubtitle } from "@/lib/sale-address-validation-ui";
 import {
   PERSON_NAME_MAX_LENGTH,
-  sanitizePersonNameInput,
+  formatPersonNameInput,
 } from "@/lib/person-name";
 import { configPricesCountryHref } from "@/lib/country-options";
 import {
@@ -347,7 +347,7 @@ export function SaleRecipientForm({
                       disabled={!hasCountry}
                       tabIndex={hasCountry ? 0 : -1}
                       onChange={(event) =>
-                        form.setFirstName(sanitizePersonNameInput(event.target.value))
+                        form.setFirstName(formatPersonNameInput(event.target.value))
                       }
                     />
                   </label>
@@ -364,7 +364,7 @@ export function SaleRecipientForm({
                       disabled={!hasCountry}
                       tabIndex={hasCountry ? 0 : -1}
                       onChange={(event) =>
-                        form.setLastName(sanitizePersonNameInput(event.target.value))
+                        form.setLastName(formatPersonNameInput(event.target.value))
                       }
                     />
                   </label>

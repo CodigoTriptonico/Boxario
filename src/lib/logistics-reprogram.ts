@@ -1,4 +1,4 @@
-import type { LogisticsTaskStatus } from "@/app/actions/shipments";
+import type { LogisticsTaskStatus } from "@/lib/shipment-types";
 
 export function isLogisticsFailedTask(task: { status: LogisticsTaskStatus }) {
   return task.status === "cancelled";

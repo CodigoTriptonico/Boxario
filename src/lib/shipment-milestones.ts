@@ -1,6 +1,5 @@
-import type { ShipmentStatus } from "@/app/actions/shipments";
-import type { ShipmentProgressKind } from "@/lib/shipment-display";
-import { formatShipmentAbsolute } from "@/lib/shipment-timing";
+import { formatShipmentAbsolute } from "@/lib/shipment-time-format";
+import type { ShipmentProgressKind, ShipmentStatus } from "@/lib/shipment-types";
 
 /** Milestone keys stored as timestamptz columns on public.shipments. */
 export type ShipmentMilestoneKey =

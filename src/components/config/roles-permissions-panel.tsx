@@ -1,7 +1,6 @@
 "use client";
 
 import {
-  Crown,
   Loader2,
   Plus,
   Search,
@@ -9,8 +8,6 @@ import {
   Shield,
   ShieldCheck,
   Trash2,
-  Truck,
-  UserCog,
 } from "lucide-react";
 import {
   InlineSearchCombobox,
@@ -27,110 +24,19 @@ import {
   type RolePermissionState,
 } from "@/app/actions/roles";
 import type { RoleCatalogEntry } from "@/lib/auth/role-catalog";
-import type { PermissionKey, PermissionRow, RoleRow } from "@/lib/auth/types";
+import type { PermissionRow, RoleRow } from "@/lib/auth/types";
 import { CompactInfoDisclosure, inputClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
 import { AddRoleModal } from "@/components/config/add-role-modal";
+import {
+  PERMISSION_GROUPS,
+  ROLE_META,
+  roleButtonClass,
+  ToggleSwitch,
+} from "@/components/config/roles-permissions-shared";
 import { settingsSectionClass as sectionClass } from "@/components/config/settings-panel-styles";
 
 const compactInputClass = `${inputClass} h-10`;
-
-const PERMISSION_GROUPS: { title: string; keys: PermissionKey[] }[] = [
-  { title: "Ventas", keys: ["sales.manage", "sales.settings.manage", "customers.manage"] },
-  { title: "Logística", keys: ["logistics.settings.manage"] },
-  {
-    title: "Inventario",
-    keys: ["inventory.view", "inventory.reserve", "inventory.adjust", "inventory.assign", "inventory.return", "warehouses.manage"],
-  },
-  { title: "Rutas", keys: ["routes.view", "routes.update_status"] },
-  {
-    title: "Administracion",
-    keys: ["users.manage", "permissions.manage", "settings.manage"],
-  },
-];
-
-const ROLE_META: Record<
-  string,
-  { icon: typeof Shield; hint: string }
-> = {
-  administrador: {
-    icon: Crown,
-    hint: "Gestión completa de la empresa.",
-  },
-  vendedor: {
-    icon: UserCog,
-    hint: "Ventas, clientes e inventario operativo.",
-  },
-  conductor: {
-    icon: Truck,
-    hint: "Consulta rutas y actualiza entregas.",
-  },
-  logistica: {
-    icon: Truck,
-    hint: "Rutas, asignación y operaciones de entrega.",
-  },
-  bodega: {
-    icon: Shield,
-    hint: "Inventario y bodegas.",
-  },
-  finanzas: {
-    icon: ShieldCheck,
-    hint: "Cuentas, cobros y retención financiera.",
-  },
-  auditor: {
-    icon: ShieldCheck,
-    hint: "Consulta de auditoría y estados financieros.",
-  },
-  captador_distribuidores: {
-    icon: UserCog,
-    hint: "Alta y seguimiento de distribuidores.",
-  },
-  captador_agencias: {
-    icon: UserCog,
-    hint: "Crea y da soporte a agencias.",
-  },
-  supervisor_agencias: {
-    icon: Crown,
-    hint: "Supervisa captadores y soporte de agencias.",
-  },
-};
-
-function ToggleSwitch({
-  checked,
-  onChange,
-  disabled,
-}: {
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      role="switch"
-      aria-checked={checked}
-      disabled={disabled}
-      onClick={() => onChange(!checked)}
-      className={`relative h-5 w-9 shrink-0 rounded-full border border-black p-0.5 transition disabled:opacity-50 ${
-        checked ? "bg-emerald-400" : "bg-surface-inset"
-      }`}
-    >
-      <span
-        className={`block h-3.5 w-3.5 rounded-full bg-slate-950 transition ${
-          checked ? "translate-x-4" : "translate-x-0"
-        }`}
-      />
-    </button>
-  );
-}
-
-function roleButtonClass(active: boolean) {
-  return `flex w-full items-start gap-3 rounded-lg border px-3 py-2.5 text-left transition ${
-    active
-      ? "border-black bg-emerald-400/10 hover:bg-emerald-400/15"
-      : "border-black bg-surface-inset hover:bg-surface-card-hover"
-  }`;
-}
 
 type RolesPermissionsPanelProps = {
   users: OrgUserRow[];

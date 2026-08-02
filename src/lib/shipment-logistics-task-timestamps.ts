@@ -1,4 +1,4 @@
-import type { ShipmentLogisticsTaskRow } from "@/app/actions/shipments";
+import type { ShipmentLogisticsTaskRow } from "@/lib/shipment-types";
 
 export type LogisticsTaskTimestampFields = Pick<
   ShipmentLogisticsTaskRow,
@@ -49,17 +49,6 @@ export function logisticsTaskAssignedPatch(
   }
 
   return { assigned_at: now };
-}
-
-export function logisticsTaskLoadedPatch(
-  task: LogisticsTaskTimestampFields,
-  now = new Date().toISOString(),
-) {
-  if (task.loadedAt) {
-    return {};
-  }
-
-  return { loaded_at: now };
 }
 
 export function isLogisticsTaskReactivation(

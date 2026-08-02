@@ -27,3 +27,19 @@ describe("authoritative write guard administrative role handling", () => {
     assert.match(migration, /INVENTORY_STOCK_WITH_BALANCE_IMMUTABLE/);
   });
 });
+
+describe("inventory stock command guard owner bypass", () => {
+  const migration = readFileSync(
+    join(
+      process.cwd(),
+      "supabase/migrations/148_inventory_stock_command_guard.sql",
+    ),
+    "utf8",
+  );
+
+  it("lets security-definer inventory commands update stock while blocking direct client writes", () => {
+    assert.match(migration, /current_user in \('postgres', 'supabase_admin'\)/);
+    assert.match(migration, /auth\.role\(\) is distinct from 'authenticated'/);
+    assert.match(migration, /INVENTORY_MOVEMENT_COMMAND_REQUIRED/);
+  });
+});

@@ -1,14 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const source = readFileSync(
-  join(root, "components/conductor/conductor-tareas-client.tsx"),
-  "utf8",
-);
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+
+const source = readConductorTareasClientSource();
 
 describe("conductor tareas compact UI", () => {
   it("keeps admin selection inside the operational toolbar", () => {
@@ -30,7 +25,7 @@ describe("conductor tareas compact UI", () => {
   });
 
   it("uses disclosures for secondary information", () => {
-    assert.match(source, /function CompactInfoDisclosure/);
+    assert.match(source, /export function CompactInfoDisclosure/);
     assert.match(source, /ariaLabel="Ver destinatario"/);
     assert.match(source, /ariaLabel="Ver más información"/);
   });

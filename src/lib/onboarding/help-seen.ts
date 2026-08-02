@@ -1,4 +1,4 @@
-import type { OnboardingStepId } from "@/app/actions/onboarding";
+import type { OnboardingStepId } from "@/lib/onboarding/types";
 
 const STORAGE_KEY = "boxario:onboarding:help-seen";
 

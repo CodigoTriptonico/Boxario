@@ -43,4 +43,11 @@ describe("reset scgs demo data eval", () => {
     const shipmentsAt = demoResetSource.indexOf('"shipments"');
     assert.ok(custodyAt > -1 && shipmentsAt > custodyAt);
   });
+
+  it("clears sale idempotency rows that restrict shipment deletes", () => {
+    assert.match(demoResetSource, /shipment_sale_operations_immutable/);
+    const operationsAt = demoResetSource.indexOf('"shipment_sale_operations"');
+    const shipmentsAt = demoResetSource.indexOf('"shipments"');
+    assert.ok(operationsAt > -1 && shipmentsAt > operationsAt);
+  });
 });

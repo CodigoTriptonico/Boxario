@@ -150,6 +150,19 @@ try {
     0,
   );
   await check(
+    "inventory stock command owner bypass missing",
+    `select count(*)::int
+       from pg_proc p
+       join pg_namespace n on n.oid = p.pronamespace
+      where n.nspname = 'public'
+        and p.proname = 'guard_inventory_stock_direct_write'
+        and position(
+          'current_user in (''postgres'', ''supabase_admin'')'
+          in lower(pg_get_functiondef(p.oid))
+        ) = 0`,
+    0,
+  );
+  await check(
     "authenticated direct payment writes",
     `select count(*)::int
        from information_schema.role_table_grants

@@ -4,9 +4,11 @@ import {
   Bell,
   CalendarClock,
   Check,
+  ChevronDown,
   Clock3,
   ExternalLink,
   Loader2,
+  MessageSquareText,
   Pencil,
   Save,
   Trash2,
@@ -22,11 +24,16 @@ import {
   updateShipmentJournalEntryAction,
   updateShipmentJournalReminderAction,
 } from "@/app/actions/shipment-journal";
+import { DateTimeInput } from "@/components/date-time-input";
+import { formatDateTimeInputValue } from "@/lib/date-picker";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { useHydrated } from "@/hooks/use-hydrated";
 import {
   SHIPMENT_JOURNAL_CATEGORIES,
   shipmentJournalCategoryLabel,
+  shipmentJournalDisplayBody,
+  shipmentJournalDisplayTitle,
+  shipmentJournalReminderBadge,
   type ShipmentJournalAssignee,
   type ShipmentJournalCategory,
   type ShipmentJournalEntry,
@@ -38,28 +45,11 @@ type ShipmentIdentity = {
   customer_name: string;
 };
 
-function dateTimeLocalValue(value: string | null) {
-  if (!value) return "";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "";
-  const offset = date.getTimezoneOffset() * 60_000;
-  return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-}
-
 function evidenceUrl(details: Record<string, unknown>) {
   for (const key of ["evidenceUrl", "photoUrl", "evidence_url"]) {
     const value = details[key];
     if (typeof value === "string" && value) return value;
   }
-  return "";
-}
-
-function dueBadge(entry: ShipmentJournalEntry) {
-  if (entry.reminderStatus === "completed") return "Completado";
-  if (entry.reminderStatus === "cancelled") return "Cancelado";
-  if (entry.dueState === "overdue") return "Vencido";
-  if (entry.dueState === "today") return "Hoy";
-  if (entry.dueState === "pending") return "Pendiente";
   return "";
 }
 
@@ -83,6 +73,8 @@ export function ShipmentJournalDialog({
   const [outcome, setOutcome] = useState("");
   const [followUpAt, setFollowUpAt] = useState("");
   const [assignedTo, setAssignedTo] = useState("");
+  const [contactDetailsOpen, setContactDetailsOpen] = useState(false);
+  const [reminderOpen, setReminderOpen] = useState(false);
   const [editing, setEditing] = useState<ShipmentJournalEntry | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<ShipmentJournalEntry | null>(null);
   const [deleteReason, setDeleteReason] = useState("");
@@ -125,18 +117,27 @@ export function ShipmentJournalDialog({
     setChannel("");
     setOutcome("");
     setFollowUpAt("");
+    setContactDetailsOpen(false);
+    setReminderOpen(false);
   }
 
   function beginEdit(entry: ShipmentJournalEntry) {
     setEditing(entry);
     setCategory(entry.category);
     setBody(entry.body);
-    setFollowUpAt(dateTimeLocalValue(entry.followUpAt));
+    setFollowUpAt(
+      entry.followUpAt ? formatDateTimeInputValue(new Date(entry.followUpAt)) : "",
+    );
     setAssignedTo(entry.assignedTo || "");
     const detailChannel = entry.details.channel;
     const detailOutcome = entry.details.outcome;
     setChannel(typeof detailChannel === "string" ? detailChannel : "");
     setOutcome(typeof detailOutcome === "string" ? detailOutcome : "");
+    setContactDetailsOpen(
+      typeof detailChannel === "string" && Boolean(detailChannel)
+        || typeof detailOutcome === "string" && Boolean(detailOutcome),
+    );
+    setReminderOpen(Boolean(entry.followUpAt));
   }
 
   async function submit() {
@@ -197,27 +198,47 @@ export function ShipmentJournalDialog({
 
   return createPortal(
     <div className="fixed inset-0 z-[240] flex items-end justify-center bg-slate-950/75 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={`Bitácora de ${shipment.code}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="flex h-[94dvh] w-full max-w-5xl flex-col overflow-hidden rounded-t-2xl border border-black bg-surface-panel shadow-2xl sm:h-[min(90dvh,52rem)] sm:rounded-2xl">
+      <div className="flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-2xl border border-black bg-surface-panel shadow-2xl sm:max-h-[min(90dvh,48rem)] sm:rounded-2xl">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-black bg-surface-card-header px-4 py-3">
-          <div className="min-w-0">
-            <h2 className="truncate text-lg font-black text-white">Bitácora · {shipment.code}</h2>
-            <p className="truncate text-sm font-semibold text-slate-400">{shipment.customer_name}</p>
+          <div className="flex min-w-0 items-center gap-3">
+            <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-800/60 bg-emerald-950/30 text-emerald-300">
+              <MessageSquareText className="h-4 w-4" />
+            </span>
+            <div className="min-w-0">
+              <div className="flex min-w-0 items-baseline gap-2">
+                <h2 className="shrink-0 text-lg font-black text-white">Bitácora</h2>
+                <span className="truncate text-sm font-black text-emerald-200">{shipment.code}</span>
+              </div>
+              <p className="truncate text-xs font-semibold text-slate-400">{shipment.customer_name}</p>
+            </div>
           </div>
           <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300" aria-label="Cerrar">
             <X className="h-4 w-4" />
           </button>
         </header>
 
-        <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(18rem,22rem)_minmax(0,1fr)]">
-          <aside className="grid content-start gap-3 overflow-y-auto border-b border-black p-3 md:border-b-0 md:border-r">
-            <div className="grid grid-cols-5 gap-1 rounded-lg border border-black bg-surface-inset p-1">
+        <div className="grid min-h-0 overflow-y-auto md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:overflow-hidden">
+          <aside className="grid content-start gap-3 border-b border-black p-3 md:overflow-y-auto md:border-b-0 md:border-r">
+            <div>
+              <p className="text-xs font-black uppercase tracking-wide text-slate-500">
+                {editing ? "Editando entrada" : "Nueva entrada"}
+              </p>
+              <p className="mt-0.5 text-xs font-semibold text-slate-400">
+                Registra qué pasó o qué debe hacerse después.
+              </p>
+            </div>
+
+            <div className="flex gap-1 overflow-x-auto rounded-lg border border-black bg-surface-inset p-1">
               {SHIPMENT_JOURNAL_CATEGORIES.map((option) => (
                 <button
                   key={option.value}
                   type="button"
                   disabled={Boolean(editing)}
-                  onClick={() => setCategory(option.value)}
-                  className={`min-w-0 rounded-md px-1 py-2 text-[10px] font-black ${category === option.value ? "bg-emerald-400 text-slate-950" : "text-slate-400"}`}
+                  onClick={() => {
+                    setCategory(option.value);
+                    if (option.value !== "customer") setContactDetailsOpen(false);
+                  }}
+                  className={`shrink-0 rounded-md px-2 py-2 text-[10px] font-black ${category === option.value ? "bg-emerald-400 text-slate-950" : "text-slate-400 hover:bg-surface-card"}`}
                   title={option.label}
                 >
                   {option.label === "Nota general" ? "General" : option.label}
@@ -225,45 +246,81 @@ export function ShipmentJournalDialog({
               ))}
             </div>
 
-            {category === "customer" ? (
-              <div className="grid grid-cols-2 gap-2">
-                <select value={channel} onChange={(event) => setChannel(event.target.value)} className="h-10 min-w-0 rounded-lg border border-black bg-surface-inset px-2 text-sm font-bold text-white">
-                  <option value="">Medio opcional</option>
-                  <option value="call">Llamada</option>
-                  <option value="whatsapp">WhatsApp</option>
-                  <option value="sms">SMS</option>
-                  <option value="email">Email</option>
-                  <option value="other">Otro</option>
-                </select>
-                <select value={outcome} onChange={(event) => setOutcome(event.target.value)} className="h-10 min-w-0 rounded-lg border border-black bg-surface-inset px-2 text-sm font-bold text-white">
-                  <option value="">Resultado opcional</option>
-                  <option value="answered">Contestó</option>
-                  <option value="no_answer">No contestó</option>
-                  <option value="left_message">Mensaje dejado</option>
-                  <option value="call_back">Llamar después</option>
-                  <option value="wrong_number">Número incorrecto</option>
-                </select>
-              </div>
-            ) : null}
-
             <textarea
               value={body}
               onChange={(event) => setBody(event.target.value)}
-              rows={5}
+              rows={4}
               maxLength={4000}
-              placeholder="Escribe una nota…"
-              className="min-h-28 resize-y rounded-lg border border-black bg-surface-inset p-3 text-sm font-semibold text-white outline-none placeholder:text-slate-500"
+              placeholder="Escribe qué pasó o qué sigue…"
+              className="min-h-24 resize-y rounded-lg border border-black bg-surface-inset p-3 text-sm font-semibold text-white outline-none placeholder:text-slate-500 focus:border-emerald-700"
             />
 
-            <div className="grid gap-2 rounded-lg border border-black bg-surface-card p-3">
-              <span className="flex items-center gap-2 text-xs font-black uppercase tracking-wide text-slate-400">
-                <Bell className="h-4 w-4" /> Recordatorio opcional
-              </span>
-              <input type="datetime-local" value={followUpAt} onChange={(event) => setFollowUpAt(event.target.value)} className="h-10 rounded-lg border border-black bg-surface-inset px-2 text-sm font-bold text-white" />
-              {hasReminder ? (
-                <select value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)} className="h-10 rounded-lg border border-black bg-surface-inset px-2 text-sm font-bold text-white">
-                  {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.label}</option>)}
-                </select>
+            {category === "customer" ? (
+              <div className="overflow-hidden rounded-lg border border-black bg-surface-inset">
+                <button
+                  type="button"
+                  onClick={() => setContactDetailsOpen((current) => !current)}
+                  className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-black text-slate-300 hover:bg-surface-card"
+                  aria-expanded={contactDetailsOpen}
+                >
+                  <MessageSquareText className="h-4 w-4 text-sky-300" />
+                  <span className="flex-1">Detalles del contacto</span>
+                  <span className="text-[10px] font-bold text-slate-500">
+                    {channel || outcome ? "Con datos" : "Opcional"}
+                  </span>
+                  <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${contactDetailsOpen ? "rotate-180" : ""}`} />
+                </button>
+                {contactDetailsOpen ? (
+                  <div className="grid grid-cols-2 gap-2 border-t border-black p-2">
+                    <select value={channel} onChange={(event) => setChannel(event.target.value)} className="h-10 min-w-0 rounded-lg border border-black bg-surface-card px-2 text-sm font-bold text-white">
+                      <option value="">Medio</option>
+                      <option value="call">Llamada</option>
+                      <option value="whatsapp">WhatsApp</option>
+                      <option value="sms">SMS</option>
+                      <option value="email">Email</option>
+                      <option value="other">Otro</option>
+                    </select>
+                    <select value={outcome} onChange={(event) => setOutcome(event.target.value)} className="h-10 min-w-0 rounded-lg border border-black bg-surface-card px-2 text-sm font-bold text-white">
+                      <option value="">Resultado</option>
+                      <option value="answered">Contestó</option>
+                      <option value="no_answer">No contestó</option>
+                      <option value="left_message">Mensaje dejado</option>
+                      <option value="call_back">Llamar después</option>
+                      <option value="wrong_number">Número incorrecto</option>
+                    </select>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="overflow-hidden rounded-lg border border-black bg-surface-inset">
+              <button
+                type="button"
+                onClick={() => setReminderOpen((current) => !current)}
+                className="flex w-full items-center gap-2 px-3 py-2.5 text-left text-xs font-black text-slate-300 hover:bg-surface-card"
+                aria-expanded={reminderOpen}
+              >
+                <Bell className="h-4 w-4 text-amber-300" />
+                <span className="flex-1">Recordatorio</span>
+                <span className="text-[10px] font-bold text-slate-500">
+                  {hasReminder ? "Configurado" : "Opcional"}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-slate-500 transition-transform ${reminderOpen ? "rotate-180" : ""}`} />
+              </button>
+              {reminderOpen ? (
+                <div className="grid gap-2 border-t border-black p-2">
+                  <DateTimeInput
+                    value={followUpAt}
+                    disabled={saving}
+                    ariaLabel="recordatorio de bitácora"
+                    onChange={setFollowUpAt}
+                  />
+                  {hasReminder ? (
+                    <select value={assignedTo} onChange={(event) => setAssignedTo(event.target.value)} className="h-10 rounded-lg border border-black bg-surface-card px-2 text-sm font-bold text-white">
+                      {assignees.map((assignee) => <option key={assignee.id} value={assignee.id}>{assignee.label}</option>)}
+                    </select>
+                  ) : null}
+                </div>
               ) : null}
             </div>
 
@@ -273,21 +330,49 @@ export function ShipmentJournalDialog({
               ) : null}
               <button type="button" className={`${primaryButtonClass} flex-1 gap-2`} disabled={submitDisabled} onClick={() => void submit()}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                {editing ? "Guardar cambios" : "Agregar"}
+                {editing ? "Guardar cambios" : hasReminder && !body.trim() ? "Crear recordatorio" : "Guardar nota"}
               </button>
             </div>
           </aside>
 
-          <section className="min-h-0 overflow-y-auto p-3 sm:p-4">
+          <section className="min-h-0 p-3 sm:p-4 md:overflow-y-auto">
+            <div className="mb-2 flex items-center justify-between gap-3">
+              <div>
+                <h3 className="text-sm font-black text-slate-100">Historial</h3>
+                <p className="text-xs font-semibold text-slate-500">Actividad más reciente primero</p>
+              </div>
+              {!loading ? (
+                <span className="rounded-md border border-black bg-surface-inset px-2 py-1 text-[10px] font-black uppercase text-slate-400">
+                  {timeline.length} {timeline.length === 1 ? "evento" : "eventos"}
+                </span>
+              ) : null}
+            </div>
             {loading ? (
               <div className="flex h-40 items-center justify-center text-slate-400"><Loader2 className="h-5 w-5 animate-spin" /></div>
             ) : timeline.length ? (
-              <div className="grid gap-3">
+              <div className="relative divide-y divide-black/70">
+                <span className="absolute bottom-4 left-[0.4375rem] top-4 w-px bg-black" aria-hidden />
                 {timeline.map((entry) => {
-                  const reminderLabel = dueBadge(entry);
+                  const reminderLabel = shipmentJournalReminderBadge(entry);
                   const evidence = evidenceUrl(entry.details);
+                  const displayTitle = shipmentJournalDisplayTitle(entry.title, shipment.code);
+                  const displayBody = shipmentJournalDisplayBody(entry.body, entry.kind);
                   return (
-                    <article key={entry.id} className={`rounded-xl border p-3 ${entry.deleted ? "border-rose-900/70 bg-rose-950/15" : "border-black bg-surface-card"}`}>
+                    <article key={entry.id} className={`relative py-4 pl-7 pr-1 first:pt-2 ${entry.deleted ? "bg-rose-950/10" : ""}`}>
+                      <span
+                        className={`absolute left-0 top-[1.35rem] z-10 h-3.5 w-3.5 rounded-full border-2 border-surface-panel ${
+                          entry.deleted
+                            ? "bg-rose-400"
+                            : entry.dueState === "overdue"
+                              ? "bg-rose-400"
+                              : entry.dueState === "today"
+                                ? "bg-amber-300"
+                                : entry.kind === "system"
+                                  ? "bg-sky-400"
+                                  : "bg-emerald-400"
+                        }`}
+                        aria-hidden
+                      />
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -297,14 +382,18 @@ export function ShipmentJournalDialog({
                             {entry.deleted ? <span className="text-[10px] font-black uppercase text-rose-300">Eliminada</span> : null}
                             {reminderLabel ? <span className={`text-[10px] font-black uppercase ${entry.dueState === "overdue" ? "text-rose-300" : entry.dueState === "today" ? "text-amber-300" : "text-slate-400"}`}>{reminderLabel}</span> : null}
                           </div>
-                          <h3 className="mt-2 text-sm font-black text-white">{entry.title}</h3>
+                          <h4 className="mt-1.5 text-sm font-black text-white">{displayTitle}</h4>
                         </div>
                         <div className="flex shrink-0 gap-1">
                           {entry.canEdit ? <button type="button" onClick={() => beginEdit(entry)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-surface-inset hover:text-white" aria-label="Editar"><Pencil className="h-3.5 w-3.5" /></button> : null}
                           {entry.canDelete ? <button type="button" onClick={() => setDeleteTarget(entry)} className="flex h-8 w-8 items-center justify-center rounded-md text-slate-400 hover:bg-rose-950/40 hover:text-rose-300" aria-label="Eliminar"><Trash2 className="h-3.5 w-3.5" /></button> : null}
                         </div>
                       </div>
-                      <p className={`mt-2 whitespace-pre-wrap text-sm leading-relaxed ${entry.deleted ? "italic text-slate-500 line-through" : "text-slate-200"}`}>{entry.deleted ? "Esta entrada fue eliminada." : entry.body}</p>
+                      {entry.deleted || displayBody ? (
+                        <p className={`mt-1.5 whitespace-pre-wrap text-sm leading-relaxed ${entry.deleted ? "italic text-slate-500 line-through" : "text-slate-200"}`}>
+                          {entry.deleted ? "Esta entrada fue eliminada." : displayBody}
+                        </p>
+                      ) : null}
                       {entry.deleted && entry.deleteReason ? <p className="mt-1 text-xs font-semibold text-rose-300">Razón: {entry.deleteReason}</p> : null}
                       {evidence ? <a href={evidence} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-300 hover:underline">Ver evidencia <ExternalLink className="h-3.5 w-3.5" /></a> : null}
                       {entry.followUpAt ? (
@@ -320,7 +409,7 @@ export function ShipmentJournalDialog({
                           ) : null}
                         </div>
                       ) : null}
-                      <footer className="mt-3 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
+                      <footer className="mt-2.5 flex items-center gap-1.5 text-[11px] font-semibold text-slate-500">
                         <Clock3 className="h-3.5 w-3.5" />
                         {entry.actorName} · {new Date(entry.createdAt).toLocaleString("es-US", { dateStyle: "medium", timeStyle: "short" })}
                       </footer>
@@ -329,7 +418,7 @@ export function ShipmentJournalDialog({
                 })}
               </div>
             ) : (
-              <div className="flex h-48 flex-col items-center justify-center text-center text-slate-500">
+              <div className="flex h-44 flex-col items-center justify-center border-t border-black text-center text-slate-500">
                 <Bell className="mb-2 h-7 w-7" />
                 <p className="font-black text-slate-300">Sin actividad todavía</p>
                 <p className="text-sm font-semibold">Agrega la primera nota o recordatorio.</p>

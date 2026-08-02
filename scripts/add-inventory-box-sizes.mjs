@@ -1,13 +1,14 @@
 /**
  * Agrega cajas por medida (ej. 14x14x14) al árbol de inventario y crea stock en bodega.
+ * Sin argumentos usa la org SCGS y el catálogo demo compartido.
  * Uso: node scripts/add-inventory-box-sizes.mjs [orgId] [14x14x14 16x16x16 ...]
  */
 import { randomUUID } from "node:crypto";
 import { connectPg } from "./lib/db-connection.mjs";
+import { BOX_SIZES, resolveScgsOrgId } from "./lib/scgs-demo-recipients.mjs";
 
-const DEFAULT_ORG_ID = "2029bf0c-e766-4840-9d90-f4b252cc3fe9";
 const DEFAULT_CATEGORY = "cajas";
-const DEFAULT_SIZES = ["14x14x14", "16x16x16", "18x18x18"];
+const DEFAULT_SIZES = BOX_SIZES.map((box) => box.name);
 
 function normalizeLabel(value) {
   return value
@@ -50,23 +51,33 @@ function addDirectItemsToTree(treeData, sizes) {
   return next;
 }
 
-const orgId = process.argv[2] || DEFAULT_ORG_ID;
+const explicitOrgId = process.argv[2];
 const sizes = process.argv.length > 3 ? process.argv.slice(3) : DEFAULT_SIZES;
 
 const { client } = await connectPg();
 
 try {
-  const orgCheck = await client.query(
-    "SELECT id, name FROM public.organizations WHERE id = $1",
-    [orgId],
-  );
+  let org;
 
-  if (!orgCheck.rows.length) {
-    console.error("No se encontró la organización.");
-    process.exit(1);
+  if (explicitOrgId) {
+    const orgCheck = await client.query(
+      "SELECT id, name FROM public.organizations WHERE id = $1",
+      [explicitOrgId],
+    );
+
+    if (!orgCheck.rows.length) {
+      console.error("No se encontró la organización.");
+      process.exit(1);
+    }
+
+    org = orgCheck.rows[0];
+  } else {
+    org = await resolveScgsOrgId(client);
   }
 
-  console.log(`Agregando cajas a: ${orgCheck.rows[0].name}`);
+  const orgId = org.id;
+
+  console.log(`Agregando cajas a: ${org.name}`);
   console.log(`Medidas: ${sizes.join(", ")}\n`);
 
   await client.query("BEGIN");

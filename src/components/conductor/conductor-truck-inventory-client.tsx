@@ -3,12 +3,9 @@
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
-  ArrowDownToLine,
   Loader2,
-  PackageCheck,
   PackagePlus,
   Truck,
-  X,
 } from "lucide-react";
 import {
   getConductorTruckInventoryAction,
@@ -19,6 +16,11 @@ import {
   type ConductorTruckInventoryView,
 } from "@/app/actions/conductor-tasks";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
+import {
+  RouteDeliverySection,
+  TruckOnTruckSection,
+} from "@/components/conductor/conductor-truck-sections";
+import { ConductorTruckUnloadDialog } from "@/components/conductor/conductor-truck-unload-dialog";
 import {
   Panel,
   primaryButtonClass,
@@ -35,10 +37,6 @@ import {
   CONDUCTOR_TRUCK_RETURN_REASONS,
   isConductorTruckVehicleChangeReason,
   sumOnTruckLines,
-  sumRouteDeliveryOnTruck,
-  sumRouteDeliveryPending,
-  type ConductorRouteDeliveryBoardLine,
-  type ConductorTruckInventoryLine,
   type ConductorTruckOnTruckLine,
 } from "@/lib/conductor-truck-inventory";
 
@@ -61,251 +59,6 @@ type LocalTruckResult = {
 type UnloadDialogState = {
   line: ConductorTruckOnTruckLine;
 } | null;
-
-function TruckLoadInline({
-  line,
-  loadQuantities,
-  onQuantityChange,
-  busyKey,
-  onLoad,
-}: {
-  line: ConductorTruckInventoryLine;
-  loadQuantities: Record<string, string>;
-  onQuantityChange: (lineKey: string, value: string) => void;
-  busyKey: string;
-  onLoad: (lineKey: string, qty: number) => void;
-}) {
-  const maxPartialQty = Math.min(line.shortageQty, line.stockQty);
-  const selectedQty = Math.floor(Number(loadQuantities[line.key]) || maxPartialQty);
-  const partialQty = Math.min(Math.max(selectedQty, 1), Math.max(maxPartialQty, 1));
-  const remainingQty = Math.max(line.shortageQty - partialQty, 0);
-  const isPartialSelection = remainingQty > 0;
-  const canRecordPartial = Boolean(line.itemId && line.warehouseId && maxPartialQty > 0);
-  const partialQtyIsValid = partialQty > 0 && partialQty <= maxPartialQty;
-  const lineBusy = busyKey === `load:${line.key}`;
-
-  return (
-    <div className="grid gap-3 border-t border-black/60 pt-3">
-      <input
-        type="range"
-        min="1"
-        max={Math.max(maxPartialQty, 1)}
-        step="1"
-        value={loadQuantities[line.key] ?? String(maxPartialQty)}
-        onChange={(event) => onQuantityChange(line.key, event.target.value)}
-        className="h-3 w-full cursor-pointer accent-emerald-400 disabled:cursor-not-allowed disabled:opacity-40"
-        aria-label={`Cantidad subida de ${line.label}`}
-        disabled={!canRecordPartial || lineBusy}
-      />
-
-      <div className="flex flex-wrap items-end gap-x-2 gap-y-1">
-        <span className="text-3xl font-black tabular-nums text-emerald-300">{partialQty}</span>
-        {isPartialSelection ? (
-          <span className="pb-1 text-xs font-bold text-slate-400">
-            cajas · quedan <span className="font-black text-rose-200">{remainingQty}</span> pendientes
-          </span>
-        ) : (
-          <span className="pb-1 text-xs font-bold text-slate-400">cajas a subir</span>
-        )}
-      </div>
-
-      <button
-        type="button"
-        className={`${primaryButtonClass} h-10 text-xs disabled:cursor-not-allowed disabled:opacity-40`}
-        disabled={!canRecordPartial || !partialQtyIsValid || lineBusy}
-        onClick={() => onLoad(line.key, partialQty)}
-      >
-        {lineBusy ? <Loader2 className="h-4 w-4 animate-spin" /> : <PackageCheck className="h-4 w-4" />}
-        Subir al camión
-      </button>
-      {!canRecordPartial ? (
-        <p className="text-xs font-bold text-rose-300">No hay cajas disponibles para subir ahora.</p>
-      ) : null}
-    </div>
-  );
-}
-
-function RouteDeliverySection({
-  boardLines,
-  loadQuantities,
-  onQuantityChange,
-  busyKey,
-  onLoad,
-  onUnload,
-}: {
-  boardLines: ConductorRouteDeliveryBoardLine[];
-  loadQuantities: Record<string, string>;
-  onQuantityChange: (lineKey: string, value: string) => void;
-  busyKey: string;
-  onLoad: (lineKey: string, qty: number) => void;
-  onUnload: (line: ConductorTruckOnTruckLine) => void;
-}) {
-  const onTruckTotal = sumRouteDeliveryOnTruck(boardLines);
-  const pendingTotal = sumRouteDeliveryPending(boardLines);
-  const requiredTotal = boardLines.reduce((sum, line) => sum + line.requiredQty, 0);
-
-  return (
-    <section
-      id="route-delivery-board"
-      className="overflow-hidden rounded-xl border border-black bg-surface-card"
-    >
-      <header className="flex items-center justify-between gap-3 border-b border-black bg-surface-card-header px-4 py-3">
-        <p className="text-sm font-black text-[#f8fafc]">Cajas de ruta (por dejar)</p>
-        <div className="flex items-center gap-2">
-          {pendingTotal > 0 ? (
-            <span className="rounded-md border border-rose-800/70 bg-rose-950/35 px-2 py-1 text-xs font-black tabular-nums text-rose-200">
-              {pendingTotal} por subir
-            </span>
-          ) : null}
-          <span className="rounded-md border border-emerald-700/60 bg-emerald-950/30 px-2 py-1 text-xs font-black tabular-nums text-emerald-200">
-            {onTruckTotal}/{requiredTotal}
-          </span>
-        </div>
-      </header>
-      {boardLines.length ? (
-        <div className={`grid gap-2 p-3 ${boardLines.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
-          {boardLines.map((boardLine) => {
-            const lineBusy = busyKey === `return:${boardLine.key}`;
-            const isPending = boardLine.pendingQty > 0;
-            const isLoaded = boardLine.onTruckQty > 0;
-            const unloadLine: ConductorTruckOnTruckLine = {
-              key: `route:${boardLine.key}`,
-              lineKey: boardLine.key,
-              label: boardLine.label,
-              qty: boardLine.onTruckQty,
-              maxReturnQty: boardLine.onTruckQty,
-              itemId: boardLine.line.itemId,
-              warehouseId: boardLine.line.warehouseId,
-              catalogKey: boardLine.line.catalogKey,
-              origin: "route",
-            };
-
-            return (
-              <article
-                key={boardLine.key}
-                className={`flex flex-col gap-3 rounded-lg border px-4 py-3 ${
-                  isPending && !isLoaded
-                    ? "border-black/80 bg-surface-card/40 opacity-80"
-                    : isPending
-                      ? "border-black bg-surface-inset"
-                      : "border-black bg-surface-inset"
-                }`}
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p
-                    className={`min-w-0 truncate text-base font-black ${
-                      isPending && !isLoaded ? "text-slate-400" : "text-[#f8fafc]"
-                    }`}
-                  >
-                    {boardLine.label}
-                  </p>
-                  {isLoaded ? (
-                    <p className="shrink-0 text-right">
-                      <span className="text-2xl font-black tabular-nums text-emerald-300">{boardLine.onTruckQty}</span>
-                      <span className="ml-1 text-xs font-bold text-slate-400">en camión</span>
-                    </p>
-                  ) : null}
-                </div>
-
-                {isLoaded ? (
-                  <button
-                    type="button"
-                    className="inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-md border border-black bg-surface-card px-2.5 text-[11px] font-black text-slate-200 transition hover:bg-surface-inset disabled:cursor-not-allowed disabled:opacity-40"
-                    disabled={Boolean(busyKey)}
-                    onClick={() => onUnload(unloadLine)}
-                  >
-                    {lineBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowDownToLine className="h-3.5 w-3.5" />}
-                    Bajar a bodega
-                  </button>
-                ) : null}
-
-                {isPending ? (
-                  <TruckLoadInline
-                    line={boardLine.line}
-                    loadQuantities={loadQuantities}
-                    onQuantityChange={onQuantityChange}
-                    busyKey={busyKey}
-                    onLoad={onLoad}
-                  />
-                ) : null}
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="px-4 py-6 text-sm font-bold text-slate-400">Sin cajas de ruta para hoy.</p>
-      )}
-    </section>
-  );
-}
-
-function TruckOnTruckSection({
-  title,
-  total,
-  tone,
-  emptyText,
-  lines,
-  busyKey,
-  onUnload,
-}: {
-  title: string;
-  total: number;
-  tone: "emerald" | "sky";
-  emptyText: string;
-  lines: ConductorTruckOnTruckLine[];
-  busyKey: string;
-  onUnload: (line: ConductorTruckOnTruckLine) => void;
-}) {
-  const badgeClass =
-    tone === "emerald"
-      ? "border-emerald-700/60 bg-emerald-950/30 text-emerald-200"
-      : "border-sky-700/60 bg-sky-950/30 text-sky-200";
-  const qtyClass = tone === "emerald" ? "text-emerald-300" : "text-sky-300";
-
-  return (
-    <section className="overflow-hidden rounded-xl border border-black bg-surface-card">
-      <header className="flex items-center justify-between gap-3 border-b border-black bg-surface-card-header px-4 py-3">
-        <p className="text-sm font-black text-[#f8fafc]">{title}</p>
-        <span className={`rounded-md border px-2 py-1 text-xs font-black tabular-nums ${badgeClass}`}>
-          {total}
-        </span>
-      </header>
-      {lines.length ? (
-        <div className={`grid gap-2 p-3 ${lines.length > 1 ? "sm:grid-cols-2" : "grid-cols-1"}`}>
-          {lines.map((line) => {
-            const lineBusy = busyKey === `return:${line.lineKey}`;
-
-            return (
-              <article
-                key={line.key}
-                className="flex flex-col gap-2 rounded-lg border border-black bg-surface-inset px-4 py-3"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="min-w-0 truncate text-base font-black text-[#f8fafc]">{line.label}</p>
-                  <p className="shrink-0 text-right">
-                    <span className={`text-2xl font-black tabular-nums ${qtyClass}`}>{line.qty}</span>
-                    <span className="ml-1 text-xs font-bold text-slate-400">cajas</span>
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="inline-flex h-9 items-center justify-center gap-1.5 self-start rounded-md border border-black bg-surface-inset px-2.5 text-[11px] font-black text-slate-200 transition hover:bg-surface-card disabled:cursor-not-allowed disabled:opacity-40"
-                  disabled={Boolean(busyKey)}
-                  onClick={() => onUnload(line)}
-                >
-                  {lineBusy ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <ArrowDownToLine className="h-3.5 w-3.5" />}
-                  Bajar a bodega
-                </button>
-              </article>
-            );
-          })}
-        </div>
-      ) : (
-        <p className="px-4 py-6 text-sm font-bold text-slate-400">{emptyText}</p>
-      )}
-    </section>
-  );
-}
 
 export function ConductorTruckInventoryClient({
   canPreview = false,
@@ -469,9 +222,27 @@ export function ConductorTruckInventoryClient({
     setBusyKey("start");
 
     try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        if (!navigator.geolocation) {
+          reject(new Error("GPS no disponible en este dispositivo"));
+          return;
+        }
+        navigator.geolocation.getCurrentPosition(resolve, reject, {
+          enableHighAccuracy: true,
+          timeout: 15000,
+          maximumAge: 0,
+        });
+      }).catch((error: unknown) => {
+        throw new Error(
+          error instanceof Error ? error.message : "No se pudo obtener la ubicacion GPS",
+        );
+      });
+
       const result = await startConductorRouteAction({
         routeId: view.selectedRouteId,
         driverId: canPreview ? effectiveDriverId : null,
+        startedLat: position.coords.latitude,
+        startedLng: position.coords.longitude,
       });
 
       if (!result.ok) {
@@ -483,6 +254,8 @@ export function ConductorTruckInventoryClient({
       setLocalResult({ driverId: result.data.driverId, view: result.data, error: "" });
       notify.success("Ruta iniciada");
       router.push("/conductor/tareas");
+    } catch (error) {
+      notify.error(error instanceof Error ? error.message : "No se pudo iniciar la ruta");
     } finally {
       setBusyKey("");
     }
@@ -732,179 +505,30 @@ export function ConductorTruckInventoryClient({
       </Panel>
 
       {unloadDialog ? (
-        <div className="fixed inset-0 z-[160] flex items-end justify-center bg-black/70 p-3 sm:items-center sm:p-4">
-          <button
-            type="button"
-            aria-label="Cerrar baja de caja"
-            className="absolute inset-0"
-            disabled={Boolean(busyKey)}
-            onClick={() => setUnloadDialog(null)}
-          />
-          <section
-            className="relative flex max-h-[92vh] w-full max-w-lg flex-col overflow-hidden rounded-xl border border-black bg-surface-panel shadow-2xl"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="truck-unload-title"
-          >
-            <header className="flex items-start gap-3 border-b border-black bg-surface-card-header px-4 py-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-sky-400 text-slate-950">
-                <ArrowDownToLine className="h-5 w-5" />
-              </span>
-              <div className="min-w-0 flex-1">
-                <h2 id="truck-unload-title" className="text-lg font-black text-[#f8fafc]">
-                  Bajar a bodega
-                </h2>
-                <p className="mt-0.5 truncate text-xs font-bold text-slate-400">
-                  {unloadDialog.line.label} ·{" "}
-                  {unloadDialog.line.origin === "extra" ? "caja extra" : "caja de ruta"}
-                </p>
-              </div>
-              <button
-                type="button"
-                aria-label="Cerrar"
-                className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300 hover:bg-surface-card disabled:opacity-40"
-                disabled={Boolean(busyKey)}
-                onClick={() => setUnloadDialog(null)}
-              >
-                <X className="h-4 w-4" />
-              </button>
-            </header>
-
-            <div className="grid gap-4 overflow-y-auto p-4">
-              <div className="grid gap-3">
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-xs font-bold text-slate-400">Cuántas bajas</p>
-                  <label className="flex items-center gap-1.5 text-sm font-black tabular-nums text-[#f8fafc]">
-                    <input
-                      type="number"
-                      min="1"
-                      max={Math.max(unloadDialog.line.maxReturnQty, 1)}
-                      step="1"
-                      value={unloadQty}
-                      onChange={(event) => setUnloadQty(event.target.value)}
-                      className="h-8 w-14 rounded-md border border-black bg-surface-inset px-1 text-center text-sm font-black tabular-nums text-[#f8fafc] outline-none focus:border-sky-400 disabled:opacity-40"
-                      aria-label={`Cantidad a bajar de ${unloadDialog.line.label}`}
-                      disabled={Boolean(busyKey)}
-                    />
-                    de {unloadDialog.line.maxReturnQty}
-                  </label>
-                </div>
-                <input
-                  type="range"
-                  min="1"
-                  max={Math.max(unloadDialog.line.maxReturnQty, 1)}
-                  step="1"
-                  value={unloadQty}
-                  onChange={(event) => setUnloadQty(event.target.value)}
-                  className="h-3 w-full cursor-pointer accent-sky-400 disabled:cursor-not-allowed disabled:opacity-40"
-                  aria-label={`Cantidad a bajar de ${unloadDialog.line.label}`}
-                  disabled={Boolean(busyKey)}
-                />
-              </div>
-
-              <div className="grid gap-2">
-                <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Motivo de la baja</p>
-                <div className="flex flex-wrap gap-2">
-                  {CONDUCTOR_TRUCK_RETURN_REASONS.map((reason) => (
-                    <button
-                      key={reason}
-                      type="button"
-                      className={`rounded-full border px-3 py-1.5 text-xs font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-sky-300 ${
-                        unloadReason === reason
-                          ? "border-sky-400 bg-sky-950/45 text-sky-100"
-                          : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card"
-                      }`}
-                      disabled={Boolean(busyKey)}
-                      onClick={() => handleUnloadReasonChange(reason)}
-                    >
-                      {reason}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              {unloadNeedsVehicle ? (
-                <label className="grid gap-1.5">
-                  <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                    ¿A qué vehículo van las cajas?
-                  </span>
-                  {transferVehicles.length ? (
-                    <select
-                      value={unloadTargetVehicleId}
-                      onChange={(event) => setUnloadTargetVehicleId(event.target.value)}
-                      className="h-11 rounded-lg border border-black bg-surface-inset px-3 text-sm font-black text-[#f8fafc] outline-none focus:border-sky-400 disabled:opacity-40"
-                      aria-label="Vehículo destino"
-                      disabled={Boolean(busyKey)}
-                    >
-                      <option value="">Elegir vehículo</option>
-                      {transferVehicles.map((vehicle) => (
-                        <option key={vehicle.id} value={vehicle.id}>
-                          {vehicle.label}
-                        </option>
-                      ))}
-                    </select>
-                  ) : (
-                    <p className="rounded-lg border border-amber-700/60 bg-amber-950/25 px-3 py-2 text-xs font-bold text-amber-100">
-                      No hay otro vehículo activo disponible. Elige otro motivo o avisa a logística.
-                    </p>
-                  )}
-                </label>
-              ) : null}
-
-              <label className="grid gap-1.5">
-                <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">
-                  Nota para auditoría (opcional)
-                </span>
-                <textarea
-                  value={unloadNote}
-                  onChange={(event) => setUnloadNote(event.target.value)}
-                  rows={3}
-                  maxLength={280}
-                  placeholder="Ej. cliente canceló, caja mojada, etc."
-                  className="resize-none rounded-lg border border-black bg-surface-inset px-3 py-2 text-sm font-bold text-[#f8fafc] outline-none focus:border-sky-400 disabled:opacity-40"
-                  disabled={Boolean(busyKey)}
-                />
-              </label>
-            </div>
-
-            <footer className="grid gap-2 border-t border-black bg-surface-card-header px-4 py-3 sm:grid-cols-2">
-              <button
-                type="button"
-                className={`${secondaryButtonClass} h-10 text-xs`}
-                disabled={Boolean(busyKey)}
-                onClick={() => setUnloadDialog(null)}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                className={`${primaryButtonClass} h-10 text-xs disabled:cursor-not-allowed disabled:opacity-40`}
-                disabled={
-                  Boolean(busyKey) ||
-                  Math.floor(Number(unloadQty) || 0) <= 0 ||
-                  Math.floor(Number(unloadQty) || 0) > unloadDialog.line.maxReturnQty ||
-                  !unloadVehicleReady
-                }
-                onClick={() =>
-                  void returnLine(
-                    unloadDialog.line,
-                    Math.floor(Number(unloadQty) || 0),
-                    unloadReason,
-                    unloadNote.trim(),
-                    unloadTargetVehicleId,
-                  )
-                }
-              >
-                {busyKey === `return:${unloadDialog.line.lineKey}` ? (
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                ) : (
-                  <ArrowDownToLine className="h-4 w-4" />
-                )}
-                Confirmar baja
-              </button>
-            </footer>
-          </section>
-        </div>
+        <ConductorTruckUnloadDialog
+          unloadDialog={unloadDialog}
+          busyKey={busyKey}
+          unloadQty={unloadQty}
+          unloadReason={unloadReason}
+          unloadNote={unloadNote}
+          unloadTargetVehicleId={unloadTargetVehicleId}
+          unloadVehicleReady={unloadVehicleReady}
+          transferVehicles={transferVehicles}
+          onClose={() => setUnloadDialog(null)}
+          onUnloadQtyChange={setUnloadQty}
+          onUnloadReasonChange={handleUnloadReasonChange}
+          onUnloadNoteChange={setUnloadNote}
+          onUnloadTargetVehicleIdChange={setUnloadTargetVehicleId}
+          onConfirm={() =>
+            void returnLine(
+              unloadDialog.line,
+              Math.floor(Number(unloadQty) || 0),
+              unloadReason,
+              unloadNote.trim(),
+              unloadTargetVehicleId,
+            )
+          }
+        />
       ) : null}
     </div>
   );

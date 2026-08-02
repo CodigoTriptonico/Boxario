@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -55,7 +56,7 @@ describe("ui surface appearance eval", () => {
   });
 
   it("uses sale sender and recipient contexts for venta via shell override", () => {
-    const venta = read("components/venta-client.tsx");
+    const venta = readVentaClientSource();
     assert.equal(venta.includes("surfaceContextId: saleListPaletteContext"), true);
     assert.equal(venta.includes('"sale.senderCard"'), true);
     assert.equal(venta.includes('"sale.recipientCard"'), true);

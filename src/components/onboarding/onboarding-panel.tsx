@@ -19,7 +19,7 @@ import {
   type OnboardingProgress,
   type OnboardingStep,
   type OnboardingStepId,
-} from "@/app/actions/onboarding";
+} from "@/lib/onboarding/types";
 import { NotificationGroup } from "@/components/notifications/notification-group";
 import {
   OnboardingHelpPanel,

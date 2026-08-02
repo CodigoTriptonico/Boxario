@@ -1,9 +1,9 @@
-import type { LogisticsTaskAddressRow } from "@/app/actions/logistics-routes";
+import type { LogisticsTaskAddressRow } from "@/lib/logistics-routing";
 import type {
   LogisticsTaskStatus,
   LogisticsTaskType,
   ShipmentRow,
-} from "@/app/actions/shipments";
+} from "@/lib/shipment-types";
 import {
   balanceDueFromShipment,
   depositFromShipment,
@@ -85,7 +85,7 @@ export function buildRouteByTaskId(routes: ReadonlyArray<LogisticsRouteRow>) {
   const map = new Map<string, { route: LogisticsRouteRow; stop: LogisticsRouteStopRow }>();
 
   for (const route of routes) {
-    if (route.status === "cancelled") {
+    if (route.status === "cancelled" || route.status === "draft") {
       continue;
     }
 

@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readVentaClientSource, readVentaPartsSource } from "@/test-utils/venta-source";
 
 const root = process.cwd();
-const invoiceSource = readFileSync(join(root, "src/components/sale/venta-parts.tsx"), "utf8");
-const saleSource = readFileSync(join(root, "src/components/venta-client.tsx"), "utf8");
+const invoiceSource = readVentaPartsSource();
+const saleSource = readVentaClientSource();
 const quickCheckoutSource = readFileSync(
   join(root, "src/components/sale/sale-quick-checkout-modal.tsx"),
   "utf8",

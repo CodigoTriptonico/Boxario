@@ -4,11 +4,10 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const source = readFileSync(
-  join(root, "components/conductor/conductor-tareas-client.tsx"),
-  "utf8",
-);
+const source = readConductorTareasClientSource(root);
 const sidebarControls = readFileSync(
   join(root, "components/ui/sidebar-page-surface-controls.tsx"),
   "utf8",

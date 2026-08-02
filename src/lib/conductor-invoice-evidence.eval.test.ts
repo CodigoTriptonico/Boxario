@@ -2,14 +2,22 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
 
 const root = process.cwd();
-const clientSource = readFileSync(join(root, "src/components/conductor/conductor-tareas-client.tsx"), "utf8");
+const clientSource = readConductorTareasClientSource(root);
 const queueSource = readFileSync(join(root, "src/lib/conductor-offline/queue.ts"), "utf8");
-const actionSource = readFileSync(join(root, "src/app/actions/conductor-tasks.ts"), "utf8");
-const shipmentsSource = readFileSync(join(root, "src/app/actions/shipments.ts"), "utf8");
-const logisticsSource = readFileSync(join(root, "src/components/logistica-client.tsx"), "utf8");
+const actionSource = readConductorTaskActionsSource(root);
+const shipmentsSource = readShipmentActionsSource(root);
+const logisticsSource = readLogisticaClientSource(root);
 const migrationSource = readFileSync(join(root, "supabase/migrations/079_package_invoice_evidence.sql"), "utf8");
+const atomicSaleMigration = readFileSync(
+  join(root, "supabase/migrations/132_atomic_sales_tracking_and_authoritative_writes.sql"),
+  "utf8",
+);
 
 describe("invoice visible on physical boxes eval", () => {
   it("requires an explicit driver confirmation and matching photo guidance", () => {
@@ -33,8 +41,13 @@ describe("invoice visible on physical boxes eval", () => {
   });
 
   it("creates an auditable physical package for every new sale", () => {
-    assert.match(shipmentsSource, /physicalPackageCodesForShipment\(shipment\.code, logisticsPlan\)/);
-    assert.match(shipmentsSource, /\.from\("shipment_packages"\)\.insert/);
+    assert.match(
+      shipmentsSource,
+      /physicalPackageCodesForShipment\(input\.invoiceNumber, quote\.plan\)/,
+    );
+    assert.match(shipmentsSource, /create_shipment_sale_atomic/);
+    assert.match(atomicSaleMigration, /insert into public\.shipment_packages/i);
+    assert.match(atomicSaleMigration, /invoice_created_by, invoice_paid_by/i);
   });
 
   it("keeps logistics aware of pending, confirmed and missing invoices", () => {

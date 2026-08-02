@@ -3,12 +3,13 @@
 import { CalendarDays } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { DatePickerCalendar } from "@/components/date-picker-calendar";
+import { PickerPanelPortal } from "@/components/picker-panel-portal";
 import { formatDateInputDisplay, PICKER_PANEL_SELECTOR, resolveCalendarView } from "@/lib/date-picker";
 import type { LogisticsCalendarDayTone } from "@/lib/logistics-calendar-day-tones";
 import { insetShellClass } from "@/components/ui-blocks";
 
 const shellBaseClass =
-  `${insetShellClass} box-border inline-flex min-w-0 items-center gap-2 rounded-lg border border-solid border-black bg-surface-inset`;
+  `${insetShellClass} box-border flex min-w-0 max-w-full items-center gap-2 rounded-lg border border-solid border-black bg-surface-inset normal-case`;
 
 const triggerClass =
   "inset-field flex min-h-0 min-w-0 flex-1 items-center truncate border-0 bg-transparent p-0 text-left text-sm font-black leading-none text-[#f8fafc] outline-none";
@@ -61,7 +62,7 @@ export function DateInput({
     ? `${shellBaseClass} h-9 min-w-[11.5rem] w-[12.75rem] px-2.5`
     : compact
       ? `${shellBaseClass} h-9 min-w-0 px-2.5`
-      : `${shellBaseClass} h-11 min-w-0 px-3`;
+      : `${shellBaseClass} h-11 w-full min-w-0 px-3`;
 
   const updatePanelPosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -169,31 +170,23 @@ export function DateInput({
         </span>
       </button>
 
-      {open && panelPosition ? (
-        <div
-          className="fixed z-[160]"
-          style={{
-            top: panelPosition.top,
-            left: panelPosition.left,
+      <PickerPanelPortal open={open} position={panelPosition}>
+        <DatePickerCalendar
+          value={value}
+          viewYear={viewYear}
+          viewMonth={viewMonth}
+          min={min}
+          max={max}
+          allowedWeekdays={allowedWeekdays}
+          dayTones={dayTones}
+          showToneLegend={showToneLegend}
+          onChange={pickDate}
+          onViewChange={(year, month) => {
+            setViewYear(year);
+            setViewMonth(month);
           }}
-        >
-          <DatePickerCalendar
-            value={value}
-            viewYear={viewYear}
-            viewMonth={viewMonth}
-            min={min}
-            max={max}
-            allowedWeekdays={allowedWeekdays}
-            dayTones={dayTones}
-            showToneLegend={showToneLegend}
-            onChange={pickDate}
-            onViewChange={(year, month) => {
-              setViewYear(year);
-              setViewMonth(month);
-            }}
-          />
-        </div>
-      ) : null}
+        />
+      </PickerPanelPortal>
     </>
   );
 }

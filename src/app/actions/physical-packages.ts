@@ -517,3 +517,62 @@ export async function addPhysicalPackageToPalletAction(input: {
     return fail(actionErrorMessage(error));
   }
 }
+
+export async function closeWarehousePalletAction(input: {
+  palletId: string;
+  operationKey?: string;
+}): Promise<ActionResult<{ palletId: string; status: string }>> {
+  try {
+    const session = await requireAppSession();
+    if (!canOperateWarehouse(session)) {
+      throw new Error("FORBIDDEN");
+    }
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) return fail("Supabase no configurado");
+    const operationKey = String(input.operationKey || `close-pallet:${input.palletId}:${Date.now()}`);
+    const { data, error } = await supabase.rpc("close_warehouse_pallet", {
+      target_pallet_id: input.palletId,
+      operation_key: operationKey,
+    });
+    if (error) return fail(error.message);
+    revalidatePath("/paletas");
+    revalidatePath("/bodega");
+    return ok({
+      palletId: String((data as { palletId?: string } | null)?.palletId || input.palletId),
+      status: String((data as { status?: string } | null)?.status || "closed"),
+    });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function reopenWarehousePalletExceptionAction(input: {
+  palletId: string;
+  reason: string;
+  operationKey?: string;
+}): Promise<ActionResult<{ palletId: string; status: string }>> {
+  try {
+    const session = await requireAppSession();
+    if (!canOperateWarehouse(session)) {
+      throw new Error("FORBIDDEN");
+    }
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) return fail("Supabase no configurado");
+    const reason = String(input.reason || "").trim();
+    if (reason.length < 3) return fail("Indica un motivo para reabrir la paleta");
+    const operationKey = String(input.operationKey || `reopen-pallet:${input.palletId}:${Date.now()}`);
+    const { data, error } = await supabase.rpc("reopen_warehouse_pallet_exception", {
+      target_pallet_id: input.palletId,
+      reason_value: reason,
+      operation_key: operationKey,
+    });
+    if (error) return fail(error.message);
+    revalidatePath("/paletas");
+    return ok({
+      palletId: String((data as { palletId?: string } | null)?.palletId || input.palletId),
+      status: String((data as { status?: string } | null)?.status || "open"),
+    });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}

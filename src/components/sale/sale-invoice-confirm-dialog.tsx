@@ -2,6 +2,7 @@
 
 import { SalePaymentMethodField } from "@/components/sale/sale-payment-method-field";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
+import { parseMoneyValue } from "@/lib/logistics-fees";
 import { isSalePaymentUnset, type SalePaymentSelection } from "@/lib/sale-payment-choice";
 
 type SaleInvoiceConfirmDialogProps = {
@@ -9,6 +10,7 @@ type SaleInvoiceConfirmDialogProps = {
   title: string;
   invoiceLabel: string;
   lines: Array<{ label: string; value: string }>;
+  paymentAmount: string;
   confirmLabel: string;
   confirmingLabel?: string;
   confirming?: boolean;
@@ -26,6 +28,7 @@ export function SaleInvoiceConfirmDialog({
   title,
   invoiceLabel,
   lines,
+  paymentAmount,
   confirmLabel,
   confirmingLabel = "Creando...",
   confirming = false,
@@ -41,7 +44,8 @@ export function SaleInvoiceConfirmDialog({
     return null;
   }
 
-  const paymentSelectionRequired = isSalePaymentUnset(paymentMethod);
+  const hasInitialPayment = parseMoneyValue(paymentAmount) > 0;
+  const paymentSelectionRequired = hasInitialPayment && isSalePaymentUnset(paymentMethod);
 
   return (
     <div className="app-modal-overlay fixed inset-0 z-[140] flex justify-center bg-black/70 p-3 sm:p-4">
@@ -65,16 +69,22 @@ export function SaleInvoiceConfirmDialog({
           ))}
         </dl>
 
-        <SalePaymentMethodField
-          className="mt-4"
-          value={paymentMethod}
-          note={paymentNote}
-          pendingPaymentAmount={lines.find((line) => line.label === "Depósito")?.value}
-          disabled={confirming}
-          confirming={confirming}
-          onChange={onPaymentMethodChange}
-          onNoteChange={onPaymentNoteChange}
-        />
+        {hasInitialPayment ? (
+          <SalePaymentMethodField
+            className="mt-4"
+            value={paymentMethod}
+            note={paymentNote}
+            disabled={confirming}
+            confirming={confirming}
+            hideDepositStatus
+            onChange={onPaymentMethodChange}
+            onNoteChange={onPaymentNoteChange}
+          />
+        ) : (
+          <p className="mt-4 rounded-lg border border-black bg-surface-card px-3 py-3 text-sm font-bold text-slate-300">
+            Sin abono inicial. No se registra dinero ahora y el total permanece pendiente.
+          </p>
+        )}
 
         {errorMessage ? (
           <p

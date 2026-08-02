@@ -9,7 +9,7 @@ import {
   X,
 } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
-import type { ShipmentStatus } from "@/app/actions/shipments";
+import type { ShipmentStatus } from "@/lib/shipment-types";
 import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { ContextMenuFlyout } from "@/components/context-menu-flyout";
 import { formatScheduleAtDisplay } from "@/lib/sale/schedule-time";
@@ -26,6 +26,7 @@ import type { ShipmentProgressKind } from "@/lib/shipment-display";
 import {
   EMPTY_BOX_LEG_LABELS,
   FULL_BOX_LEG_LABELS,
+  logisticsLegRouteActionCopy,
 } from "@/lib/shipment-leg-labels";
 import type { ShipmentLogisticsEditorState } from "@/lib/shipment-logistics-edit";
 import { logisticsLegCancelCopy } from "@/lib/shipment-leg-cancel-confirm";
@@ -44,6 +45,7 @@ type ShipmentStepContextMenuProps = {
   lockReason?: string;
   scheduleMode: string;
   scheduleAt: string;
+  routeName?: string;
   currentLegMode?: string;
   legOrdered?: boolean;
   scheduleChanged?: boolean;
@@ -62,7 +64,7 @@ export function scheduleApplyButtonLabel(hasExistingSchedule: boolean) {
 }
 
 function DriverLegReadyMenu({
-  readyLabel,
+  actionCopy,
   cancelLabel,
   scheduleDetail,
   scheduleChanged = false,
@@ -71,7 +73,7 @@ function DriverLegReadyMenu({
   onCancel,
   onProgramRoute,
 }: {
-  readyLabel: string;
+  actionCopy: ReturnType<typeof logisticsLegRouteActionCopy>;
   cancelLabel: string;
   scheduleDetail?: string;
   scheduleChanged?: boolean;
@@ -93,9 +95,9 @@ function DriverLegReadyMenu({
             <Route className="h-5 w-5" />
           </span>
           <span className="min-w-0">
-            <span className="block text-sm font-black text-emerald-100">{readyLabel}</span>
+            <span className="block text-sm font-black text-emerald-100">{actionCopy.title}</span>
             <span className="mt-0.5 block text-[11px] font-bold leading-snug text-slate-400">
-              Eliges la ruta (día) y la hora. Si no la sabes, déjala pendiente de ruta.
+              {actionCopy.description}
             </span>
             {scheduleDetail ? (
               <span className="mt-1 block text-[11px] font-bold text-slate-500">{scheduleDetail}</span>
@@ -218,6 +220,7 @@ export function ShipmentStepContextMenu({
   lockReason,
   scheduleMode,
   scheduleAt,
+  routeName = "",
   currentLegMode = "",
   legOrdered = false,
   scheduleChanged = false,
@@ -303,14 +306,22 @@ export function ShipmentStepContextMenu({
         ? "driver"
         : "unset";
   const isDriverActive = activeChannel === "driver";
-  const scheduleDetail =
+  const formattedSchedule =
     scheduleMode === "scheduled" && scheduleAt
-      ? `Programado · ${formatScheduleAtDisplay(scheduleAt)}`
-      : isDriverActive
-        ? isFull
-          ? "Sin fecha aún"
-          : "Chofer — sin fecha aún"
-        : undefined;
+      ? formatScheduleAtDisplay(scheduleAt)
+      : "";
+  const scheduleDetail =
+    routeName && formattedSchedule
+      ? `${routeName} · ${formattedSchedule}`
+      : routeName
+        ? routeName
+        : formattedSchedule
+          ? `Programado · ${formattedSchedule}`
+          : isDriverActive
+            ? isFull
+              ? "Sin fecha aún"
+              : "Chofer — sin fecha aún"
+            : undefined;
 
   function applyOfficeDelivery() {
     if (isEmpty) {
@@ -337,6 +348,7 @@ export function ShipmentStepContextMenu({
   }
 
   const driverScheduledActive = scheduleMode === "scheduled" && Boolean(scheduleAt);
+  const hasExistingProgramming = driverScheduledActive || Boolean(routeName);
 
   function commitCancelPickup() {
     onApply({
@@ -450,9 +462,9 @@ export function ShipmentStepContextMenu({
                 </span>
               </button>
               <DriverLegReadyMenu
-                readyLabel={FULL_BOX_LEG_LABELS.ready}
+                actionCopy={logisticsLegRouteActionCopy("full_box", hasExistingProgramming)}
                 cancelLabel={FULL_BOX_LEG_LABELS.cancel}
-                scheduleDetail={driverScheduledActive ? scheduleDetail : undefined}
+                scheduleDetail={hasExistingProgramming ? scheduleDetail : undefined}
                 scheduleChanged={scheduleChanged}
                 legOrdered={legOrdered}
                 locked={locked}
@@ -490,9 +502,9 @@ export function ShipmentStepContextMenu({
               </ContextMenuFlyout>
             ) : isLeftClickMenu ? (
               <DriverLegReadyMenu
-                readyLabel={EMPTY_BOX_LEG_LABELS.ready}
+                actionCopy={logisticsLegRouteActionCopy("empty_box", hasExistingProgramming)}
                 cancelLabel={EMPTY_BOX_LEG_LABELS.cancel}
-                scheduleDetail={driverScheduledActive ? scheduleDetail : undefined}
+                scheduleDetail={hasExistingProgramming ? scheduleDetail : undefined}
                 scheduleChanged={scheduleChanged}
                 legOrdered={legOrdered}
                 locked={locked}

@@ -5,7 +5,7 @@ import type {
   InventoryMovementReasonCode,
   InventoryMovementReferenceType,
 } from "@/lib/inventory-movement-audit";
-import { readPositiveQty } from "@/lib/security/qty";
+import { readNonNegativeIntegerQty, readPositiveQty } from "@/lib/security/qty";
 
 type InventoryMovementType = "entrada" | "salida" | "ajuste" | "devolucion";
 
@@ -47,7 +47,10 @@ export async function recordInventoryMovementAtomic(
   supabase: SupabaseClient,
   input: RecordInventoryMovementInput,
 ): Promise<RecordInventoryMovementResult> {
-  const qty = readPositiveQty(input.qty);
+  const qty =
+    input.type === "ajuste"
+      ? readNonNegativeIntegerQty(input.qty)
+      : readPositiveQty(input.qty);
 
   const { data, error } = await supabase.rpc("record_inventory_movement_atomic", {
     target_org_id: input.organizationId,

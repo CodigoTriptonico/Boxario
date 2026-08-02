@@ -1,12 +1,11 @@
 "use server";
 
-import { requireAppSession } from "@/lib/auth/session";
-import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
+import { requireScopedActionContext } from "@/lib/actions/context";
 import { recordActivityHistory } from "@/lib/activity-history";
-import { isSalePersonCardVariantId } from "@/components/sale/sale-person-card-variants";
+import { requireAppSession } from "@/lib/auth/session";
+import { isSalePersonCardVariantId } from "@/lib/sale-person-card-variants";
 import {
-  canAccessCustomersSession,
   listCustomersForSession,
   listRecipientsForCustomerSession,
   mapCustomerRow,
@@ -15,11 +14,17 @@ import {
   type CustomerWithRecipientsRow,
 } from "@/lib/customers/load";
 import type { ListCustomersParams } from "@/lib/customers/list-params";
-import { assertSameOrgCustomerIds } from "@/lib/security/org-scope";
 import {
-  normalizePersonName,
-  personNameValidationMessage,
-} from "@/lib/person-name";
+  CUSTOMER_MUTATION_SELECT,
+  RECIPIENT_MUTATION_SELECT,
+  normalizeCustomerMutation,
+  normalizeRecipientMutation,
+  type CreateCustomerInput,
+  type CreateRecipientInput,
+  type UpdateCustomerInput,
+  type UpdateRecipientInput,
+} from "@/lib/customers/mutations";
+import { assertSameOrgCustomerIds } from "@/lib/security/org-scope";
 import { customerZoneKeyFromParts } from "@/lib/customer-route-verification";
 import { revokeCustomerRouteVerificationsForZoneChange } from "@/lib/customer-route-verifications-mutate";
 
@@ -27,36 +32,66 @@ export type { CustomerRecipientRow, CustomerWithRecipientsRow } from "@/lib/cust
 
 type CustomerDbRow = Parameters<typeof mapCustomerRow>[0];
 type RecipientDbRow = Parameters<typeof mapRecipientRow>[0];
+type CustomerActionDatabase =
+  Awaited<ReturnType<typeof requireScopedActionContext>>["supabase"];
 
-type GeoAddressInput = {
-  placeId?: string;
-  formattedAddress?: string;
-  addressVerified?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-};
-
-function geoAddressPatch(input: GeoAddressInput) {
-  const hasGeo =
-    typeof input.lat === "number" &&
-    Number.isFinite(input.lat) &&
-    typeof input.lng === "number" &&
-    Number.isFinite(input.lng);
-
-  return {
-    place_id: input.placeId?.trim() || null,
-    formatted_address: input.formattedAddress?.trim() || null,
-    address_verified: Boolean(input.addressVerified),
-    lat: hasGeo ? input.lat : null,
-    lng: hasGeo ? input.lng : null,
-    geo_updated_at: hasGeo ? new Date().toISOString() : null,
-  };
+async function customerActionContext() {
+  return requireScopedActionContext(["sales.manage", "customers.manage"]);
 }
 
-function normalizeEmailList(input?: string[]) {
-  return Array.from(
-    new Set((input || []).map((email) => email.trim().toLowerCase()).filter(Boolean)),
-  );
+async function recipientCountryId(
+  supabase: CustomerActionDatabase,
+  organizationId: string,
+  countryName: string,
+) {
+  const { data, error } = await supabase
+    .from("pricing_countries")
+    .select("id")
+    .eq("organization_id", organizationId)
+    .eq("name", countryName)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+  if (!data) {
+    throw new Error("Crea primero el país destino del destinatario.");
+  }
+
+  return data.id;
+}
+
+async function updatePersonCardStyle(input: {
+  table: "customers" | "customer_recipients";
+  id: string;
+  cardStyle: string;
+}): Promise<ActionResult<{ cardStyle: string }>> {
+  try {
+    const { session, supabase } = await customerActionContext();
+
+    if (!isSalePersonCardVariantId(input.cardStyle)) {
+      return fail("Estilo de tarjeta no válido");
+    }
+
+    const { data, error } = await supabase
+      .from(input.table)
+      .update({
+        card_style: input.cardStyle,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", input.id)
+      .eq("organization_id", session.organizationId)
+      .select("id, card_style")
+      .single();
+
+    if (error || !data) {
+      return fail(error?.message || "No se pudo actualizar el estilo");
+    }
+
+    return ok({ cardStyle: data.card_style || input.cardStyle });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
 }
 
 export async function listCustomersWithRecipientsAction(
@@ -83,52 +118,16 @@ export async function listRecipientsForCustomerAction(
   }
 }
 
-export async function createCustomerAction(input: {
-  firstName: string;
-  lastName: string;
-  phones: string[];
-  email?: string;
-  emails?: string[];
-  street: string;
-  houseNumber: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country?: string;
-  addressReference?: string;
-  referredByCustomerId?: string;
-  placeId?: string;
-  formattedAddress?: string;
-  addressVerified?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-}): Promise<ActionResult<CustomerWithRecipientsRow>> {
+export async function createCustomerAction(
+  input: CreateCustomerInput,
+): Promise<ActionResult<CustomerWithRecipientsRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
+    const { session, supabase } = await customerActionContext();
+    const normalized = normalizeCustomerMutation(input);
+    if (!normalized.ok) {
+      return fail(normalized.error);
     }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
-    const phones = input.phones.map((phone) => phone.trim()).filter(Boolean);
-    const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
-    const firstName = normalizePersonName(input.firstName);
-    const lastName = normalizePersonName(input.lastName);
-    const nameError =
-      personNameValidationMessage(input.firstName, "nombre") ||
-      personNameValidationMessage(input.lastName, "apellido");
-    if (nameError) {
-      return fail(nameError);
-    }
-    if (!phones.length) {
-      return fail("Agrega al menos un telefono");
-    }
+    const { firstName, lastName, phones, patch } = normalized.value;
 
     await assertSameOrgCustomerIds(supabase, session.organizationId, [
       input.referredByCustomerId || "",
@@ -138,25 +137,10 @@ export async function createCustomerAction(input: {
       .from("customers")
       .insert({
         organization_id: session.organizationId,
-        first_name: firstName,
-        last_name: lastName,
-        phones,
-        email: emails[0] || "",
-        emails,
-        street: input.street.trim(),
-        house_number: input.houseNumber.trim(),
-        neighborhood: input.neighborhood.trim(),
-        city: input.city.trim(),
-        state: input.state.trim(),
-        postal_code: input.postalCode.trim(),
-        address_reference: input.addressReference?.trim() || "",
-        country: input.country?.trim() || "USA",
+        ...patch,
         referred_by_customer_id: input.referredByCustomerId || null,
-        ...geoAddressPatch(input),
       })
-      .select(
-        "id, referred_by_customer_id, first_name, last_name, phones, email, emails, street, house_number, neighborhood, city, state, postal_code, country, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng",
-      )
+      .select(CUSTOMER_MUTATION_SELECT)
       .single();
 
     if (error || !data) {
@@ -179,52 +163,16 @@ export async function createCustomerAction(input: {
   }
 }
 
-export async function updateCustomerAction(input: {
-  customerId: string;
-  firstName: string;
-  lastName: string;
-  phones: string[];
-  email?: string;
-  emails?: string[];
-  street: string;
-  houseNumber: string;
-  neighborhood: string;
-  city: string;
-  state: string;
-  postalCode: string;
-  country?: string;
-  addressReference?: string;
-  placeId?: string;
-  formattedAddress?: string;
-  addressVerified?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-}): Promise<ActionResult<CustomerWithRecipientsRow>> {
+export async function updateCustomerAction(
+  input: UpdateCustomerInput,
+): Promise<ActionResult<CustomerWithRecipientsRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
+    const { session, supabase } = await customerActionContext();
+    const normalized = normalizeCustomerMutation(input);
+    if (!normalized.ok) {
+      return fail(normalized.error);
     }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
-    const phones = input.phones.map((phone) => phone.trim()).filter(Boolean);
-    const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
-    const firstName = normalizePersonName(input.firstName);
-    const lastName = normalizePersonName(input.lastName);
-    const nameError =
-      personNameValidationMessage(input.firstName, "nombre") ||
-      personNameValidationMessage(input.lastName, "apellido");
-    if (nameError) {
-      return fail(nameError);
-    }
-    if (!phones.length) {
-      return fail("Agrega al menos un telefono");
-    }
+    const { firstName, lastName, phones, patch } = normalized.value;
 
     const { data: previousCustomer } = await supabase
       .from("customers")
@@ -243,20 +191,7 @@ export async function updateCustomerAction(input: {
     const { data, error } = await supabase
       .from("customers")
       .update({
-        first_name: firstName,
-        last_name: lastName,
-        phones,
-        email: emails[0] || "",
-        emails,
-        street: input.street.trim(),
-        house_number: input.houseNumber.trim(),
-        neighborhood: input.neighborhood.trim(),
-        city: input.city.trim(),
-        state: input.state.trim(),
-        postal_code: input.postalCode.trim(),
-        address_reference: input.addressReference?.trim() || "",
-        country: input.country?.trim() || "USA",
-        ...geoAddressPatch(input),
+        ...patch,
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.customerId)
@@ -351,96 +286,27 @@ export async function updateCustomerCardStyleAction(input: {
   customerId: string;
   cardStyle: string;
 }): Promise<ActionResult<{ cardStyle: string }>> {
-  try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    if (!isSalePersonCardVariantId(input.cardStyle)) {
-      return fail("Estilo de tarjeta no válido");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
-    const { data, error } = await supabase
-      .from("customers")
-      .update({
-        card_style: input.cardStyle,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.customerId)
-      .eq("organization_id", session.organizationId)
-      .select("id, card_style")
-      .single();
-
-    if (error || !data) {
-      return fail(error?.message || "No se pudo actualizar el estilo");
-    }
-
-    return ok({ cardStyle: data.card_style || input.cardStyle });
-  } catch (error) {
-    return fail(actionErrorMessage(error));
-  }
+  return updatePersonCardStyle({
+    table: "customers",
+    id: input.customerId,
+    cardStyle: input.cardStyle,
+  });
 }
 
 export async function updateRecipientCardStyleAction(input: {
   recipientId: string;
   cardStyle: string;
 }): Promise<ActionResult<{ cardStyle: string }>> {
-  try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    if (!isSalePersonCardVariantId(input.cardStyle)) {
-      return fail("Estilo de tarjeta no válido");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
-    const { data, error } = await supabase
-      .from("customer_recipients")
-      .update({
-        card_style: input.cardStyle,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", input.recipientId)
-      .eq("organization_id", session.organizationId)
-      .select("id, card_style")
-      .single();
-
-    if (error || !data) {
-      return fail(error?.message || "No se pudo actualizar el estilo");
-    }
-
-    return ok({ cardStyle: data.card_style || input.cardStyle });
-  } catch (error) {
-    return fail(actionErrorMessage(error));
-  }
+  return updatePersonCardStyle({
+    table: "customer_recipients",
+    id: input.recipientId,
+    cardStyle: input.cardStyle,
+  });
 }
 
 export async function deactivateCustomerAction(customerId: string): Promise<ActionResult<null>> {
   try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await customerActionContext();
 
     const { data, error } = await supabase
       .from("customers")
@@ -468,91 +334,30 @@ export async function deactivateCustomerAction(customerId: string): Promise<Acti
   }
 }
 
-export async function createRecipientAction(input: {
-  customerId: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email?: string;
-  emails?: string[];
-  country: string;
-  street: string;
-  houseNumber: string;
-  neighborhood: string;
-  city: string;
-  state?: string;
-  postalCode: string;
-  addressReference?: string;
-  placeId?: string;
-  formattedAddress?: string;
-  addressVerified?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-}): Promise<ActionResult<CustomerRecipientRow>> {
+export async function createRecipientAction(
+  input: CreateRecipientInput,
+): Promise<ActionResult<CustomerRecipientRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await customerActionContext();
 
     await assertSameOrgCustomerIds(supabase, session.organizationId, [input.customerId]);
 
     const countryName = input.country.trim();
-    const { data: country, error: countryError } = await supabase
-      .from("pricing_countries")
-      .select("id")
-      .eq("organization_id", session.organizationId)
-      .eq("name", countryName)
-      .maybeSingle();
-
-    if (countryError) {
-      return fail(countryError.message);
+    const countryId = await recipientCountryId(supabase, session.organizationId, countryName);
+    const normalized = normalizeRecipientMutation(input, countryId);
+    if (!normalized.ok) {
+      return fail(normalized.error);
     }
-
-    if (!country) {
-      return fail("Crea primero el país destino del destinatario.");
-    }
-
-    const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
-    const firstName = normalizePersonName(input.firstName);
-    const lastName = normalizePersonName(input.lastName);
-    const nameError =
-      personNameValidationMessage(input.firstName, "nombre") ||
-      personNameValidationMessage(input.lastName, "apellido");
-    if (nameError) {
-      return fail(nameError);
-    }
+    const { firstName, lastName, emails, patch } = normalized.value;
 
     const { data, error } = await supabase
       .from("customer_recipients")
       .insert({
         organization_id: session.organizationId,
         customer_id: input.customerId,
-        country_id: country.id,
-        first_name: firstName,
-        last_name: lastName,
-        phone: input.phone.trim(),
-        email: emails[0] || "",
-        emails,
-        country: input.country.trim(),
-        street: input.street.trim(),
-        house_number: input.houseNumber.trim(),
-        neighborhood: input.neighborhood.trim(),
-        city: input.city.trim(),
-        state: input.state?.trim() || "",
-        postal_code: input.postalCode.trim(),
-        address_reference: input.addressReference?.trim() || "",
-        ...geoAddressPatch(input),
+        ...patch,
       })
-      .select(
-        "id, first_name, last_name, phone, email, emails, country, street, house_number, neighborhood, city, state, postal_code, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng",
-      )
+      .select(RECIPIENT_MUTATION_SELECT)
       .single();
 
     if (error || !data) {
@@ -574,90 +379,28 @@ export async function createRecipientAction(input: {
   }
 }
 
-export async function updateRecipientAction(input: {
-  recipientId: string;
-  firstName: string;
-  lastName: string;
-  phone: string;
-  email?: string;
-  emails?: string[];
-  country: string;
-  street: string;
-  houseNumber: string;
-  neighborhood: string;
-  city: string;
-  state?: string;
-  postalCode: string;
-  addressReference?: string;
-  placeId?: string;
-  formattedAddress?: string;
-  addressVerified?: boolean;
-  lat?: number | null;
-  lng?: number | null;
-}): Promise<ActionResult<CustomerRecipientRow>> {
+export async function updateRecipientAction(
+  input: UpdateRecipientInput,
+): Promise<ActionResult<CustomerRecipientRow>> {
   try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
-
+    const { session, supabase } = await customerActionContext();
     const countryName = input.country.trim();
-    const { data: country, error: countryError } = await supabase
-      .from("pricing_countries")
-      .select("id")
-      .eq("organization_id", session.organizationId)
-      .eq("name", countryName)
-      .maybeSingle();
-
-    if (countryError) {
-      return fail(countryError.message);
+    const countryId = await recipientCountryId(supabase, session.organizationId, countryName);
+    const normalized = normalizeRecipientMutation(input, countryId);
+    if (!normalized.ok) {
+      return fail(normalized.error);
     }
-
-    if (!country) {
-      return fail("Crea primero el país destino del destinatario.");
-    }
-
-    const emails = normalizeEmailList(input.emails?.length ? input.emails : [input.email || ""]);
-    const firstName = normalizePersonName(input.firstName);
-    const lastName = normalizePersonName(input.lastName);
-    const nameError =
-      personNameValidationMessage(input.firstName, "nombre") ||
-      personNameValidationMessage(input.lastName, "apellido");
-    if (nameError) {
-      return fail(nameError);
-    }
+    const { firstName, lastName, emails, patch } = normalized.value;
 
     const { data, error } = await supabase
       .from("customer_recipients")
       .update({
-        first_name: firstName,
-        last_name: lastName,
-        phone: input.phone.trim(),
-        email: emails[0] || "",
-        emails,
-        country_id: country.id,
-        country: input.country.trim(),
-        street: input.street.trim(),
-        house_number: input.houseNumber.trim(),
-        neighborhood: input.neighborhood.trim(),
-        city: input.city.trim(),
-        state: input.state?.trim() || "",
-        postal_code: input.postalCode.trim(),
-        address_reference: input.addressReference?.trim() || "",
-        ...geoAddressPatch(input),
+        ...patch,
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.recipientId)
       .eq("organization_id", session.organizationId)
-      .select(
-        "id, first_name, last_name, phone, email, emails, country, street, house_number, neighborhood, city, state, postal_code, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng",
-      )
+      .select(RECIPIENT_MUTATION_SELECT)
       .single();
 
     if (error || !data) {
@@ -680,16 +423,7 @@ export async function updateRecipientAction(input: {
 
 export async function deleteRecipientAction(recipientId: string): Promise<ActionResult<null>> {
   try {
-    const session = await requireAppSession();
-
-    if (!canAccessCustomersSession(session)) {
-      throw new Error("FORBIDDEN");
-    }
-
-    const supabase = await createScopedSupabase(session);
-    if (!supabase) {
-      return fail("Supabase no configurado");
-    }
+    const { session, supabase } = await customerActionContext();
 
     const { data, error } = await supabase
       .from("customer_recipients")

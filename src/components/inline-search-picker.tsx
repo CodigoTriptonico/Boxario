@@ -8,6 +8,7 @@ import {
   useRef,
   useState,
   useSyncExternalStore,
+  type RefObject,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
@@ -82,6 +83,122 @@ function normalizeSearch(value: string) {
   return value.trim().toLowerCase();
 }
 
+function useInlinePickerState({
+  disabled,
+  onClose,
+}: {
+  disabled: boolean;
+  onClose?: () => void;
+}) {
+  const listboxId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const [open, setOpen] = useState(false);
+  const [lockedWidth, setLockedWidth] = useState<number | undefined>();
+  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
+  const mounted = useSyncExternalStore(
+    subscribeToDomReady,
+    getDomReadySnapshot,
+    getServerDomReadySnapshot,
+  );
+
+  const updatePanelPosition = useCallback(() => {
+    const trigger = rootRef.current;
+    if (!trigger) {
+      return;
+    }
+
+    const rect = trigger.getBoundingClientRect();
+    setPanelPosition({
+      top: rect.bottom + 6,
+      left: rect.left,
+      width: Math.max(PANEL_MIN_WIDTH, rect.width),
+    });
+  }, []);
+
+  const openPanel = useCallback(() => {
+    if (disabled) {
+      return;
+    }
+    if (rootRef.current) {
+      setLockedWidth(rootRef.current.getBoundingClientRect().width);
+    }
+    setOpen(true);
+  }, [disabled]);
+
+  const closePanel = useCallback(() => {
+    setOpen(false);
+    setLockedWidth(undefined);
+    onClose?.();
+  }, [onClose]);
+
+  useFloatingPickerLifecycle({
+    open,
+    updatePosition: updatePanelPosition,
+    close: closePanel,
+    rootRef,
+    panelRef,
+    searchRef,
+  });
+
+  return {
+    closePanel,
+    listboxId,
+    lockedWidth,
+    mounted,
+    open,
+    openPanel,
+    panelPosition,
+    panelRef,
+    rootRef,
+    searchRef,
+  };
+}
+
+function InlineOptionsPanel({
+  emptyLabel,
+  listboxId,
+  options,
+  panelPosition,
+  panelRef,
+  panelWidth,
+  renderOption,
+}: {
+  emptyLabel: string;
+  listboxId: string;
+  options: InlineSearchPickerOption[];
+  panelPosition: PanelPosition;
+  panelRef: RefObject<HTMLDivElement | null>;
+  panelWidth: number;
+  renderOption: (option: InlineSearchPickerOption) => ReactNode;
+}) {
+  return (
+    <div
+      ref={panelRef}
+      id={listboxId}
+      role="listbox"
+      data-inline-search-picker-panel
+      className="fixed z-[170] overflow-hidden rounded-lg border border-black bg-[#101820] shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+      style={{
+        top: panelPosition.top,
+        left: panelPosition.left,
+        width: panelWidth,
+      }}
+    >
+      <ul className="max-h-52 overflow-y-auto py-1">
+        {options.length ? (
+          options.map(renderOption)
+        ) : (
+          <li className="px-3 py-4 text-center text-sm font-bold text-slate-500">
+            {emptyLabel}
+          </li>
+        )}
+      </ul>
+    </div>
+  );
+}
+
 export type InlineSearchPickerProps = {
   options: InlineSearchPickerOption[];
   value: string;
@@ -123,19 +240,20 @@ export function InlineSearchPicker({
   formatSelectedLabel,
   openOnMount = false,
 }: InlineSearchPickerProps) {
-  const listboxId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [lockedWidth, setLockedWidth] = useState<number | undefined>();
-  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
-  const mounted = useSyncExternalStore(
-    subscribeToDomReady,
-    getDomReadySnapshot,
-    getServerDomReadySnapshot,
-  );
+  const resetQuery = useCallback(() => setQuery(""), []);
+  const {
+    closePanel: close,
+    listboxId,
+    lockedWidth,
+    mounted,
+    open,
+    openPanel: openPicker,
+    panelPosition,
+    panelRef,
+    rootRef,
+    searchRef,
+  } = useInlinePickerState({ disabled, onClose: resetQuery });
 
   const activeOption = options.find((option) => option.value === value);
 
@@ -151,40 +269,6 @@ export function InlineSearchPicker({
       return haystack.includes(normalized);
     });
   }, [options, query]);
-
-  const updatePanelPosition = useCallback(() => {
-    const trigger = rootRef.current;
-
-    if (!trigger) {
-      return;
-    }
-
-    const rect = trigger.getBoundingClientRect();
-
-    setPanelPosition({
-      top: rect.bottom + 6,
-      left: rect.left,
-      width: Math.max(PANEL_MIN_WIDTH, rect.width),
-    });
-  }, []);
-
-  const openPicker = useCallback(() => {
-    if (disabled) {
-      return;
-    }
-
-    if (rootRef.current) {
-      setLockedWidth(rootRef.current.getBoundingClientRect().width);
-    }
-
-    setOpen(true);
-  }, [disabled]);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    setQuery("");
-    setLockedWidth(undefined);
-  }, []);
 
   const selectOption = useCallback(
     (option: InlineSearchPickerOption) => {
@@ -204,15 +288,6 @@ export function InlineSearchPicker({
     },
     [close, onChange, onSelectOption],
   );
-
-  useFloatingPickerLifecycle({
-    open,
-    updatePosition: updatePanelPosition,
-    close,
-    rootRef,
-    panelRef,
-    searchRef,
-  });
 
   useEffect(() => {
     if (!openOnMount || disabled) {
@@ -241,64 +316,49 @@ export function InlineSearchPicker({
 
   const panel =
     open && panelPosition && mounted ? (
-      <div
-        ref={panelRef}
-        id={listboxId}
-        role="listbox"
-        data-inline-search-picker-panel
-        className="fixed z-[170] overflow-hidden rounded-lg border border-black bg-[#101820] shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
-        style={{
-          top: panelPosition.top,
-          left: panelPosition.left,
-          width: panelWidth,
-        }}
-      >
-        <ul className="max-h-52 overflow-y-auto py-1">
-          {filteredOptions.length ? (
-            filteredOptions.map((option) => {
-              const selected = option.value === value;
-              const isDisabled = Boolean(option.disabled);
+      <InlineOptionsPanel
+        emptyLabel={emptyLabel}
+        listboxId={listboxId}
+        options={filteredOptions}
+        panelPosition={panelPosition}
+        panelRef={panelRef}
+        panelWidth={panelWidth}
+        renderOption={(option) => {
+          const selected = option.value === value;
+          const isDisabled = Boolean(option.disabled);
 
-              return (
-                <li key={option.value}>
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={selected}
-                    aria-disabled={isDisabled}
-                    disabled={isDisabled}
-                    onMouseDown={(event) => event.preventDefault()}
-                    onClick={() => selectOption(option)}
-                    className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
-                      isDisabled
-                        ? "cursor-not-allowed text-slate-600"
-                        : option.action
-                          ? "text-emerald-300 hover:bg-emerald-400/10"
-                          : selected
-                            ? "bg-emerald-400/15 text-emerald-100"
-                            : "text-slate-200 hover:bg-surface-card-header/80"
-                    }`}
-                  >
-                    {option.icon ? (
-                      <span className="shrink-0">{option.icon}</span>
-                    ) : null}
-                    <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
-                      {option.label}
-                    </span>
-                    {option.trailing ? (
-                      <span className="shrink-0">{option.trailing}</span>
-                    ) : null}
-                  </button>
-                </li>
-              );
-            })
-          ) : (
-            <li className="px-3 py-4 text-center text-sm font-bold text-slate-500">
-              {emptyLabel}
+          return (
+            <li key={option.value}>
+              <button
+                type="button"
+                role="option"
+                aria-selected={selected}
+                aria-disabled={isDisabled}
+                disabled={isDisabled}
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => selectOption(option)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                  isDisabled
+                    ? "cursor-not-allowed text-slate-600"
+                    : option.action
+                      ? "text-emerald-300 hover:bg-emerald-400/10"
+                      : selected
+                        ? "bg-emerald-400/15 text-emerald-100"
+                        : "text-slate-200 hover:bg-surface-card-header/80"
+                }`}
+              >
+                {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
+                <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
+                  {option.label}
+                </span>
+                {option.trailing ? (
+                  <span className="shrink-0">{option.trailing}</span>
+                ) : null}
+              </button>
             </li>
-          )}
-        </ul>
-      </div>
+          );
+        }}
+      />
     ) : null;
 
   const triggerLabel = formatSelectedLabel
@@ -407,18 +467,18 @@ export function InlineSearchCombobox({
   shellClassName,
   onSelectOption,
 }: InlineSearchComboboxProps) {
-  const listboxId = useId();
-  const rootRef = useRef<HTMLDivElement>(null);
-  const panelRef = useRef<HTMLDivElement>(null);
-  const searchRef = useRef<HTMLInputElement>(null);
-  const [open, setOpen] = useState(false);
-  const [lockedWidth, setLockedWidth] = useState<number | undefined>();
-  const [panelPosition, setPanelPosition] = useState<PanelPosition | null>(null);
-  const mounted = useSyncExternalStore(
-    subscribeToDomReady,
-    getDomReadySnapshot,
-    getServerDomReadySnapshot,
-  );
+  const {
+    closePanel: close,
+    listboxId,
+    lockedWidth,
+    mounted,
+    open,
+    openPanel: openCombobox,
+    panelPosition,
+    panelRef,
+    rootRef,
+    searchRef,
+  } = useInlinePickerState({ disabled });
 
   const filteredOptions = useMemo(() => {
     const normalized = normalizeSearch(value);
@@ -443,39 +503,6 @@ export function InlineSearchCombobox({
     return options.find((option) => normalizeSearch(option.label) === normalized);
   }, [options, value]);
 
-  const updatePanelPosition = useCallback(() => {
-    const trigger = rootRef.current;
-
-    if (!trigger) {
-      return;
-    }
-
-    const rect = trigger.getBoundingClientRect();
-
-    setPanelPosition({
-      top: rect.bottom + 6,
-      left: rect.left,
-      width: Math.max(PANEL_MIN_WIDTH, rect.width),
-    });
-  }, []);
-
-  const openCombobox = useCallback(() => {
-    if (disabled) {
-      return;
-    }
-
-    if (rootRef.current) {
-      setLockedWidth(rootRef.current.getBoundingClientRect().width);
-    }
-
-    setOpen(true);
-  }, [disabled]);
-
-  const close = useCallback(() => {
-    setOpen(false);
-    setLockedWidth(undefined);
-  }, []);
-
   const selectOption = useCallback(
     (option: InlineSearchPickerOption) => {
       onChange(option.label);
@@ -484,15 +511,6 @@ export function InlineSearchCombobox({
     },
     [close, onChange, onSelectOption],
   );
-
-  useFloatingPickerLifecycle({
-    open,
-    updatePosition: updatePanelPosition,
-    close,
-    rootRef,
-    panelRef,
-    searchRef,
-  });
 
   const shellClass = shellClassName
     ? shellClassName
@@ -516,49 +534,32 @@ export function InlineSearchCombobox({
 
   const panel =
     open && panelPosition && mounted ? (
-      <div
-        ref={panelRef}
-        id={listboxId}
-        role="listbox"
-        data-inline-search-picker-panel
-        className="fixed z-[170] overflow-hidden rounded-lg border border-black bg-[#101820] shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
-        style={{
-          top: panelPosition.top,
-          left: panelPosition.left,
-          width: panelWidth,
-        }}
-      >
-        <ul className="max-h-52 overflow-y-auto py-1">
-          {filteredOptions.length ? (
-            filteredOptions.map((option) => (
-              <li key={option.value}>
-                <button
-                  type="button"
-                  role="option"
-                  aria-selected={normalizeSearch(value) === normalizeSearch(option.label)}
-                  onMouseDown={(event) => event.preventDefault()}
-                  onClick={() => selectOption(option)}
-                  className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold text-slate-200 transition hover:bg-surface-card-header/80"
-                >
-                  {option.icon ? (
-                    <span className="shrink-0">{option.icon}</span>
-                  ) : null}
-                  <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
-                    {option.label}
-                  </span>
-                  {option.trailing ? (
-                    <span className="shrink-0">{option.trailing}</span>
-                  ) : null}
-                </button>
-              </li>
-            ))
-          ) : (
-            <li className="px-3 py-4 text-center text-sm font-bold text-slate-500">
-              {emptyLabel}
-            </li>
-          )}
-        </ul>
-      </div>
+      <InlineOptionsPanel
+        emptyLabel={emptyLabel}
+        listboxId={listboxId}
+        options={filteredOptions}
+        panelPosition={panelPosition}
+        panelRef={panelRef}
+        panelWidth={panelWidth}
+        renderOption={(option) => (
+          <li key={option.value}>
+            <button
+              type="button"
+              role="option"
+              aria-selected={normalizeSearch(value) === normalizeSearch(option.label)}
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => selectOption(option)}
+              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold text-slate-200 transition hover:bg-surface-card-header/80"
+            >
+              {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
+              <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
+                {option.label}
+              </span>
+              {option.trailing ? <span className="shrink-0">{option.trailing}</span> : null}
+            </button>
+          </li>
+        )}
+      />
     ) : null;
 
   return (

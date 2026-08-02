@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { test } from "node:test";
 
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+
 const root = process.cwd();
 const source = (path: string) => readFileSync(join(root, path), "utf8");
 
@@ -15,7 +17,7 @@ test("the mobile account control is a 40px icon trigger while the desktop label 
 });
 
 test("conductor information disclosures stay inside a phone viewport", () => {
-  const conductorTasks = source("src/components/conductor/conductor-tareas-client.tsx");
+  const conductorTasks = readConductorTareasClientSource(root);
 
   assert.match(conductorTasks, /fixed inset-x-4 top-1\/2[\s\S]*-translate-y-1\/2/);
   assert.match(conductorTasks, /sm:absolute sm:inset-x-auto sm:top-full[\s\S]*sm:max-w-\[calc\(100vw-2rem\)\]/);

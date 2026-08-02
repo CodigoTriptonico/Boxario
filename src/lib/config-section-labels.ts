@@ -2,7 +2,6 @@ export type ConfigSectionId =
   | "organization"
   | "prices"
   | "distributors"
-  | "deliveries"
   | "appearance"
   | "timeclock";
 
@@ -18,16 +17,12 @@ export const CONFIG_SECTION_LABELS: Record<ConfigSectionId, ConfigSectionLabel> 
     text: "Empresa, plan, usuarios, roles, bodegas e importación.",
   },
   prices: {
-    title: "Países y precios",
-    text: "Destinos, tiempos de entrega y catálogo de productos.",
+    title: "Costos",
+    text: "Precios por país y cargos de entrega o recolección.",
   },
   distributors: {
     title: "Distribuidores",
     text: "Proveedores y costos de compra por país.",
-  },
-  deliveries: {
-    title: "Entrega y recolección",
-    text: "Depósito mínimo, horarios y tarifas de domicilio.",
   },
   appearance: {
     title: "Apariencia",

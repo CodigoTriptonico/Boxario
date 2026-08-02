@@ -29,6 +29,14 @@ export type LogisticsRouteStopAddress = {
   lng: number | null;
 };
 
+export type LogisticsTaskAddressRow = {
+  taskId: string;
+  address: LogisticsRouteStopAddress;
+  zoneKey: string;
+  zoneLabel: string;
+  hasGeo: boolean;
+};
+
 export type LogisticsRouteTaskInput = {
   taskId: string;
   shipmentId: string;

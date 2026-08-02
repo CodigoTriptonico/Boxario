@@ -137,3 +137,22 @@ export function formatBinPlacementSummary(
 
   return summary;
 }
+
+export function formatPrimaryItemLocation(
+  placements: InventoryBinPlacement[],
+  warehouseName?: string,
+) {
+  if (!placements.length) {
+    return "";
+  }
+
+  const sorted = [...placements].sort((left, right) => right.quantity - left.quantity);
+  const primary = sorted[0];
+  const location = primary.binCode || primary.binLabel;
+
+  if (warehouseName?.trim()) {
+    return `${location} · ${warehouseName.trim()}`;
+  }
+
+  return location;
+}

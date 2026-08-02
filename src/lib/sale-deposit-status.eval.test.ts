@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readVentaPartsSource } from "@/test-utils/venta-source";
 
 const root = process.cwd();
 const fieldSource = readFileSync(
@@ -10,11 +12,8 @@ const fieldSource = readFileSync(
 );
 const paymentSource = readFileSync(join(root, "src/lib/sale-payment-choice.ts"), "utf8");
 const billingSource = readFileSync(join(root, "src/lib/invoice-billing.ts"), "utf8");
-const shipmentActionSource = readFileSync(join(root, "src/app/actions/shipments.ts"), "utf8");
-const invoiceSource = readFileSync(
-  join(root, "src/components/sale/venta-parts.tsx"),
-  "utf8",
-);
+const shipmentActionSource = readShipmentActionsSource(root);
+const invoiceSource = readVentaPartsSource();
 
 describe("sale deposit status UI", () => {
   it("defaults to paid and records no money when the seller unchecks it", () => {
@@ -35,7 +34,31 @@ describe("sale deposit status UI", () => {
     assert.match(billingSource, /depositStatusForPayment/);
     assert.match(shipmentActionSource, /payment_kind: paymentKind/);
     assert.match(shipmentActionSource, /invoicePaymentKindForCurrentDeposit/);
-    assert.match(invoiceSource, /billing\?\.depositStatus === "pending"/);
-    assert.match(invoiceSource, /billing\?\.depositRequired/);
+    assert.match(invoiceSource, /billing\.quotedTotal/);
+    assert.match(invoiceSource, /billing\.payNow/);
+    assert.match(invoiceSource, /billing\.balanceDue/);
+    assert.match(invoiceSource, /−\{billing\.payNow\}/);
+    assert.match(invoiceSource, /Sin abono inicial/);
+    assert.match(invoiceSource, /onInitialPaymentWaivedChange/);
+    assert.match(invoiceSource, /El depósito no se cobra ahora; el total queda pendiente/);
+    assert.match(invoiceSource, /showInitialPaymentRow/);
+    assert.match(invoiceSource, /showQuotedTotalRow/);
+    assert.match(invoiceSource, /showBalanceDueRow/);
+    assert.match(invoiceSource, /hideSoleChargeAmount/);
+    assert.match(invoiceSource, /chargeLines\.length !== 1/);
+    assert.match(invoiceSource, />Debe<\/p>/);
+    assert.doesNotMatch(invoiceSource, />Total pendiente<\/p>/);
+    assert.match(invoiceSource, /items-baseline justify-end gap-0\.5 whitespace-nowrap/);
+    assert.match(invoiceSource, /Math\.max\(payNowInputValue\.length, 1\).*ch/);
+    assert.doesNotMatch(invoiceSource, /billing\?\.depositRequired/);
+    const quotedTotalGate = invoiceSource.indexOf("showQuotedTotalRow");
+    const totalIndex = invoiceSource.indexOf(">Total</p>");
+    const paymentIndex = invoiceSource.indexOf(">Abono</p>");
+    const balanceIndex = invoiceSource.indexOf(">Saldo pendiente</p>");
+    const debeIndex = invoiceSource.indexOf(">Debe</p>");
+    assert.ok(quotedTotalGate > -1 && totalIndex > quotedTotalGate);
+    assert.ok(totalIndex > -1);
+    assert.ok(totalIndex < paymentIndex && paymentIndex < balanceIndex);
+    assert.ok(debeIndex > balanceIndex);
   });
 });

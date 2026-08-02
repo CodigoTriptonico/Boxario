@@ -2,7 +2,7 @@
 
 import { Globe2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import type { PricingCountryConfig } from "@/app/actions/pricing";
+import type { PricingCountryConfig } from "@/lib/pricing/types";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { CountryFlag } from "@/components/country-flag";
 import { resolveCountryCode } from "@/lib/country-options";
@@ -78,10 +78,12 @@ export function ProductCountriesModal({
         <div className="flex items-start justify-between gap-3 border-b border-black px-5 py-4">
           <div className="min-w-0">
             <p className="text-xs font-bold uppercase tracking-wide text-slate-400">
-              Países y precio
+              Precios de venta
             </p>
             <h2 className="mt-1 text-lg font-black text-[#f8fafc]">{product.label}</h2>
-            <p className="mt-1 text-xs font-bold text-slate-500">{product.path}</p>
+            <p className="mt-1 text-xs font-bold text-slate-500">
+              Países y precios · {product.path}
+            </p>
           </div>
           <button
             type="button"

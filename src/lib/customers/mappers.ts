@@ -1,7 +1,7 @@
 import type {
   CustomerRecipientRow,
   CustomerWithRecipientsRow,
-} from "@/app/actions/customers";
+} from "@/lib/customers/load";
 
 export type SaleRecipient = {
   id: string;

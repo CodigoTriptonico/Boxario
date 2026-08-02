@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { ShipmentRow } from "@/app/actions/shipments";
+import type { ShipmentRow } from "@/lib/shipment-types";
 import {
   canApplyEnviosBulkReadiness,
   resolveEnviosBulkReadinessPatch,

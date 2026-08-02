@@ -2,6 +2,7 @@ export type InventoryTreeItem = {
   id: string;
   name: string;
   children?: InventoryTreeItem[];
+  archived?: boolean;
 };
 
 export type CategoryConfig = {
@@ -88,6 +89,28 @@ export function deleteInventoryTreeItem(
       ...item,
       children: item.children ? deleteInventoryTreeItem(item.children, itemId) : item.children,
     }));
+}
+
+export function archiveInventoryTreeItem(
+  items: InventoryTreeItem[],
+  itemId: string,
+): InventoryTreeItem[] {
+  return items.map((item) => {
+    if (item.id === itemId) {
+      return { ...item, archived: true };
+    }
+
+    return {
+      ...item,
+      children: item.children
+        ? archiveInventoryTreeItem(item.children, itemId)
+        : item.children,
+    };
+  });
+}
+
+export function isArchivedInventoryTreeItem(item: InventoryTreeItem) {
+  return item.archived === true;
 }
 
 export function inventoryTreeItemExists(items: InventoryTreeItem[], name: string) {

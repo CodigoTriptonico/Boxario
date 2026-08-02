@@ -10,7 +10,7 @@ const source = readFileSync(
 
 describe("sale cart panel cleanup eval", () => {
   it("keeps only the cart components used by venta", () => {
-    assert.match(source, /export function SaleCartPanel\(/);
+    assert.doesNotMatch(source, /export function SaleCartPanel\(/);
     assert.match(source, /export function SaleHeaderCartTrigger\(/);
     assert.match(source, /export function SaleHeaderCartPanel\(/);
     assert.doesNotMatch(source, /SaleStepCartTrigger/);
@@ -20,8 +20,8 @@ describe("sale cart panel cleanup eval", () => {
     );
   });
 
-  it("does not retain portal or lifecycle code from the removed cart variants", () => {
-    assert.doesNotMatch(source, /createPortal|useEffect|useState/);
+  it("does not retain portal code from the removed cart variants", () => {
+    assert.doesNotMatch(source, /createPortal/);
   });
 
   it("uses a compact header trigger and a floating cart panel", () => {
@@ -30,5 +30,26 @@ describe("sale cart panel cleanup eval", () => {
     assert.match(source, /data-sale-header-cart-panel=""/);
     assert.match(source, /fixed inset-0 z-\[145\]/);
     assert.match(source, /role="dialog"/);
+  });
+
+  it("anchors the cart panel under the header trigger instead of a fixed screen corner", () => {
+    assert.match(source, /resolveCartPanelPosition/);
+    assert.match(source, /\[data-sale-header-cart\]/);
+    assert.match(source, /anchor\.right - width/);
+    assert.match(source, /anchor\.bottom \+ 6/);
+    assert.doesNotMatch(source, /lg:right-5 lg:top-5/);
+    assert.doesNotMatch(source, /right-3 top-\[4\.75rem\]/);
+  });
+
+  it("makes a filled cart an amber action instead of a quiet emerald ghost", () => {
+    assert.match(
+      source,
+      /hasItems[\s\S]*?from-amber-300 via-amber-400 to-orange-500/,
+    );
+    assert.match(source, /bg-slate-950 px-1 text-\[10px\][\s\S]*?text-amber-300/);
+    assert.doesNotMatch(
+      source,
+      /itemCount\s*\?\s*"border-emerald-800\/60 bg-emerald-400\/15/,
+    );
   });
 });

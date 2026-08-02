@@ -12,7 +12,7 @@ type StockBadgeProps = {
   title?: string;
 };
 
-function StockBadge({ value, level, title }: StockBadgeProps) {
+export function StockBadge({ value, level, title }: StockBadgeProps) {
   const tone = stockBadgeToneClass[level === "neutral" ? "empty" : level];
 
   return (

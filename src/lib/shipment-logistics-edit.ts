@@ -1,11 +1,14 @@
-import type { ShipmentLogisticsTaskRow, ShipmentRow } from "@/app/actions/shipments";
+import type { ShipmentLogisticsTaskRow, ShipmentRow } from "@/lib/shipment-types";
+import { planLeg } from "@/lib/shipment-display/shared";
 import {
   EMPTY_BOX_DRIVER_MODE,
   EMPTY_BOX_OFFICE_MODE,
   FULL_BOX_DRIVER_MODE,
+} from "@/lib/sale-logistics-modes";
+import {
   logisticsDriverTaskCount,
   logisticsSummary,
-} from "@/components/sale/venta-parts";
+} from "@/lib/sale-logistics-summary";
 
 export type ShipmentLogisticsLegInput = {
   mode: string;
@@ -38,14 +41,6 @@ const OFFICE_RECEIVED_STATUSES = new Set<ShipmentRow["status"]>([
   "Enviado",
   "Entregado",
 ]);
-
-function planLeg(plan: Record<string, unknown>, key: "emptyBox" | "fullBox") {
-  const leg = plan[key];
-
-  return leg && typeof leg === "object" && !Array.isArray(leg)
-    ? (leg as Record<string, unknown>)
-    : null;
-}
 
 function activeTask(row: ShipmentRow, taskType: ShipmentLogisticsTaskRow["taskType"]) {
   return row.logisticsTasks.find(

@@ -1,15 +1,9 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaClientSource, readVentaPartsSource } from "@/test-utils/venta-source";
 
-const stepBarSource = readFileSync(
-  new URL("../components/sale/venta-parts.tsx", import.meta.url),
-  "utf8",
-);
-const saleSource = readFileSync(
-  new URL("../components/venta-client.tsx", import.meta.url),
-  "utf8",
-);
+const stepBarSource = readVentaPartsSource();
+const saleSource = readVentaClientSource();
 
 describe("sale logistics step summary eval", () => {
   it("renders logistics as two labeled rows instead of one combined sentence", () => {

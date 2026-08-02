@@ -22,7 +22,7 @@ export function testLaneForFile(file) {
   return file.includes(".eval.test.") ? "eval" : "gate";
 }
 
-export function discoverTestFiles(root) {
+function discoverTestFiles(root) {
   return ["src", "scripts/lib", "tests/integration"]
     .flatMap((directory) => walk(join(root, directory)))
     .map((file) => relative(root, file).replaceAll("\\", "/"))

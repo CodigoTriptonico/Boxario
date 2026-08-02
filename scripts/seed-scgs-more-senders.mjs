@@ -4,10 +4,10 @@
  */
 import { connectPg } from "./lib/db-connection.mjs";
 import {
-  SCGS_ORG_ID,
   isSameCountry,
   pickRandomRecipientCountries,
   recipientForSenderRandom,
+  resolveScgsOrgId,
 } from "./lib/scgs-demo-recipients.mjs";
 
 const MORE_SENDERS = [
@@ -157,12 +157,12 @@ const MORE_SENDERS = [
   },
 ];
 
-async function insertSender(client, sender) {
+async function insertSender(client, orgId, sender) {
   const exists = await client.query(
     `SELECT id FROM public.customers
      WHERE organization_id = $1
        AND lower(email) = lower($2)`,
-    [SCGS_ORG_ID, sender.email],
+    [orgId, sender.email],
   );
 
   if (exists.rows.length) {
@@ -176,7 +176,7 @@ async function insertSender(client, sender) {
     ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,'USA')
     RETURNING id`,
     [
-      SCGS_ORG_ID,
+      orgId,
       sender.first_name,
       sender.last_name,
       sender.phones,
@@ -193,11 +193,17 @@ async function insertSender(client, sender) {
   return { senderId: inserted.rows[0].id, created: true };
 }
 
-async function insertRecipientsForSender(client, senderRecord, random = Math.random) {
+async function insertRecipientsForSender(
+  client,
+  orgId,
+  countryIds,
+  senderRecord,
+  random = Math.random,
+) {
   const existing = await client.query(
     `SELECT country FROM public.customer_recipients
      WHERE customer_id = $1 AND organization_id = $2`,
-    [senderRecord.id, SCGS_ORG_ID],
+    [senderRecord.id, orgId],
   );
 
   const existingCountries = existing.rows.map((row) => row.country);
@@ -215,8 +221,10 @@ async function insertRecipientsForSender(client, senderRecord, random = Math.ran
       continue;
     }
 
+    const countryId = countryIds.get(country.name);
     const recipient = recipientForSenderRandom(senderRecord, country.name, random);
-    if (!recipient) {
+
+    if (!countryId || !recipient) {
       skipped += 1;
       continue;
     }
@@ -224,16 +232,17 @@ async function insertRecipientsForSender(client, senderRecord, random = Math.ran
     await client.query(
       `INSERT INTO public.customer_recipients (
         organization_id, customer_id,
-        first_name, last_name, phone, country,
+        first_name, last_name, phone, country, country_id,
         street, house_number, neighborhood, city, state, postal_code
-      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)`,
+      ) VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13)`,
       [
-        SCGS_ORG_ID,
+        orgId,
         senderRecord.id,
         recipient.first_name,
         recipient.last_name,
         recipient.phone,
         country.name,
+        countryId,
         recipient.street,
         recipient.house_number,
         recipient.neighborhood,
@@ -255,17 +264,22 @@ async function insertRecipientsForSender(client, senderRecord, random = Math.ran
 const { client } = await connectPg();
 
 try {
-  const orgCheck = await client.query(
-    "SELECT id, name FROM public.organizations WHERE id = $1",
-    [SCGS_ORG_ID],
+  const org = await resolveScgsOrgId(client);
+  const orgId = org.id;
+
+  console.log(`Sembrando remitentes extra para: ${org.name}\n`);
+
+  const countryRows = await client.query(
+    "SELECT id, name FROM public.pricing_countries WHERE organization_id = $1",
+    [orgId],
   );
 
-  if (!orgCheck.rows.length) {
-    console.error("No se encontró la org SCGS.");
+  if (!countryRows.rows.length) {
+    console.error("Sin países configurados. Ejecuta primero: npm run db:seed:demo-catalog");
     process.exit(1);
   }
 
-  console.log(`Sembrando remitentes extra para: ${orgCheck.rows[0].name}\n`);
+  const countryIds = new Map(countryRows.rows.map((row) => [row.name, row.id]));
 
   await client.query("BEGIN");
 
@@ -275,7 +289,7 @@ try {
   let recipientsSkipped = 0;
 
   for (const sender of MORE_SENDERS) {
-    const { senderId, created } = await insertSender(client, sender);
+    const { senderId, created } = await insertSender(client, orgId, sender);
 
     if (created) {
       sendersCreated += 1;
@@ -291,7 +305,7 @@ try {
       last_name: sender.last_name,
     };
 
-    const result = await insertRecipientsForSender(client, senderRecord);
+    const result = await insertRecipientsForSender(client, orgId, countryIds, senderRecord);
     recipientsInserted += result.inserted;
     recipientsSkipped += result.skipped;
   }
@@ -302,7 +316,7 @@ try {
     `SELECT
        (SELECT count(*)::int FROM public.customers WHERE organization_id = $1) AS senders,
        (SELECT count(*)::int FROM public.customer_recipients WHERE organization_id = $1) AS recipients`,
-    [SCGS_ORG_ID],
+    [orgId],
   );
 
   console.log("\n--- Resumen ---");

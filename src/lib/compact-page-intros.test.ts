@@ -1,13 +1,15 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 function component(path: string) {
   return readFileSync(new URL(`../components/${path}`, import.meta.url), "utf8");
 }
 
-const envios = component("envios-client.tsx");
-const venta = component("venta-client.tsx");
+const envios = readEnviosClientSource();
+const venta = readVentaClientSource();
 const home = readFileSync(new URL("../app/page.tsx", import.meta.url), "utf8");
 const uiBlocks = component("ui-blocks.tsx");
 const infoDisclosure = component("compact-info-disclosure.tsx");

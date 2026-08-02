@@ -1,4 +1,4 @@
-import type { ActivityHistoryRow } from "@/app/actions/history";
+import type { ActivityHistoryRow } from "@/lib/activity-history-types";
 import {
   buildAuditHistorySegments,
   type AuditHistoryLineSegment,

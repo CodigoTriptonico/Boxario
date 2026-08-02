@@ -1,35 +1,49 @@
 "use client";
 
 import { ShoppingCart, Trash2, X } from "lucide-react";
+import { useLayoutEffect, useState } from "react";
 import { PromotionSelector } from "@/components/sale/promotion-selector";
-import { inputClass, primaryButtonClass } from "@/components/ui-blocks";
+import { inputClass } from "@/components/ui-blocks";
 import type { InvoiceBillingSnapshot } from "@/lib/invoice-billing";
 import { formatMoneyValue, parseMoneyValue } from "@/lib/logistics-fees";
 
-type SaleCartPanelLine = {
+const CART_PANEL_MAX_WIDTH = 384;
+
+function resolveCartPanelPosition(anchor: DOMRect | null) {
+  const width = Math.min(CART_PANEL_MAX_WIDTH, Math.max(240, window.innerWidth - 16));
+  const maxLeft = Math.max(8, window.innerWidth - width - 8);
+
+  if (!anchor) {
+    return { top: 76, left: maxLeft, width };
+  }
+
+  return {
+    // Abre justo debajo del botón, alineado a su borde derecho.
+    top: Math.min(anchor.bottom + 6, Math.max(8, window.innerHeight - 160)),
+    left: Math.min(Math.max(8, anchor.right - width), maxLeft),
+    width,
+  };
+}
+
+type SaleCartLine = {
   id: string;
   label: string;
   unitPrice: string;
   quantity: number;
 };
 
-type SaleCartPanelProps = {
-  lines: SaleCartPanelLine[];
+type SaleCartContentsProps = {
+  lines: SaleCartLine[];
   billing: InvoiceBillingSnapshot | null;
   selectedPromotionId: string;
   onPromotionChange: (promotionId: string) => void;
   onAdjustQuantity: (lineId: string, delta: number) => void;
   onUpdateQuantity: (lineId: string, rawValue: string) => void;
   onRemoveLine: (lineId: string) => void;
-  onContinue?: () => void;
-  continueLabel?: string;
   emptyHint?: string;
-  className?: string;
-  /** Integrado en la barra de pasos (paso Caja), sin card lateral. */
-  embedded?: boolean;
 };
 
-function lineSubtotal(line: SaleCartPanelLine) {
+function lineSubtotal(line: SaleCartLine) {
   return formatMoneyValue(parseMoneyValue(line.unitPrice) * line.quantity);
 }
 
@@ -48,10 +62,8 @@ function CartContents({
   onAdjustQuantity,
   onUpdateQuantity,
   onRemoveLine,
-  onContinue,
-  continueLabel = "Continuar",
   emptyHint = "Toca una caja para agregarla al carrito.",
-}: SaleCartPanelProps) {
+}: SaleCartContentsProps) {
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
 
   if (!lines.length) {
@@ -156,107 +168,7 @@ function CartContents({
         </div>
       ) : null}
 
-      {onContinue && lines.length ? (
-        <button type="button" onClick={onContinue} className={`${primaryButtonClass} w-full`}>
-          {continueLabel}
-        </button>
-      ) : null}
     </div>
-  );
-}
-
-export function SaleCartPanel({
-  lines,
-  billing,
-  selectedPromotionId,
-  onPromotionChange,
-  onAdjustQuantity,
-  onUpdateQuantity,
-  onRemoveLine,
-  onContinue,
-  continueLabel,
-  emptyHint,
-  className = "",
-  embedded = false,
-}: SaleCartPanelProps) {
-  const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
-
-  if (embedded) {
-    return (
-      <div
-        className={`rounded-lg border border-emerald-800/45 bg-[#1a221f] ${className}`}
-      >
-        <div className="flex items-center justify-between gap-2 border-b border-black/80 px-3 py-2">
-          <div className="flex min-w-0 items-center gap-2">
-            <ShoppingCart className="h-4 w-4 shrink-0 text-emerald-300" aria-hidden />
-            <span className="text-xs font-black uppercase text-slate-400">Carrito</span>
-            <span className="truncate text-xs font-bold text-slate-500">
-              {itemCount
-                ? `${itemCount} producto${itemCount === 1 ? "" : "s"}`
-                : "Vacío"}
-            </span>
-          </div>
-          {billing && itemCount ? (
-            <span className="shrink-0 text-sm font-black tabular-nums text-emerald-300">
-              {billing.quotedTotal}
-            </span>
-          ) : null}
-        </div>
-        <div className="max-h-[min(40vh,16rem)] overflow-y-auto p-2 sm:p-2.5">
-          <CartContents
-            lines={lines}
-            billing={billing}
-            selectedPromotionId={selectedPromotionId}
-            onPromotionChange={onPromotionChange}
-            onAdjustQuantity={onAdjustQuantity}
-            onUpdateQuantity={onUpdateQuantity}
-            onRemoveLine={onRemoveLine}
-            onContinue={onContinue}
-            continueLabel={continueLabel}
-            emptyHint={emptyHint}
-          />
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <aside
-      className={`rounded-xl border border-black bg-surface-card shadow-[0_6px_20px_rgba(0,0,0,0.18)] ${className}`}
-    >
-      <div className="flex items-center gap-3 border-b border-black px-4 py-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-emerald-400/15 text-emerald-300">
-          <ShoppingCart className="h-5 w-5" aria-hidden />
-        </span>
-        <div className="min-w-0 flex-1">
-          <p className="text-sm font-black text-[#f8fafc]">Carrito</p>
-          <p className="text-xs font-bold text-slate-400">
-            {itemCount
-              ? `${itemCount} producto${itemCount === 1 ? "" : "s"}`
-              : "Vacío"}
-          </p>
-        </div>
-        {billing && itemCount ? (
-          <span className="shrink-0 text-base font-black tabular-nums text-emerald-300">
-            {billing.quotedTotal}
-          </span>
-        ) : null}
-      </div>
-      <div className="p-3">
-        <CartContents
-          lines={lines}
-          billing={billing}
-          selectedPromotionId={selectedPromotionId}
-          onPromotionChange={onPromotionChange}
-          onAdjustQuantity={onAdjustQuantity}
-          onUpdateQuantity={onUpdateQuantity}
-          onRemoveLine={onRemoveLine}
-          onContinue={onContinue}
-          continueLabel={continueLabel}
-          emptyHint={emptyHint}
-        />
-      </div>
-    </aside>
   );
 }
 
@@ -276,6 +188,7 @@ export function SaleHeaderCartTrigger({
   const label = itemCount
     ? `Carrito, ${itemCount} producto${itemCount === 1 ? "" : "s"}${total ? `, ${total}` : ""}`
     : "Abrir carrito";
+  const hasItems = itemCount > 0;
 
   return (
     <button
@@ -286,17 +199,17 @@ export function SaleHeaderCartTrigger({
       aria-expanded={open}
       aria-label={label}
       title={label}
-      className={`group relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/50 ${
+      className={`group relative inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-amber-400/60 ${
         open
-          ? "border-emerald-500/70 bg-emerald-400 text-slate-950"
-          : itemCount
-            ? "border-emerald-800/60 bg-emerald-400/15 text-emerald-300 hover:bg-emerald-400/20"
-            : "border-black bg-surface-inset text-slate-400 hover:bg-surface-card hover:text-slate-200"
+          ? "border-amber-300 bg-amber-300 text-slate-950 shadow-[0_6px_16px_rgba(251,191,36,0.35)]"
+          : hasItems
+            ? "border-amber-500/90 bg-gradient-to-b from-amber-300 via-amber-400 to-orange-500 text-slate-950 shadow-[0_6px_18px_rgba(251,146,60,0.45)] ring-1 ring-inset ring-amber-100/40 hover:brightness-110"
+            : "border-black bg-surface-inset text-slate-400 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] hover:bg-surface-card hover:text-slate-200"
       }`}
     >
-      <ShoppingCart className="h-4 w-4" aria-hidden />
-      {itemCount > 0 ? (
-        <span className="absolute -right-1.5 -top-1.5 flex h-4 min-w-4 items-center justify-center rounded-full border border-black bg-amber-400 px-0.5 text-[9px] font-black tabular-nums text-slate-950">
+      <ShoppingCart className="h-4 w-4" strokeWidth={hasItems || open ? 2.5 : 2} aria-hidden />
+      {hasItems ? (
+        <span className="absolute -right-1.5 -top-1.5 flex h-[1.125rem] min-w-[1.125rem] items-center justify-center rounded-full border border-black bg-slate-950 px-1 text-[10px] font-black tabular-nums leading-none text-amber-300 shadow-[0_2px_8px_rgba(0,0,0,0.45)]">
           {itemCount}
         </span>
       ) : null}
@@ -304,7 +217,7 @@ export function SaleHeaderCartTrigger({
   );
 }
 
-type SaleHeaderCartPanelProps = SaleCartPanelProps & {
+type SaleHeaderCartPanelProps = SaleCartContentsProps & {
   onClose: () => void;
 };
 
@@ -320,6 +233,25 @@ export function SaleHeaderCartPanel({
   emptyHint,
 }: SaleHeaderCartPanelProps) {
   const itemCount = lines.reduce((sum, line) => sum + line.quantity, 0);
+  const [position, setPosition] = useState<{ top: number; left: number; width: number } | null>(
+    null,
+  );
+
+  useLayoutEffect(() => {
+    function updatePosition() {
+      const anchor = document.querySelector<HTMLElement>("[data-sale-header-cart]");
+      setPosition(resolveCartPanelPosition(anchor?.getBoundingClientRect() ?? null));
+    }
+
+    updatePosition();
+    window.addEventListener("resize", updatePosition);
+    window.addEventListener("scroll", updatePosition, true);
+
+    return () => {
+      window.removeEventListener("resize", updatePosition);
+      window.removeEventListener("scroll", updatePosition, true);
+    };
+  }, []);
 
   return (
     <div className="fixed inset-0 z-[145]" data-sale-header-cart-panel="">
@@ -333,7 +265,14 @@ export function SaleHeaderCartPanel({
         role="dialog"
         aria-modal="true"
         aria-label="Carrito de la venta"
-        className="absolute right-3 top-[4.75rem] flex max-h-[calc(100dvh-5.5rem)] w-[min(calc(100vw-1.5rem),24rem)] flex-col overflow-hidden rounded-xl border border-black bg-[#1a221f] shadow-[0_18px_48px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.04] lg:right-5 lg:top-5"
+        className={`absolute flex max-h-[min(32rem,calc(100dvh-5rem))] flex-col overflow-hidden rounded-xl border border-black bg-[#1a221f] shadow-[0_18px_48px_rgba(0,0,0,0.5)] ring-1 ring-white/[0.04] ${
+          position ? "" : "invisible"
+        }`}
+        style={
+          position
+            ? { top: position.top, left: position.left, width: position.width }
+            : undefined
+        }
       >
         <div className="flex shrink-0 items-center justify-between gap-2 border-b border-black bg-surface-card-header px-3 py-2.5">
           <div className="flex min-w-0 items-center gap-2">

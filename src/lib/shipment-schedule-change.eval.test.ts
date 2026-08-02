@@ -3,15 +3,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readShipmentDisplaySource } from "@/test-utils/shipment-domain-source";
 
-const shipmentsActionSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/shipments.ts"),
-  "utf8",
-);
-const displaySource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "shipment-display.ts"),
-  "utf8",
-);
+const shipmentsActionSource = readShipmentActionsSource();
+const displaySource = readShipmentDisplaySource();
 const progressSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/shipment-progress-steps.tsx"),
   "utf8",

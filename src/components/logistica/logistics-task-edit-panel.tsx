@@ -12,7 +12,7 @@ import {
   logisticsTaskEditScheduleValid,
   type LogisticsTaskEditDraft,
 } from "@/lib/logistics-task-edit";
-import type { LogisticsTaskStatus } from "@/app/actions/shipments";
+import type { LogisticsTaskStatus } from "@/lib/shipment-types";
 
 type LogisticsTaskEditPanelProps = {
   open: boolean;
@@ -28,6 +28,8 @@ type LogisticsTaskEditPanelProps = {
   };
   warehouses: LogisticsWarehouseOption[];
   saving?: boolean;
+  showAdminException?: boolean;
+  onRequestAdminException?: () => void;
   onCancel: () => void;
   onSave: (patch: {
     scheduledAt: string | null;
@@ -44,6 +46,8 @@ export function LogisticsTaskEditPanel({
   task,
   warehouses,
   saving = false,
+  showAdminException = false,
+  onRequestAdminException,
   onCancel,
   onSave,
 }: LogisticsTaskEditPanelProps) {
@@ -134,6 +138,17 @@ export function LogisticsTaskEditPanel({
             {saving ? "Guardando…" : "Guardar"}
           </button>
         </div>
+
+        {showAdminException && onRequestAdminException ? (
+          <button
+            type="button"
+            onClick={onRequestAdminException}
+            disabled={saving}
+            className="mt-3 h-11 w-full rounded-lg border border-amber-700/60 bg-amber-950/40 text-sm font-black text-amber-100 hover:bg-amber-900/40 disabled:opacity-40"
+          >
+            Excepcion administrativa…
+          </button>
+        ) : null}
       </div>
     </div>
   );

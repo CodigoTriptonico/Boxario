@@ -4,6 +4,8 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
 const auditoriaPageSource = readFileSync(join(root, "app/auditoria/page.tsx"), "utf8");
@@ -13,7 +15,7 @@ const estadisticasSource = readFileSync(
   "utf8",
 );
 
-const enviosSource = readFileSync(join(root, "components/envios-client.tsx"), "utf8");
+const enviosSource = readEnviosClientSource();
 
 const auditSource = readFileSync(join(root, "lib/shipment-audit.ts"), "utf8");
 const historyActionSource = readFileSync(join(root, "app/actions/history.ts"), "utf8");

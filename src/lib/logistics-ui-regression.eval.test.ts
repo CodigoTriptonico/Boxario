@@ -3,11 +3,9 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
-const componentSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica-client.tsx"),
-  "utf8"
-);
+const componentSource = readLogisticaClientSource();
 
 const fleetAdminSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-fleet-admin-client.tsx"),

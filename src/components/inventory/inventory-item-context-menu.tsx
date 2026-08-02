@@ -1,22 +1,23 @@
 "use client";
 
-import { ChevronDown, History, Loader2, MapPin, Settings2 } from "lucide-react";
+import { ChevronDown, History, MapPin, Settings2 } from "lucide-react";
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { InventoryMovementsSidePanel } from "@/components/inventory-movements-panel";
-import { inputClass } from "@/components/ui-blocks";
+import { InventoryItemMovementDraftModal } from "@/components/inventory/inventory-item-movement-draft-modal";
+import { InventoryItemUnitEditorModal } from "@/components/inventory/inventory-item-unit-editor-modal";
 import type { InventoryAssignment, InventoryMovement } from "@/lib/inventory-types";
 import {
-  manualMovementReasonOptions,
-  movementReasonRequiresDetail,
+  computeInventoryAdjustmentDelta,
+  manualMovementReasonOptionsForType,
 } from "@/lib/inventory-movement-audit";
-import { syncEntryCostFields } from "@/lib/inventory-entry-cost";
+import { formatInventoryStockStatusLine, sumOpenAssignmentQty } from "@/lib/inventory-item-display";
 import type { ItemContextMenu, MovementDraft } from "@/lib/inventory-structure-utils";
 import {
-  formatInventoryStockLabel,
-  INVENTORY_UNIT_PRESETS,
-  normalizeInventoryUnit,
-  resolveInventoryItemUnit,
+  filterInventorySupplierTags,
+} from "@/lib/inventory-supplier-tags";
+import {
+  formatInventoryAvailableLabel,
 } from "@/lib/inventory-units";
 
 const INVENTORY_ITEM_CONTEXT_MENU_ATTR = "data-inventory-item-context-menu";
@@ -26,6 +27,8 @@ export type InventoryItemContextMenuProps = {
   setItemContextMenu: (value: ItemContextMenu | null) => void;
   movementDraft: MovementDraft | null;
   setMovementDraft: React.Dispatch<React.SetStateAction<MovementDraft | null>>;
+  supplierTags?: string[];
+  onRememberSupplierTag?: (name: string) => void;
   stockError: string;
   stockSaving: boolean;
   warehouseId?: string;
@@ -43,7 +46,9 @@ export type InventoryItemContextMenuProps = {
   onBeginMovement: (type: MovementDraft["type"]) => void;
   onOpenItemHistory: () => void;
   onSubmitMovement: () => void | Promise<void>;
-  onDeleteItem: (categoryName: string, itemId: string) => void;
+  onArchiveItem: (categoryName: string, itemId: string) => void;
+  onOpenItemAdmin?: (context: ItemContextMenu) => void;
+  showCommercialPricing?: boolean;
   onBeginEditItem: (itemId: string, itemName: string) => void;
   onUploadItemPhoto?: (context: ItemContextMenu, file: File) => void | Promise<void>;
   onClearItemPhoto?: (context: ItemContextMenu) => void | Promise<void>;
@@ -56,13 +61,13 @@ export type InventoryItemContextMenuProps = {
   onOpenBinPlacement?: (context: ItemContextMenu) => void;
 };
 
-const movementFieldClass = `${inputClass} box-border block h-10 w-auto min-w-0 max-w-full self-stretch text-sm`;
-
 export function InventoryItemContextMenu({
   itemContextMenu,
   setItemContextMenu,
   movementDraft,
   setMovementDraft,
+  supplierTags = [],
+  onRememberSupplierTag,
   stockError,
   stockSaving,
   warehouseId,
@@ -80,7 +85,9 @@ export function InventoryItemContextMenu({
   onBeginMovement,
   onOpenItemHistory,
   onSubmitMovement,
-  onDeleteItem,
+  onArchiveItem,
+  onOpenItemAdmin,
+  showCommercialPricing = false,
   onBeginEditItem,
   onUpdateItemUnit,
   unitSaving = false,
@@ -91,6 +98,30 @@ export function InventoryItemContextMenu({
     context: ItemContextMenu;
     value: string;
   } | null>(null);
+  const visibleSupplierTags =
+    movementDraft?.type === "entrada"
+      ? filterInventorySupplierTags(supplierTags, movementDraft.supplierName || "")
+      : [];
+  const movementReasonOptions = movementDraft
+    ? manualMovementReasonOptionsForType(movementDraft.type)
+    : [];
+  const assignedQtyOpen = sumOpenAssignmentQty(contextMenuAssignments);
+  const salidaQty = movementDraft?.type === "salida" ? Number(movementDraft.qty || 0) : 0;
+  const salidaAvailable = movementDraft
+    ? Math.max(
+        0,
+        Number(movementDraft.context.stockItem.stock) -
+          Number(movementDraft.context.stockItem.reserved || 0),
+      )
+    : 0;
+  const adjustmentDelta =
+    movementDraft?.type === "ajuste"
+      ? computeInventoryAdjustmentDelta(
+          movementDraft.context.stockItem.stock,
+          Number(movementDraft.qty || 0),
+        )
+      : 0;
+  const todayIso = new Date().toISOString().slice(0, 10);
 
   useEffect(() => {
     queueMicrotask(() => setMounted(true));
@@ -150,12 +181,14 @@ export function InventoryItemContextMenu({
               {itemContextMenu.treeItem.name}
             </p>
             <p className="text-xs font-bold text-slate-400">
-              {itemContextMenu.stockItem.stock}{" "}
-              {formatInventoryStockLabel(
-                itemContextMenu.stockItem,
-                itemContextMenu.stockItem.stock,
-              )}
+              {formatInventoryStockStatusLine(itemContextMenu.stockItem)}
             </p>
+            {itemContextMenu.primaryLocation ? (
+              <p className="mt-1 flex items-center gap-1 truncate text-[10px] font-black text-cyan-300">
+                <MapPin className="h-3 w-3 shrink-0" aria-hidden />
+                <span className="truncate">{itemContextMenu.primaryLocation}</span>
+              </p>
+            ) : null}
           </div>
           <div className="grid grid-cols-3 gap-1 p-1">
             <button
@@ -169,7 +202,8 @@ export function InventoryItemContextMenu({
             <button
               type="button"
               onClick={() => onBeginMovement("salida")}
-              className="flex h-12 flex-col items-center justify-center rounded-md text-xs font-black text-slate-200 transition hover:bg-surface-card-hover"
+              disabled={itemContextMenu.stockItem.stock <= 0}
+              className="flex h-12 flex-col items-center justify-center rounded-md text-xs font-black text-slate-200 transition hover:bg-surface-card-hover disabled:cursor-not-allowed disabled:opacity-40"
             >
               <span className="text-base leading-none">−</span>
               Salida
@@ -218,7 +252,7 @@ export function InventoryItemContextMenu({
               Historial
             </button>
           ) : null}
-          {warehouseId && onManageProductCountries ? (
+          {warehouseId && showCommercialPricing && onManageProductCountries ? (
             <button
               type="button"
               onClick={() => {
@@ -229,7 +263,7 @@ export function InventoryItemContextMenu({
               }}
               className="flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-emerald-200 hover:bg-emerald-400/10"
             >
-              Países y precio
+              Precios de venta
             </button>
           ) : null}
           {warehouseId && onAssignItem ? (
@@ -247,7 +281,7 @@ export function InventoryItemContextMenu({
               Asignar a empleado
             </button>
           ) : null}
-          {warehouseId && onViewItemAssignments && contextMenuAssignments.length ? (
+          {warehouseId && onViewItemAssignments && assignedQtyOpen > 0 ? (
             <button
               type="button"
               onClick={() => {
@@ -261,15 +295,25 @@ export function InventoryItemContextMenu({
               }}
               className="flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-slate-200 hover:bg-surface-card-hover"
             >
-              Asignaciones activas ({contextMenuAssignments.length})
+              {assignedQtyOpen}{" "}
+              {formatInventoryAvailableLabel(assignedQtyOpen)} asignadas
             </button>
           ) : null}
           <div className="my-1 border-t border-white/10" />
           {structureMenuActionsEnabled ? (
             <>
+              <p className="px-2 py-1 text-[10px] font-black uppercase tracking-wide text-slate-500">
+                Administración
+              </p>
               <button
                 type="button"
                 onClick={() => {
+                  if (onOpenItemAdmin && itemContextMenu) {
+                    onOpenItemAdmin(itemContextMenu);
+                    setItemContextMenu(null);
+                    return;
+                  }
+
                   onBeginEditItem(
                     itemContextMenu.treeItem.id,
                     itemContextMenu.treeItem.name,
@@ -283,7 +327,7 @@ export function InventoryItemContextMenu({
               <button
                 type="button"
                 onClick={() => {
-                  onDeleteItem(
+                  onArchiveItem(
                     itemContextMenu.categoryName,
                     itemContextMenu.treeItem.id,
                   );
@@ -291,7 +335,7 @@ export function InventoryItemContextMenu({
                 }}
                 className="flex h-9 w-full items-center rounded-md px-2 text-left text-sm font-black text-rose-200 hover:bg-rose-500/10"
               >
-                Borrar
+                Archivar artículo
               </button>
             </>
           ) : null}
@@ -304,339 +348,36 @@ export function InventoryItemContextMenu({
     <>
       {contextMenuPanel ? createPortal(contextMenuPanel, document.body) : null}
 
-      {movementDraft && mounted
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-black/45 p-4 pt-[8dvh] sm:pt-[12dvh]"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) {
-                  setMovementDraft(null);
-                }
-              }}
-            >
-          <form
-            className="box-border flex max-h-[calc(100dvh-10dvh)] w-full max-w-md flex-col overflow-x-hidden overflow-y-auto rounded-xl border border-black bg-[#17211d] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)] [scrollbar-width:none] [-ms-overflow-style:none] [&::-webkit-scrollbar]:hidden sm:max-h-[calc(100dvh-14dvh)]"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void onSubmitMovement();
-            }}
-          >
-            <div className="mb-3 shrink-0">
-              <p className="text-lg font-black capitalize text-[#f8fafc]">
-                {movementDraft.type}
-              </p>
-              <p className="truncate text-sm font-bold text-slate-400">
-                {movementDraft.context.treeItem.name}
-              </p>
-            </div>
-            <label className="grid min-w-0 shrink-0 gap-1.5 text-xs font-black uppercase text-slate-400">
-              Cantidad (
-              {resolveInventoryItemUnit(movementDraft.context.stockItem)})
-              <input
-                className={movementFieldClass}
-                type="number"
-                min={movementDraft.type === "ajuste" ? 0 : 1}
-                step="1"
-                value={movementDraft.qty}
-                onChange={(event) =>
-                  setMovementDraft((current) => {
-                    if (!current) {
-                      return current;
-                    }
+      {movementDraft ? (
+        <InventoryItemMovementDraftModal
+          movementDraft={movementDraft}
+          mounted={mounted}
+          setMovementDraft={setMovementDraft}
+          visibleSupplierTags={visibleSupplierTags}
+          movementReasonOptions={movementReasonOptions}
+          salidaAvailable={salidaAvailable}
+          salidaQty={salidaQty}
+          adjustmentDelta={adjustmentDelta}
+          todayIso={todayIso}
+          stockError={stockError}
+          stockSaving={stockSaving}
+          onSubmitMovement={onSubmitMovement}
+          onRememberSupplierTag={onRememberSupplierTag}
+        />
+      ) : null}
 
-                    const nextQty = event.target.value;
-                    const synced = syncEntryCostFields({
-                      qty: nextQty,
-                      unitCost: current.unitCost || "",
-                      totalCost: current.totalCost || "",
-                      anchor: "qty",
-                    });
-
-                    return {
-                      ...current,
-                      qty: nextQty,
-                      unitCost: synced.unitCost,
-                      totalCost: synced.totalCost,
-                    };
-                  })
-                }
-                autoFocus
-              />
-            </label>
-            {movementDraft.type === "entrada" ? (
-              <details className="group mt-3 box-border w-full max-w-full shrink-0 overflow-hidden rounded-lg border border-black/70 bg-black/10">
-                <summary className="flex h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-black text-slate-300 hover:text-white [&::-webkit-details-marker]:hidden">
-                  <span className="flex-1">Datos de compra</span>
-                  <span className="text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                    Opcional
-                  </span>
-                  <ChevronDown
-                    className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180"
-                    aria-hidden
-                  />
-                </summary>
-                <div className="box-border grid min-w-0 max-w-full grid-cols-1 gap-3 border-t border-black/70 p-3">
-                <div className="grid min-w-0 max-w-full gap-1.5">
-                  <div className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-2">
-                    <span className="text-xs font-black uppercase text-slate-400">Costo</span>
-                    <span className="inline-flex max-w-full rounded-md border border-black bg-surface-inset p-0.5">
-                      {(["total", "unit"] as const).map((anchor) => (
-                        <button
-                          key={anchor}
-                          type="button"
-                          onClick={() =>
-                            setMovementDraft((current) =>
-                              current ? { ...current, entryCostAnchor: anchor } : current,
-                            )
-                          }
-                          className={`h-7 rounded px-2 text-[10px] font-black uppercase transition ${
-                            (movementDraft.entryCostAnchor || "unit") === anchor
-                              ? "bg-slate-700 text-white"
-                              : "text-slate-500 hover:text-slate-300"
-                          }`}
-                        >
-                          {anchor === "total" ? "Lote" : "Por pieza"}
-                        </button>
-                      ))}
-                    </span>
-                  </div>
-                  <input
-                    className={movementFieldClass}
-                    type="text"
-                    inputMode="decimal"
-                    value={
-                      (movementDraft.entryCostAnchor || "unit") === "total"
-                        ? movementDraft.totalCost || ""
-                        : movementDraft.unitCost || ""
-                    }
-                    onChange={(event) =>
-                      setMovementDraft((current) => {
-                        if (!current) {
-                          return current;
-                        }
-
-                        const anchor = current.entryCostAnchor || "unit";
-                        const nextCost = event.target.value;
-                        const synced = syncEntryCostFields({
-                          qty: current.qty,
-                          unitCost: anchor === "unit" ? nextCost : current.unitCost || "",
-                          totalCost: anchor === "total" ? nextCost : current.totalCost || "",
-                          anchor,
-                        });
-
-                        return {
-                          ...current,
-                          unitCost: anchor === "unit" ? nextCost : synced.unitCost,
-                          totalCost: anchor === "total" ? nextCost : synced.totalCost,
-                        };
-                      })
-                    }
-                    placeholder={
-                      (movementDraft.entryCostAnchor || "unit") === "total"
-                        ? "Total del lote"
-                        : "Costo por pieza"
-                    }
-                  />
-                </div>
-                  <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
-                    Proveedor
-                    <input
-                      className={movementFieldClass}
-                      value={movementDraft.supplierName || ""}
-                      onChange={(event) =>
-                        setMovementDraft((current) =>
-                          current ? { ...current, supplierName: event.target.value } : current,
-                        )
-                      }
-                      placeholder="Opcional"
-                    />
-                  </label>
-                </div>
-              </details>
-            ) : null}
-            <details className="group mt-2 box-border w-full max-w-full shrink-0 overflow-hidden rounded-lg border border-black/70 bg-black/10">
-              <summary className="flex h-11 cursor-pointer list-none items-center gap-2 px-3 text-sm font-black text-slate-300 hover:text-white [&::-webkit-details-marker]:hidden">
-                <span className="flex-1">Motivo y detalle</span>
-                <span className="max-w-32 truncate text-[10px] font-bold uppercase tracking-wide text-slate-500">
-                  {manualMovementReasonOptions.find(
-                    (option) => option.value === movementDraft.reasonCode,
-                  )?.label || "Opcional"}
-                </span>
-                <ChevronDown
-                  className="h-4 w-4 text-slate-500 transition-transform group-open:rotate-180"
-                  aria-hidden
-                />
-              </summary>
-              <div className="box-border grid min-w-0 max-w-full gap-3 border-t border-black/70 p-3">
-                <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
-                  Motivo
-                  <select
-                    className={movementFieldClass}
-                    value={movementDraft.reasonCode}
-                    onChange={(event) =>
-                      setMovementDraft((current) =>
-                        current
-                          ? {
-                              ...current,
-                              reasonCode: event.target.value as MovementDraft["reasonCode"],
-                            }
-                          : current,
-                      )
-                    }
-                  >
-                    {manualMovementReasonOptions.map((option) => (
-                      <option key={option.value} value={option.value}>
-                        {option.label}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label className="grid min-w-0 gap-1.5 text-xs font-black uppercase text-slate-400">
-                  Detalle
-                  <input
-                    className={movementFieldClass}
-                    value={movementDraft.note}
-                    onChange={(event) =>
-                      setMovementDraft((current) =>
-                        current ? { ...current, note: event.target.value } : current,
-                      )
-                    }
-                    placeholder={
-                      movementReasonRequiresDetail(movementDraft.reasonCode)
-                        ? "Requerido"
-                        : "Opcional"
-                    }
-                    required={movementReasonRequiresDetail(movementDraft.reasonCode)}
-                  />
-                </label>
-              </div>
-            </details>
-            {stockError ? (
-              <p className="mt-3 rounded-lg border border-rose-800 bg-rose-950/30 px-3 py-2 text-sm font-bold text-rose-100">
-                {stockError}
-              </p>
-            ) : null}
-            <div className="grid shrink-0 grid-cols-2 gap-3 pt-4">
-              <button
-                type="button"
-                onClick={() => setMovementDraft(null)}
-                className="h-12 w-full rounded-lg border border-black bg-surface-inset px-4 text-base font-black text-slate-200 hover:bg-surface-card-hover"
-              >
-                Cancelar
-              </button>
-              <button
-                type="submit"
-                disabled={stockSaving}
-                className="inline-flex h-12 w-full items-center justify-center gap-2 rounded-lg bg-emerald-400 px-4 text-base font-black text-slate-950 disabled:opacity-60"
-              >
-                {stockSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                Guardar
-              </button>
-            </div>
-          </form>
-            </div>,
-            document.body,
-          )
-        : null}
-
-      {unitEditor && mounted
-        ? createPortal(
-            <div
-              className="fixed inset-0 z-[150] flex items-center justify-center bg-black/45 p-4"
-              onMouseDown={(event) => {
-                if (event.target === event.currentTarget) {
-                  setUnitEditor(null);
-                }
-              }}
-            >
-              <form
-                className="w-full max-w-sm rounded-xl border border-black bg-[#17211d] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
-                onSubmit={(event) => {
-                  event.preventDefault();
-
-                  if (!onUpdateItemUnit) {
-                    return;
-                  }
-
-                  void (async () => {
-                    const saved = await onUpdateItemUnit(
-                      unitEditor.context,
-                      normalizeInventoryUnit(unitEditor.value),
-                    );
-
-                    if (saved) {
-                      setUnitEditor(null);
-                    }
-                  })();
-                }}
-              >
-                <div className="mb-3">
-                  <p className="text-lg font-black text-[#f8fafc]">
-                    Unidad de medida
-                  </p>
-                  <p className="truncate text-sm font-bold text-slate-400">
-                    {unitEditor.context.treeItem.name}
-                  </p>
-                </div>
-                <div className="flex flex-wrap gap-2">
-                  {INVENTORY_UNIT_PRESETS.map((preset) => (
-                    <button
-                      key={preset}
-                      type="button"
-                      onClick={() =>
-                        setUnitEditor((current) =>
-                          current ? { ...current, value: preset } : current,
-                        )
-                      }
-                      className={`rounded-lg border px-2.5 py-1.5 text-xs font-black capitalize ${
-                        normalizeInventoryUnit(unitEditor.value) === preset
-                          ? "border-emerald-500 bg-emerald-400/10 text-emerald-200"
-                          : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
-                      }`}
-                    >
-                      {preset}
-                    </button>
-                  ))}
-                </div>
-                <label className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
-                  Personalizada
-                  <input
-                    className={`${inputClass} h-10 text-sm`}
-                    value={unitEditor.value}
-                    onChange={(event) =>
-                      setUnitEditor((current) =>
-                        current
-                          ? { ...current, value: event.target.value }
-                          : current,
-                      )
-                    }
-                    placeholder="ej. pieza, rollo, kg"
-                    maxLength={24}
-                    autoFocus
-                  />
-                </label>
-                <div className="mt-4 flex justify-end gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setUnitEditor(null)}
-                    className="h-10 rounded-lg border border-black bg-surface-inset px-3 text-sm font-black text-slate-300 hover:bg-surface-card-hover"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    disabled={unitSaving || !normalizeInventoryUnit(unitEditor.value)}
-                    className="inline-flex h-10 items-center gap-2 rounded-lg bg-emerald-400 px-4 text-sm font-black text-slate-950 disabled:opacity-60"
-                  >
-                    {unitSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-                    Guardar
-                  </button>
-                </div>
-              </form>
-            </div>,
-            document.body,
-          )
-        : null}
+      {unitEditor ? (
+        <InventoryItemUnitEditorModal
+          unitEditor={unitEditor}
+          mounted={mounted}
+          unitSaving={unitSaving}
+          onUpdateItemUnit={onUpdateItemUnit}
+          onValueChange={(value) =>
+            setUnitEditor((current) => (current ? { ...current, value } : current))
+          }
+          onClose={() => setUnitEditor(null)}
+        />
+      ) : null}
 
       {structureMenuMounted && itemHistoryContext
         ? createPortal(
@@ -647,7 +388,7 @@ export function InventoryItemContextMenu({
               movements={itemHistoryMovements}
               assignments={assignments}
               warehouseName={warehouseName}
-              title="Últimos movimientos"
+              title="Historial"
               subtitle={itemHistoryContext.treeItem.name}
               emptyHint={`Aún no hay movimientos para ${itemHistoryContext.treeItem.name}.`}
               titleId="inventory-item-movements-title"

@@ -4,7 +4,7 @@ import { join } from "node:path";
 import test from "node:test";
 
 const source = readFileSync(
-  join(process.cwd(), "src/components/inventory-structure-editor.tsx"),
+  join(process.cwd(), "src/components/inventory/use-inventory-tree-crud.ts"),
   "utf8",
 );
 const deleteCategoryBody = source.match(

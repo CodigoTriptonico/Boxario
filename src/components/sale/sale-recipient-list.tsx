@@ -28,6 +28,7 @@ type SaleRecipientListProps = {
   searchActive?: boolean;
   getCardClass: (recipient: Recipient) => string;
   onChoose: (recipient: Recipient) => void;
+  onViewShipmentHistory?: (recipient: Recipient) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, recipient: Recipient) => void;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>, recipient: Recipient) => void;
 };
@@ -61,6 +62,7 @@ export function SaleRecipientList({
   searchActive = false,
   getCardClass,
   onChoose,
+  onViewShipmentHistory,
   onOpenContextMenu,
   onIconClick,
 }: SaleRecipientListProps) {
@@ -95,6 +97,11 @@ export function SaleRecipientList({
                       cardStyle={recipient.cardStyle as SalePersonCardVariantId}
                       hint={isSuggested ? "Último envío" : undefined}
                       hintHighlighted={isSuggested}
+                      onHintClick={
+                        isSuggested && onViewShipmentHistory
+                          ? () => onViewShipmentHistory(recipient)
+                          : undefined
+                      }
                       className={getCardClass(recipient)}
                       contextProps={recipientContextProps(recipient)}
                       onClick={() => onChoose(recipient)}
@@ -152,6 +159,11 @@ export function SaleRecipientList({
                   cardStyle={recipient.cardStyle as SalePersonCardVariantId}
                   hint={isSuggested ? "Último envío" : undefined}
                   hintHighlighted={isSuggested}
+                  onHintClick={
+                    isSuggested && onViewShipmentHistory
+                      ? () => onViewShipmentHistory(recipient)
+                      : undefined
+                  }
                   className={getCardClass(recipient)}
                   contextProps={recipientContextProps(recipient)}
                   onClick={() => onChoose(recipient)}

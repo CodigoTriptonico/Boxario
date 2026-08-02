@@ -1,8 +1,8 @@
-import type { ShipmentRow } from "@/app/actions/shipments";
+import type { ShipmentRow } from "@/lib/shipment-types";
 import {
   EMPTY_BOX_DRIVER_MODE,
   FULL_BOX_DRIVER_MODE,
-} from "@/components/sale/venta-parts";
+} from "@/lib/sale-logistics-modes";
 import { shipmentLogisticsSteps } from "@/lib/shipment-display";
 import type { ShipmentLogisticsEditorState } from "@/lib/shipment-logistics-edit";
 

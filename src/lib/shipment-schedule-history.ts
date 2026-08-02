@@ -5,6 +5,7 @@ import {
 } from "@/lib/sale/schedule-time";
 import { formatScheduleDateInput } from "@/lib/schedule-date";
 import { logisticsLegSnapshot } from "@/lib/shipment-audit";
+import { planLeg } from "@/lib/shipment-display/shared";
 import { EMPTY_BOX_LEG_LABELS, FULL_BOX_LEG_LABELS } from "@/lib/shipment-leg-labels";
 
 export type LogisticsLegKey = "emptyBox" | "fullBox";
@@ -71,11 +72,7 @@ export function planLegRecord(
   plan: Record<string, unknown> | null | undefined,
   legKey: LogisticsLegKey,
 ) {
-  const leg = plan?.[legKey];
-
-  return leg && typeof leg === "object" && !Array.isArray(leg)
-    ? (leg as Record<string, unknown>)
-    : null;
+  return planLeg(plan, legKey);
 }
 
 export function detectLegScheduleChanges(
@@ -245,12 +242,6 @@ export function isoToPlanScheduleAt(iso: string, previousScheduleAt?: string | n
   const minutes = String(date.getMinutes()).padStart(2, "0");
 
   return `${datePart}T${hours}:${minutes}`;
-}
-
-export function scheduleChangeFromTaskType(
-  taskType: "deliver_empty_box" | "pickup_full_box",
-): LegScheduleChange["legKey"] {
-  return taskType === "deliver_empty_box" ? "emptyBox" : "fullBox";
 }
 
 export function scheduleHistoryDetailFromMetadata(metadata: Record<string, unknown>) {

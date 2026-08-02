@@ -1,19 +1,31 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const decisionSource = readFileSync(
   new URL("sale-route-decision.ts", import.meta.url),
   "utf8",
 );
-const panelSource = readFileSync(
-  new URL("../components/logistica/logistics-task-schedule-confirm-panel.tsx", import.meta.url),
+const panelLogicSource = readFileSync(
+  new URL(
+    "../components/logistica/task-schedule/logistics-task-schedule-confirm-panel-view.tsx",
+    import.meta.url,
+  ),
   "utf8",
 );
-const saleSource = readFileSync(
-  new URL("../components/venta-client.tsx", import.meta.url),
+const panelHelpersSource = readFileSync(
+  new URL(
+    "../components/logistica/task-schedule/logistics-task-schedule-confirm-helpers.tsx",
+    import.meta.url,
+  ),
   "utf8",
 );
+const panelViewSource = readFileSync(
+  new URL("../components/logistica/task-schedule/schedule-confirm-view.tsx", import.meta.url),
+  "utf8",
+);
+const saleSource = readVentaClientSource();
 
 describe("sale unknown day eval", () => {
   it("models unknown day separately from a known day with unknown route", () => {
@@ -26,14 +38,14 @@ describe("sale unknown day eval", () => {
   it("keeps the unknown-day choice on the day wizard step", () => {
     assert.match(saleSource, /allowPendingDay/);
     assert.match(saleSource, /pendingDayLabel="No sé el día"/);
-    assert.match(panelSource, /showPendingDay/);
-    assert.match(panelSource, /pendingDayAction/);
-    assert.match(panelSource, /\{pendingDayAction\}/);
-    assert.match(panelSource, /step === "day"/);
-    assert.match(panelSource, /enterPendingDayRouteMode/);
+    assert.match(panelLogicSource, /showPendingDay/);
+    assert.match(panelLogicSource, /pendingDayAction/);
+    assert.match(panelHelpersSource, /\{pendingDayAction\}/);
+    assert.match(panelLogicSource, /step === "day"/);
+    assert.match(panelLogicSource, /enterPendingDayRouteMode/);
     assert.match(
-      panelSource,
-      /No sé el día te deja elegir ruta sin fecha\. No sé la ruta conserva el día elegido\./,
+      panelViewSource,
+      /No sé el día permite elegir una ruta semanal sin fecha\./,
     );
   });
 

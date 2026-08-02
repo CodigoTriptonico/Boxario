@@ -48,7 +48,6 @@ export function CompactInfoDisclosure({
 
   useLayoutEffect(() => {
     if (!open || !mounted) {
-      setPosition(null);
       return;
     }
 

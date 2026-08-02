@@ -12,6 +12,7 @@ import type { ShipmentLogisticsEditorState } from "@/lib/shipment-logistics-edit
 import {
   EMPTY_BOX_LEG_LABELS,
   FULL_BOX_LEG_LABELS,
+  logisticsLegRouteActionCopy,
 } from "@/lib/shipment-leg-labels";
 import {
   logisticsLegActiveChannel,
@@ -94,6 +95,23 @@ describe("shipment step context menu", () => {
     assert.match(contextMenuSource, /function requestCancelPickup|function requestCancelDelivery/);
     assert.match(contextMenuSource, /logisticsLegCancelCopy/);
     assert.match(contextMenuSource, /ActionConfirmDialog/);
+  });
+
+  it("edits an existing route instead of offering to program it again", () => {
+    assert.deepEqual(logisticsLegRouteActionCopy("empty_box", true), {
+      title: "Editar entrega",
+      description:
+        "Ya está programada. Cambia la ruta (día) o la hora solo si hace falta.",
+    });
+    assert.equal(
+      logisticsLegRouteActionCopy("full_box", true).title,
+      "Editar recolección",
+    );
+    assert.equal(
+      logisticsLegRouteActionCopy("empty_box", false).title,
+      "Programar entrega",
+    );
+    assert.match(contextMenuSource, /routeName && formattedSchedule/);
   });
 
   it("keeps the menu open while native pickers are in use", () => {

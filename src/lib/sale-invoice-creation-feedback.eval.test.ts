@@ -2,14 +2,20 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = process.cwd();
-const ventaSource = readFileSync(join(root, "src/components/venta-client.tsx"), "utf8");
+const ventaSource = readVentaClientSource();
 const dialogSource = readFileSync(
   join(root, "src/components/sale/sale-invoice-confirm-dialog.tsx"),
   "utf8",
 );
-const shipmentsSource = readFileSync(join(root, "src/app/actions/shipments.ts"), "utf8");
+const shipmentsSource = readShipmentActionsSource(root);
+const notificationsSource = readFileSync(
+  join(root, "src/components/notifications/notifications-center.tsx"),
+  "utf8",
+);
 const quickCheckoutSource = readFileSync(
   join(root, "src/components/sale/sale-quick-checkout-modal.tsx"),
   "utf8",
@@ -30,8 +36,14 @@ describe("invoice creation feedback eval", () => {
   it("creates the sale and warns when stock cannot be reserved", () => {
     assert.match(shipmentsSource, /mode: "skip"/);
     assert.match(shipmentsSource, /stockWarning/);
+    assert.match(shipmentsSource, /source: "inventory_pending"/);
+    assert.match(shipmentsSource, /shipment\.inventory_pending/);
     assert.match(ventaSource, /shipmentResult\.data\.stockWarning/);
-    assert.match(ventaSource, /Advertencia de inventario/);
-    assert.match(quickCheckoutSource, /border-amber-700/);
+    assert.match(ventaSource, /notify\.info\(/);
+    assert.match(ventaSource, /Revisa Notificaciones/);
+    assert.doesNotMatch(ventaSource, /Advertencia de inventario/);
+    assert.match(notificationsSource, /Pendiente de inventario/);
+    assert.match(notificationsSource, /inventory_pending/);
+    assert.match(quickCheckoutSource, /stockMessage && !completed/);
   });
 });

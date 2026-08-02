@@ -2,7 +2,6 @@ export type ConfigMenuSectionId =
   | "organization"
   | "prices"
   | "distributors"
-  | "deliveries"
   | "appearance"
   | "timeclock";
 
@@ -13,12 +12,13 @@ export type ConfigMenuGroup = {
   sectionIds: ConfigMenuSectionId[];
 };
 
+/** Secciones visibles en el menú de Configuración. Distribuidores queda diferido. */
 export const CONFIG_MENU_GROUPS: ConfigMenuGroup[] = [
   {
     id: "operation",
     title: "Operación",
-    description: "Países, precios, proveedores y domicilio.",
-    sectionIds: ["prices", "distributors", "deliveries"],
+    description: "Precios por país y cargos de entrega o recolección.",
+    sectionIds: ["prices"],
   },
   {
     id: "administration",

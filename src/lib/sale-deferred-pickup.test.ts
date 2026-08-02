@@ -9,11 +9,14 @@ import {
   FULL_BOX_DEFERRED_SUMMARY,
   FULL_BOX_DRIVER_MODE,
   FULL_BOX_OFFICE_MODE,
+} from "@/lib/sale-logistics-modes";
+import {
   fullBoxSummaryLine,
   logisticsSummary,
   saleLogisticsContinueHint,
   saleLogisticsPlanReady,
-} from "@/components/sale/venta-parts";
+} from "@/lib/sale-logistics-summary";
+import { readVentaClientSource, readVentaPartsSource } from "@/test-utils/venta-source";
 
 describe("sale deferred pickup helpers", () => {
   it("marks logistics ready with only empty box configured", () => {
@@ -190,10 +193,7 @@ describe("sale logistics step copy eval", () => {
       join(dirname(fileURLToPath(import.meta.url)), "../components/sale/sale-logistics-step.tsx"),
       "utf8",
     );
-    const partsSource = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/sale/venta-parts.tsx"),
-      "utf8",
-    );
+    const partsSource = readVentaPartsSource();
 
     assert.equal(source.includes("Completa los dos movimientos"), false);
     assert.equal(source.includes("Programar ahora"), true);
@@ -218,19 +218,13 @@ describe("sale logistics step copy eval", () => {
   });
 
   it("does not clip the logistics step panel", () => {
-    const ventaSource = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/venta-client.tsx"),
-      "utf8",
-    );
+    const ventaSource = readVentaClientSource();
 
     assert.match(ventaSource, /activeStep === "delivery"[\s\S]*?flowPersonListShellClass/);
   });
 
   it("offers Siguiente on delivery when logistics is ready", () => {
-    const ventaSource = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/venta-client.tsx"),
-      "utf8",
-    );
+    const ventaSource = readVentaClientSource();
     const logisticsSource = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../components/sale/sale-logistics-step.tsx"),
       "utf8",
@@ -244,10 +238,7 @@ describe("sale logistics step copy eval", () => {
   });
 
   it("requires a dated route decision for empty-box driver delivery at sale time", () => {
-    const ventaSource = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/venta-client.tsx"),
-      "utf8",
-    );
+    const ventaSource = readVentaClientSource();
 
     assert.match(
       ventaSource,

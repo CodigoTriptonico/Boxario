@@ -14,6 +14,7 @@ test("envios routes share one data-loading boundary and legacy history redirects
   ]);
 
   assert.match(sharedPage, /Promise\.all\(\[/);
+  assert.match(sharedPage, /listShipmentsAction\(\{ limit: ENVIOS_SHIPMENTS_PAGE_SIZE, offset: 0 \}\)/);
   assert.match(sharedPage, /<EnviosClient[\s\S]*mode=\{mode\}/);
   assert.match(trackingPage, /<EnviosPageContent mode="tracking" \/>/);
   assert.match(historyPage, /redirect\("\/seguimiento\?view=history"\)/);

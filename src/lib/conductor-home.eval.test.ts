@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -13,10 +14,7 @@ const conductorHomeSource = readFileSync(
 );
 const dashboardSource = readFileSync(join(root, "lib/conductor-dashboard.ts"), "utf8");
 const permissionsSource = readFileSync(join(root, "lib/auth/permissions.ts"), "utf8");
-const conductorActionsSource = readFileSync(
-  join(root, "app/actions/conductor-tasks.ts"),
-  "utf8",
-);
+const conductorActionsSource = readConductorTaskActionsSource();
 
 describe("conductor home eval", () => {
   it("routes conductor sessions to a dedicated home panel", () => {

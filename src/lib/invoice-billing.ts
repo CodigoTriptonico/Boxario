@@ -65,10 +65,12 @@ export type InvoiceBillingCartLine = ComboCartLine & {
   time?: string;
 };
 
+export const DEFAULT_MINIMUM_DEPOSIT = "$20";
+
 export const defaultInvoiceBillingConfig: InvoiceBillingConfig = {
   emptyBoxDeliveryFee: "$0",
   fullBoxPickupFee: "$0",
-  minimumDeposit: "$20",
+  minimumDeposit: DEFAULT_MINIMUM_DEPOSIT,
   logisticsFeeMode: "per_trip",
 };
 

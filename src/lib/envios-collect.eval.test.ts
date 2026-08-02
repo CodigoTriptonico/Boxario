@@ -3,15 +3,11 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
-const actionsSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/shipments.ts"),
-  "utf8",
-);
+const enviosSource = readEnviosClientSource();
+const actionsSource = readShipmentActionsSource();
 const collectSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "shipment-collect.ts"),
   "utf8",
@@ -31,12 +27,13 @@ describe("envios collect dialog eval", () => {
     assert.equal(enviosSource.includes("resolveShipmentCollectAmount"), true);
   });
 
-  it("keeps full-payment option detail readable on the emerald primary button", () => {
+  it("keeps payment option details readable on the neutral action buttons", () => {
     const dialogSource = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../components/shipment-collect-dialog.tsx"),
       "utf8",
     );
-    assert.equal(dialogSource.includes("text-slate-950/70"), true);
+    assert.equal(dialogSource.includes('text-[#f8fafc]'), true);
+    assert.equal(dialogSource.includes("text-slate-400"), true);
     assert.equal(dialogSource.includes("text-emerald-100/80"), false);
   });
 });

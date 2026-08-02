@@ -1,18 +1,31 @@
-import type { PricingBoxConfig, PricingCountryConfig } from "@/app/actions/pricing";
 import {
   collectCategoryTreeLeaves,
   type TreeLeafRef,
 } from "@/lib/inventory-stock";
 import type { CategoryConfig } from "@/lib/inventory-tree";
 import { normalizeInventoryText } from "@/lib/inventory-tree";
+import type {
+  InventoryCatalogProduct,
+  PricingBoxConfig,
+  PricingCountryConfig,
+} from "@/lib/pricing/types";
 
-export type InventoryCatalogProduct = {
-  catalogKey: string;
-  label: string;
-  path: string;
+export type { InventoryCatalogProduct } from "@/lib/pricing/types";
+
+export type CatalogProductCategoryGroup = {
   category: string;
-  kind: string;
-  subcategory?: string;
+  products: InventoryCatalogProduct[];
+};
+
+export type CountryCatalogBoxRow = {
+  box: PricingBoxConfig;
+  boxIndex: number;
+  catalogProduct?: InventoryCatalogProduct;
+};
+
+export type CountryCatalogBoxCategoryGroup = {
+  category: string;
+  boxes: CountryCatalogBoxRow[];
 };
 
 export type ProductCountryAssignment = {
@@ -72,10 +85,18 @@ export function catalogProductFromLeaf(leaf: TreeLeafRef): InventoryCatalogProdu
 }
 
 export function listCatalogProducts(categoryConfigs: CategoryConfig[]): InventoryCatalogProduct[] {
-  const products: InventoryCatalogProduct[] = [];
-  const seen = new Set<string>();
+  return listCatalogProductGroups(categoryConfigs).flatMap((group) => group.products);
+}
+
+function listCatalogProductGroups(
+  categoryConfigs: CategoryConfig[],
+): CatalogProductCategoryGroup[] {
+  const groups: CatalogProductCategoryGroup[] = [];
 
   for (const category of categoryConfigs) {
+    const products: InventoryCatalogProduct[] = [];
+    const seen = new Set<string>();
+
     for (const leaf of collectCategoryTreeLeaves(category)) {
       const product = catalogProductFromLeaf(leaf);
 
@@ -86,14 +107,196 @@ export function listCatalogProducts(categoryConfigs: CategoryConfig[]): Inventor
       seen.add(product.catalogKey);
       products.push(product);
     }
+
+    products.sort((left, right) => left.label.localeCompare(right.label, "es"));
+
+    if (products.length > 0) {
+      groups.push({
+        category: category.name,
+        products,
+      });
+    }
   }
 
-  return products.sort((left, right) => left.path.localeCompare(right.path, "es"));
+  return groups;
+}
+
+export function catalogProductSecondaryLabel(product: InventoryCatalogProduct) {
+  if (product.subcategory) {
+    return product.subcategory;
+  }
+
+  if (product.kind !== product.label) {
+    return product.kind;
+  }
+
+  return null;
+}
+
+export function catalogCategoryOrder(products: InventoryCatalogProduct[]) {
+  const order: string[] = [];
+  const seen = new Set<string>();
+
+  for (const product of products) {
+    const category = product.category.trim() || "Sin categoría";
+
+    if (seen.has(category)) {
+      continue;
+    }
+
+    seen.add(category);
+    order.push(category);
+  }
+
+  return order;
+}
+
+export function groupCatalogProductsByCategory(
+  products: InventoryCatalogProduct[],
+  categoryOrder: string[] = catalogCategoryOrder(products),
+): CatalogProductCategoryGroup[] {
+  const byCategory = new Map<string, InventoryCatalogProduct[]>();
+
+  for (const product of products) {
+    const category = product.category.trim() || "Sin categoría";
+    const bucket = byCategory.get(category);
+
+    if (bucket) {
+      bucket.push(product);
+      continue;
+    }
+
+    byCategory.set(category, [product]);
+  }
+
+  const groups: CatalogProductCategoryGroup[] = [];
+  const seen = new Set<string>();
+
+  for (const category of categoryOrder) {
+    const bucket = byCategory.get(category);
+
+    if (!bucket?.length) {
+      continue;
+    }
+
+    groups.push({
+      category,
+      products: [...bucket].sort((left, right) =>
+        left.label.localeCompare(right.label, "es"),
+      ),
+    });
+    seen.add(category);
+  }
+
+  for (const [category, bucket] of byCategory) {
+    if (seen.has(category) || !bucket.length) {
+      continue;
+    }
+
+    groups.push({
+      category,
+      products: [...bucket].sort((left, right) =>
+        left.label.localeCompare(right.label, "es"),
+      ),
+    });
+  }
+
+  return groups;
+}
+
+export function groupCountryCatalogBoxes(
+  boxes: PricingBoxConfig[],
+  catalogProductsByKey: Map<string, InventoryCatalogProduct>,
+  categoryOrder: string[] = [],
+): CountryCatalogBoxCategoryGroup[] {
+  const rows: Array<CountryCatalogBoxRow & { category: string }> = boxes.map(
+    (box, boxIndex) => {
+      const catalogProduct = box.catalogKey
+        ? catalogProductsByKey.get(box.catalogKey)
+        : undefined;
+
+      return {
+        box,
+        boxIndex,
+        catalogProduct,
+        category: catalogProduct?.category.trim() || "Sin categoría",
+      };
+    },
+  );
+
+  const resolvedOrder =
+    categoryOrder.length > 0
+      ? categoryOrder
+      : catalogCategoryOrder(
+          rows.flatMap((row) => (row.catalogProduct ? [row.catalogProduct] : [])),
+        );
+
+  const byCategory = new Map<string, CountryCatalogBoxRow[]>();
+
+  for (const row of rows) {
+    const bucket = byCategory.get(row.category);
+
+    if (bucket) {
+      bucket.push({
+        box: row.box,
+        boxIndex: row.boxIndex,
+        catalogProduct: row.catalogProduct,
+      });
+      continue;
+    }
+
+    byCategory.set(row.category, [
+      {
+        box: row.box,
+        boxIndex: row.boxIndex,
+        catalogProduct: row.catalogProduct,
+      },
+    ]);
+  }
+
+  const groups: CountryCatalogBoxCategoryGroup[] = [];
+  const seen = new Set<string>();
+
+  for (const category of resolvedOrder) {
+    const bucket = byCategory.get(category);
+
+    if (!bucket?.length) {
+      continue;
+    }
+
+    groups.push({ category, boxes: bucket });
+    seen.add(category);
+  }
+
+  for (const [category, bucket] of byCategory) {
+    if (seen.has(category) || !bucket.length) {
+      continue;
+    }
+
+    groups.push({ category, boxes: bucket });
+  }
+
+  return groups;
 }
 
 function findBoxByCatalogKey(boxes: PricingBoxConfig[], catalogKey: string) {
   const target = normalizeLabel(catalogKey);
   return boxes.find((box) => normalizeLabel(box.catalogKey || "") === target);
+}
+
+export function isCommercialInventoryProduct(
+  product: InventoryCatalogProduct,
+  countries: PricingCountryConfig[],
+  options?: { isCommercialFlag?: boolean },
+) {
+  if (options?.isCommercialFlag) {
+    return true;
+  }
+
+  return isProductAssignedToCountry(
+    countries.flatMap((country) => country.boxes),
+    product,
+  );
 }
 
 export function isProductAssignedToCountry(

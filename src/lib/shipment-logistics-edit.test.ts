@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ShipmentRow } from "@/app/actions/shipments";
+import type { ShipmentRow } from "@/lib/shipment-types";
 import {
   buildUpdatedLogisticsPlan,
   emptyBoxLegLocked,
@@ -13,7 +13,7 @@ import {
   EMPTY_BOX_OFFICE_MODE,
   FULL_BOX_DRIVER_MODE,
   FULL_BOX_OFFICE_MODE,
-} from "@/components/sale/venta-parts";
+} from "@/lib/sale-logistics-modes";
 import { PENDING_EMPTY_BOX_STATUS } from "./shipment-display";
 
 function baseShipment(overrides: Partial<ShipmentRow> = {}): ShipmentRow {

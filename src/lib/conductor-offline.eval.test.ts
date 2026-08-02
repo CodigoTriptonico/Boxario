@@ -2,15 +2,19 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
 
 const root = process.cwd();
 const clientSource = readFileSync(join(root, "src/components/conductor/conductor-tareas-client.tsx"), "utf8");
+const clientUiSource = readConductorTareasClientSource(root);
+const offlineHookSource = readFileSync(join(root, "src/components/conductor/use-conductor-offline-sync.ts"), "utf8");
 const queueSource = readFileSync(join(root, "src/lib/conductor-offline/queue.ts"), "utf8");
 const queueCoreSource = readFileSync(join(root, "src/lib/conductor-offline/queue-core.ts"), "utf8");
 const workerSource = readFileSync(join(root, "public/sw.js"), "utf8");
 const proxySource = readFileSync(join(root, "src/proxy.ts"), "utf8");
 const migrationSource = readFileSync(join(root, "supabase/migrations/069_conductor_offline_task_results.sql"), "utf8");
-const conductorActionSource = readFileSync(join(root, "src/app/actions/conductor-tasks.ts"), "utf8");
+const conductorActionSource = readConductorTaskActionsSource(root);
 
 describe("conductor offline-first eval", () => {
   it("keeps server retries idempotent after a partial attempt write", () => {
@@ -42,8 +46,8 @@ describe("conductor offline-first eval", () => {
   });
 
   it("syncs when open and through Background Sync when supported", () => {
-    assert.match(clientSource, /window\.addEventListener\("online"/);
-    assert.match(clientSource, /visibilitychange/);
+    assert.match(offlineHookSource, /window\.addEventListener\("online"/);
+    assert.match(offlineHookSource, /visibilitychange/);
     assert.match(workerSource, /addEventListener\("sync"/);
     assert.match(workerSource, /api\/conductor\/task-results/);
   });
@@ -65,8 +69,8 @@ describe("conductor offline-first eval", () => {
   });
 
   it("uses explicit Spanish operational states without moving the toolbar", () => {
-    assert.match(clientSource, /aria-live="polite"/);
-    assert.match(clientSource, /h-10 min-w-0 items-center/);
+    assert.match(clientUiSource, /aria-live="polite"/);
+    assert.match(clientUiSource, /h-10 min-w-0 items-center/);
     assert.match(queueCoreSource, /Revisar sincronización/);
     assert.match(clientSource, /Guardada en este teléfono/);
   });

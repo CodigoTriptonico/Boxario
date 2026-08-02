@@ -21,7 +21,7 @@ import {
 import { resolveAddressValidationUi, addressCardSubtitle } from "@/lib/sale-address-validation-ui";
 import {
   PERSON_NAME_MAX_LENGTH,
-  sanitizePersonNameInput,
+  formatPersonNameInput,
 } from "@/lib/person-name";
 
 type SaleClientFormProps = {
@@ -237,7 +237,7 @@ export function SaleClientForm({
                     maxLength={PERSON_NAME_MAX_LENGTH}
                     inputMode="text"
                     onChange={(event) =>
-                      form.setFirstName(sanitizePersonNameInput(event.target.value))
+                      form.setFirstName(formatPersonNameInput(event.target.value))
                     }
                   />
                 </label>
@@ -252,7 +252,7 @@ export function SaleClientForm({
                     maxLength={PERSON_NAME_MAX_LENGTH}
                     inputMode="text"
                     onChange={(event) =>
-                      form.setLastName(sanitizePersonNameInput(event.target.value))
+                      form.setLastName(formatPersonNameInput(event.target.value))
                     }
                   />
                 </label>

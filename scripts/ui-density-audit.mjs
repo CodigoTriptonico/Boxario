@@ -141,7 +141,7 @@ export function auditSource(source, fileName = "inline.tsx") {
   return { surfaceCount, maxSurfaceDepth, nestedSurfaces, secondaryCopy };
 }
 
-export function auditWorkspace(workspace = process.cwd(), roots = DEFAULT_ROOTS) {
+function auditWorkspace(workspace = process.cwd(), roots = DEFAULT_ROOTS) {
   const files = roots
     .flatMap((root) => walkFiles(resolve(workspace, root)))
     .filter((file) => !/\.(?:test|eval\.test)\.tsx?$/.test(file))

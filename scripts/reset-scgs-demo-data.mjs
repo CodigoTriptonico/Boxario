@@ -144,6 +144,20 @@ async function wipeOrgDemoData(client, orgId) {
     () => deleteByOrg(client, "package_custody_handoffs", orgId),
   );
 
+  // Idempotencia de ventas: referencia shipments con on delete restrict.
+  deleted.shipment_sale_operations = await withDisabledTriggers(
+    client,
+    [
+      {
+        disable:
+          "alter table public.shipment_sale_operations disable trigger shipment_sale_operations_immutable",
+        enable:
+          "alter table public.shipment_sale_operations enable trigger shipment_sale_operations_immutable",
+      },
+    ],
+    () => deleteByOrg(client, "shipment_sale_operations", orgId),
+  );
+
   // Orden: hijos primero, padres al final.
   const tables = [
     "shipment_payments",

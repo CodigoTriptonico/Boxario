@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 test("venta parses context-menu datasets through one helper", async () => {
-  const source = await readFile(
-    new URL("../components/venta-client.tsx", import.meta.url),
-    "utf8",
-  );
+  const source = await Promise.resolve(readVentaClientSource());
 
   assert.match(source, /saleContextTargetData\(target\.dataset\)/);
   assert.doesNotMatch(source, /target\.dataset\.saleContextPhones\.split/);

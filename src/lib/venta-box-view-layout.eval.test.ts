@@ -3,9 +3,10 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
-const ventaSource = readFileSync(join(root, "src/components/venta-client.tsx"), "utf8");
+const ventaSource = readVentaClientSource();
 const boxPickerSource = readFileSync(join(root, "src/components/sale/sale-box-picker.tsx"), "utf8");
 const surfaceContextSource = readFileSync(join(root, "src/lib/ui-surface-context.ts"), "utf8");
 

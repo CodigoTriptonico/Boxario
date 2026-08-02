@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaPartsSource } from "@/test-utils/venta-source";
 
-const stepBarSource = readFileSync(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8");
+const stepBarSource = readVentaPartsSource();
 const boxPickerSource = readFileSync(new URL("../components/sale/sale-box-picker.tsx", import.meta.url), "utf8");
 
 describe("venta mobile text readability eval", () => {
@@ -14,11 +15,19 @@ describe("venta mobile text readability eval", () => {
     assert.match(stepBarSource, /w-\[8\.5rem\] lg:flex-1/);
   });
 
-  it("uses the product title as the flexible mobile row field", () => {
-    assert.match(boxPickerSource, /<div className="min-w-0">\s*<p className="truncate text-sm font-black/);
+  it("keeps the product title and price together instead of opposite edges", () => {
     assert.match(
       boxPickerSource,
-      /<p className="whitespace-nowrap[^"]*tabular-nums[^"]*">[\s\S]*?\{box\[1\]\}[\s\S]*?<\/p>/,
+      /flex min-w-0 items-center gap-2[\s\S]*?\{box\[0\]\}[\s\S]*?\{box\[1\]\}[\s\S]*?SaleBoxCartQtyBadge/,
     );
+    assert.match(boxPickerSource, /whitespace-nowrap[^"]*tabular-nums[^"]*text-emerald-200/);
+    assert.match(boxPickerSource, /SaleBoxStockBadge/);
+    assert.match(boxPickerSource, /boxStockByKey/);
+    assert.doesNotMatch(
+      boxPickerSource,
+      /grid-cols-\[2rem_minmax\(0,1fr\)_auto\]/,
+    );
+    assert.doesNotMatch(boxPickerSource, /min-w-0 flex-1/);
+    assert.doesNotMatch(boxPickerSource, /disabled=\{stock/);
   });
 });

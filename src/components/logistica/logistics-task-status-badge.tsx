@@ -1,6 +1,6 @@
 "use client";
 
-import type { LogisticsTaskStatus, RouteMemberRow } from "@/app/actions/shipments";
+import type { LogisticsTaskStatus, RouteMemberRow } from "@/lib/shipment-types";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import {
   buildDriverPickerOptions,

@@ -12,7 +12,7 @@ const movementModalSource = readFileSync(
   "utf8",
 );
 const structureEditorSource = readFileSync(
-  join(process.cwd(), "src/components/inventory-structure-editor.tsx"),
+  join(process.cwd(), "src/components/inventory/use-inventory-movements.ts"),
   "utf8",
 );
 
@@ -26,11 +26,13 @@ describe("inventory entry cost eval", () => {
   });
 
   it("exposes optional synced cost fields only on entrada", () => {
-    assert.match(movementModalSource, /Costo total del lote/);
-    assert.match(movementModalSource, /Costo unitario/);
+    assert.match(movementModalSource, /Total del lote/);
+    assert.match(movementModalSource, /Costo por pieza/);
     assert.match(movementModalSource, /movementDraft\.type === "entrada"/);
     assert.match(movementModalSource, /syncEntryCostFields/);
     assert.match(movementModalSource, /movementFieldClass/);
+    assert.match(movementModalSource, /w-full min-w-0 max-w-full/);
+    assert.match(movementModalSource, /flex min-w-0 flex-col gap-3/);
     assert.doesNotMatch(movementModalSource, /sm:grid-cols-2/);
   });
 

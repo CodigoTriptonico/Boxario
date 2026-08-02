@@ -1,13 +1,13 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const enviosSource = readFileSync(join(root, "components/envios-client.tsx"), "utf8");
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+
+const enviosSource = readEnviosClientSource();
 const sidebarControls = readFileSync(
-  join(root, "components/ui/sidebar-page-surface-controls.tsx"),
+  join(process.cwd(), "src/components/ui/sidebar-page-surface-controls.tsx"),
   "utf8",
 );
 

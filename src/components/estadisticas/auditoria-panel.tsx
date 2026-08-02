@@ -2,11 +2,10 @@
 
 import { History, Search } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
-import {
-  listShipmentActivityHistoryAction,
-  type ActivityHistoryRow,
-} from "@/app/actions/history";
-import { listShipmentsAction, type ShipmentRow } from "@/app/actions/shipments";
+import { listShipmentActivityHistoryAction } from "@/app/actions/history";
+import { listShipmentsAction } from "@/app/actions/shipments";
+import type { ShipmentRow } from "@/lib/shipment-types";
+import type { ActivityHistoryRow } from "@/lib/activity-history-types";
 import { AuditHistoryEntry } from "@/components/audit-history-entry";
 import { PageLoading } from "@/components/page-loading";
 import { usePageViewLayout } from "@/components/ui/ui-surface-preferences-provider";

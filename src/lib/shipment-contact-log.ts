@@ -1,4 +1,4 @@
-export const SHIPMENT_CONTACT_CHANNELS = [
+const SHIPMENT_CONTACT_CHANNELS = [
   { value: "call", label: "Llamada" },
   { value: "whatsapp", label: "WhatsApp" },
   { value: "sms", label: "SMS" },

@@ -1,4 +1,4 @@
-import type { LogisticsTaskStatus } from "@/app/actions/shipments";
+import type { LogisticsTaskStatus } from "@/lib/shipment-types";
 import { formatScheduleDateInput } from "@/lib/schedule-date";
 import { scheduleAtToTimestamp, scheduleTimeComplete } from "@/lib/sale/schedule-time";
 import { isoToPlanScheduleAt } from "@/lib/shipment-schedule-history";

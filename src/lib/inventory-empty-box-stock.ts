@@ -161,20 +161,3 @@ export function withEmptyBoxStockReservedPlan(
     },
   };
 }
-
-export function withEmptyBoxStockDeductedPlan(
-  plan: Record<string, unknown>,
-  input: { deductedAt: string; warehouseId: string },
-) {
-  const emptyBox = asRecord(plan.emptyBox);
-
-  return {
-    ...plan,
-    emptyBox: {
-      ...emptyBox,
-      stockDeductedAt: input.deductedAt,
-      warehouseId: input.warehouseId,
-      stockReservedAt: emptyBox.stockReservedAt || input.deductedAt,
-    },
-  };
-}

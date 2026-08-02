@@ -1,4 +1,4 @@
-import { formatShipmentAbsolute } from "@/lib/shipment-timing";
+import { formatShipmentAbsolute } from "@/lib/shipment-time-format";
 
 export type ShipmentAuditInteraction =
   | "left_click"

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import type { OnboardingProgress } from "@/app/actions/onboarding";
+import type { OnboardingProgress } from "@/lib/onboarding/types";
 import { resolveOnboardingGuideForStep } from "@/lib/onboarding/micro-steps";
 
 function baseProgress(overrides: Partial<OnboardingProgress> = {}): OnboardingProgress {

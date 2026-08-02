@@ -1,14 +1,15 @@
 import assert from "node:assert/strict";
-import test from "node:test";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
+import test from "node:test";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
 
 const root = process.cwd();
 const migration = readFileSync(join(root, "supabase/migrations/083_agency_route_operations.sql"), "utf8");
 const validationMigration = readFileSync(join(root, "supabase/migrations/084_agency_request_catalog_validation.sql"), "utf8");
 const agencyPanel = readFileSync(join(root, "src/components/business/agency-operations-panel.tsx"), "utf8");
-const logistics = readFileSync(join(root, "src/components/logistica-client.tsx"), "utf8");
-const conductor = readFileSync(join(root, "src/components/conductor/conductor-tareas-client.tsx"), "utf8");
+const logistics = readLogisticaClientSource(root);
+const conductor = readConductorTareasClientSource(root);
 const agenciesActions = readFileSync(join(root, "src/app/actions/agencies.ts"), "utf8");
 
 test("agency operations connect requests, route stops and assigned drivers", () => {

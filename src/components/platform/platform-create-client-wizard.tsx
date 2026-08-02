@@ -3,14 +3,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Building2,
-  ChevronDown,
-  Copy,
   Eye,
   EyeOff,
   KeyRound,
   Loader2,
   Mail,
-  MessageSquare,
   Pencil,
   Plus,
   RefreshCw,
@@ -23,45 +20,42 @@ import {
   flowFormFieldClass,
   flowIntroClass,
   flowLegendClass,
-  flowSummaryDlClass,
-  flowSummaryItemClass,
-  flowWizardActionsClass,
-  flowWizardStackClass,
 } from "@/components/flow-form-styles";
 import { FlowStepTitle } from "@/components/flow-step-title";
 import { EmailDomainSuggestionsInput } from "@/components/email-domain-suggestions-input";
 import { PhoneCountryInput } from "@/components/phone-country-input";
 import { formatPersonNameInput } from "@/lib/person-name";
-import { DEFAULT_MAX_WAREHOUSES } from "@/lib/organizations/settings";
-import {
-  isValidNationalPhone,
-  maxNationalDigitsForDialCode,
-  minNationalDigitsForDialCode,
-  splitPhoneNumber,
-} from "@/lib/phone/countries";
-import { normalizePhoneDigits, normalizePhoneE164 } from "@/lib/phone/normalize";
+import { normalizePhoneE164 } from "@/lib/phone/normalize";
 import { createOrganizationAction } from "@/app/actions/platform";
+import { createOrgSteps, type CreateOrgStep } from "@/components/platform/platform-create-org-flow-nav";
+import { PlatformCreateClientCredentialsPanel } from "@/components/platform/platform-create-client-credentials-panel";
 import {
-  createOrgSteps,
-  type CreateOrgStep,
-} from "@/components/platform/platform-create-org-flow-nav";
+  addContactRowButtonClass,
+  clampPlanLimit,
+  createOrgPageShellClass,
+  createOrgStepBodyClass,
+  dataColumnClass,
+  configBoxClass,
+  emptyForm,
+  findCompletedStepIndex,
+  formatContactList,
+  getAdminFullName,
+  getDataStepValidationMessage,
+  normalizeContactList,
+  removeContactRowButtonClass,
+  resolveCompletedStep,
+} from "@/components/platform/platform-create-client-wizard-helpers";
 import { CompactInfoDisclosure, inputClass, Panel, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
-import { generateTemporaryPassword, slugifyOrgName } from "@/lib/organizations/slug";
+import { generateOrganizationAdminTemporaryPassword, slugifyOrgName } from "@/lib/organizations/slug";
 import {
-  formatInitialTeamPlan,
   initialAdditionalUserLimit,
   initialTeamPlan,
   initialTeamUserLimit,
 } from "@/lib/organizations/initial-team-plan";
 import { passwordConfirmationMessage } from "@/lib/auth/password-confirmation";
+import { DEFAULT_MAX_WAREHOUSES } from "@/lib/organizations/settings";
 
-const createOrgPageShellClass = "flex w-full min-h-0 flex-1 flex-col space-y-5 pb-8";
 const createOrgPanelContentClass = "p-3 sm:p-4";
-const createOrgStepBodyClass =
-  "w-full p-1 sm:p-2";
-const configBoxClass =
-  "border-l border-emerald-400/35 pl-4";
-const dataColumnClass = "min-w-0 w-full space-y-5";
 const compactFieldClass = `${flowFormFieldClass} max-w-none`;
 const compactInputClass = `${inputClass} w-full border-white/10 shadow-[inset_0_1px_0_rgba(255,255,255,0.04)] transition focus:border-emerald-400 focus:ring-2 focus:ring-emerald-400/20`;
 const passwordFieldsClass = `max-w-[34rem] space-y-3 ${compactFieldClass}`;
@@ -73,95 +67,6 @@ type PlatformCreateClientWizardProps = {
   onError: (message: string) => void;
 };
 
-const emptyForm = {
-  orgName: "",
-  adminFirstName: "",
-  adminLastName: "",
-  adminEmail: "",
-  adminPhones: [""],
-  adminPassword: "",
-  adminPasswordConfirmation: "",
-};
-
-const addContactRowButtonClass =
-  "inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md border border-emerald-300/30 bg-emerald-400 text-slate-950 shadow-[0_8px_18px_rgba(16,185,129,0.18)] transition hover:bg-emerald-300";
-const removeContactRowButtonClass =
-  "flex h-11 w-11 shrink-0 items-center justify-center rounded-md border border-rose-400/20 bg-rose-950/45 text-rose-100 transition hover:bg-rose-900/60 disabled:cursor-not-allowed disabled:opacity-35";
-const shareMenuItemClass =
-  "flex w-full items-center gap-2 px-3 py-2.5 text-left text-sm font-black text-[#f8fafc] transition hover:bg-white/5";
-
-function normalizeContactList(values: string[]) {
-  return values.map((value) => value.trim()).filter(Boolean);
-}
-
-function formatContactList(values: string[]) {
-  return normalizeContactList(values).join(" · ");
-}
-
-function getAdminFullName(form: typeof emptyForm) {
-  return [form.adminFirstName.trim(), form.adminLastName.trim()].filter(Boolean).join(" ");
-}
-
-function isValidEmail(value: string) {
-  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
-}
-
-function getDataStepValidationMessage(form: typeof emptyForm): string | null {
-  if (form.orgName.trim().length < 2) {
-    return "Escribe el nombre comercial (mínimo 2 caracteres).";
-  }
-  if (form.adminFirstName.trim().length < 2) {
-    return "Escribe el nombre del dueño.";
-  }
-  if (form.adminLastName.trim().length < 2) {
-    return "Escribe el apellido del dueño.";
-  }
-  if (!isValidEmail(form.adminEmail)) {
-    return "Ingresa un correo válido para el dueño.";
-  }
-
-  const phones = normalizeContactList(form.adminPhones);
-  if (!phones.length || !isValidNationalPhone(phones[0])) {
-    const { dialCode } = splitPhoneNumber(phones[0] || "");
-    const min = minNationalDigitsForDialCode(dialCode);
-    const max = maxNationalDigitsForDialCode(dialCode);
-    const range = min === max ? `${min}` : `${min} a ${max}`;
-    return `Ingresa un celular válido (${range} dígitos sin el código de país).`;
-  }
-  for (let index = 1; index < phones.length; index += 1) {
-    if (!isValidNationalPhone(phones[index])) {
-      return `El celular adicional ${index + 1} no es válido.`;
-    }
-  }
-  const phoneDigits = phones.map((phone) => normalizePhoneDigits(phone));
-  if (new Set(phoneDigits).size !== phoneDigits.length) {
-    return "No repitas números de celular del dueño.";
-  }
-  if (form.adminPassword.trim().length < 8) {
-    return "La contraseña debe tener al menos 8 caracteres.";
-  }
-  return passwordConfirmationMessage(form.adminPassword, form.adminPasswordConfirmation);
-}
-
-function resolveCompletedStep(created: boolean): CreateOrgStep {
-  return created ? "done" : "data";
-}
-
-function clampPlanLimit(
-  value: string,
-  min: number,
-  max: number,
-  fallback: number,
-): number {
-  const parsed = Number.parseInt(value, 10);
-
-  if (!Number.isFinite(parsed)) {
-    return fallback;
-  }
-
-  return Math.max(min, Math.min(max, Math.trunc(parsed)));
-}
-
 export function PlatformCreateClientWizard({
   onCancel,
   onCreated,
@@ -169,7 +74,7 @@ export function PlatformCreateClientWizard({
 }: PlatformCreateClientWizardProps) {
   const [form, setForm] = useState(() => ({
     ...emptyForm,
-    adminPassword: generateTemporaryPassword(),
+    adminPassword: generateOrganizationAdminTemporaryPassword(),
   }));
   const [orgSettings, setOrgSettings] = useState({
     maxUsers: initialAdditionalUserLimit,
@@ -197,7 +102,7 @@ export function PlatformCreateClientWizard({
   const created = Boolean(createdOrgId && createdCredentials);
 
   const completedStep = useMemo(() => resolveCompletedStep(created), [created]);
-  const completedStepIndex = createOrgSteps.findIndex((step) => step.id === completedStep);
+  const completedStepIndex = findCompletedStepIndex(completedStep);
   const maxUnlockedStepIndex = created ? createOrgSteps.length - 1 : completedStepIndex;
 
   const canOpenStep = useCallback(
@@ -252,7 +157,7 @@ export function PlatformCreateClientWizard({
   );
 
   function generatePassword() {
-    const password = generateTemporaryPassword();
+    const password = generateOrganizationAdminTemporaryPassword();
     setForm((current) => ({
       ...current,
       adminPassword: password,
@@ -742,102 +647,15 @@ export function PlatformCreateClientWizard({
 
       {showDoneSection && createdCredentials ? (
         <div ref={doneRef} className="motion-enter-top scroll-mt-24">
-          <Panel
-            clipContent={false}
-            contentClassName={createOrgPanelContentClass}
-            title={<FlowStepTitle stepNumber={2} done label="Listo — credenciales" />}
-          >
-            <div className={createOrgStepBodyClass}>
-              <div className={flowWizardStackClass}>
-                <p
-                  className={`${flowIntroClass} rounded-lg border border-emerald-400/20 bg-emerald-950/25 px-4 py-3 text-left text-emerald-100`}
-                >
-                  Comparte estas credenciales con el dueño para que entre a operar su empresa.
-                </p>
-                <dl className={flowSummaryDlClass}>
-                  <div className={`${flowSummaryItemClass} sm:col-span-2`}>
-                    <dt className="text-[11px] font-black uppercase text-slate-500">Empresa</dt>
-                    <dd className="mt-0.5 font-black text-[#f8fafc]">{createdCredentials.orgName}</dd>
-                  </div>
-                  <div className={`${flowSummaryItemClass} sm:col-span-2`}>
-                    <dt className="text-[11px] font-black uppercase text-slate-500">Correo</dt>
-                    <dd className="mt-0.5 break-all font-black text-[#f8fafc]">{createdCredentials.email}</dd>
-                  </div>
-                  <div className={`${flowSummaryItemClass} sm:col-span-2`}>
-                    <dt className="text-[11px] font-black uppercase text-slate-500">Plan</dt>
-                    <dd className="mt-0.5 font-black text-[#f8fafc]">
-                      {createdCredentials.maxUsers === initialAdditionalUserLimit
-                        ? formatInitialTeamPlan()
-                        : `${createdCredentials.maxUsers} usuario${createdCredentials.maxUsers === 1 ? "" : "s"} adicional${createdCredentials.maxUsers === 1 ? "" : "es"}`}{" "}
-                      · {createdCredentials.maxWarehouses}{" "}
-                      {createdCredentials.maxWarehouses === 1
-                        ? "bodega máxima"
-                        : "bodegas máximas"}{" "}
-                      · Agencias {createdCredentials.agenciesEnabled ? "incluidas" : "no incluidas"}
-                    </dd>
-                  </div>
-                  <div className={flowSummaryItemClass}>
-                    <dt className="text-[11px] font-black uppercase text-slate-500">Celular</dt>
-                    <dd className="mt-0.5 font-black text-[#f8fafc]">
-                      {formatContactList(createdCredentials.phones)}
-                    </dd>
-                  </div>
-                  <div className={flowSummaryItemClass}>
-                    <dt className="text-[11px] font-black uppercase text-slate-500">Contraseña</dt>
-                    <dd className="mt-0.5 font-mono text-sm font-black text-slate-200">
-                      {createdCredentials.password}
-                    </dd>
-                  </div>
-                </dl>
-                <div className={flowWizardActionsClass}>
-                  <div ref={shareMenuRef} className="relative">
-                    <button
-                      type="button"
-                      className={`${primaryButtonClass} gap-1 pr-2`}
-                      onClick={() => setShareMenuOpen((value) => !value)}
-                      aria-expanded={shareMenuOpen}
-                      aria-haspopup="menu"
-                    >
-                      <Copy className="h-4 w-4" />
-                      Compartir credenciales
-                      <ChevronDown
-                        className={`h-4 w-4 transition-transform ${shareMenuOpen ? "rotate-180" : ""}`}
-                        aria-hidden
-                      />
-                    </button>
-                    {shareMenuOpen ? (
-                      <div
-                        role="menu"
-                        className="absolute left-0 top-full z-[200] mt-1 min-w-[15rem] overflow-hidden rounded-lg border border-white/10 bg-[#2b3833] py-1 shadow-[0_14px_34px_rgba(0,0,0,0.35)]"
-                      >
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={shareMenuItemClass}
-                          onClick={() => void copyCredentials()}
-                        >
-                          <Copy className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                          Copiar
-                        </button>
-                        <button
-                          type="button"
-                          role="menuitem"
-                          className={shareMenuItemClass}
-                          onClick={sendCredentialsBySms}
-                        >
-                          <MessageSquare className="h-4 w-4 shrink-0 text-emerald-400" aria-hidden />
-                          Enviar por mensaje de texto
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                  <button type="button" className={secondaryButtonClass} onClick={finishWizard}>
-                    Cerrar
-                  </button>
-                </div>
-              </div>
-            </div>
-          </Panel>
+          <PlatformCreateClientCredentialsPanel
+            createdCredentials={createdCredentials}
+            shareMenuOpen={shareMenuOpen}
+            shareMenuRef={shareMenuRef}
+            onToggleShareMenu={() => setShareMenuOpen((value) => !value)}
+            onCopyCredentials={() => void copyCredentials()}
+            onSendCredentialsBySms={sendCredentialsBySms}
+            onFinish={finishWizard}
+          />
         </div>
       ) : null}
     </div>

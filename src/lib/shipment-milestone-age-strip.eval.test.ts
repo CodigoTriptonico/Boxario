@@ -4,10 +4,9 @@ import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
 
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+
+const enviosSource = readEnviosClientSource();
 
 const triggerSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/shipment-milestone-age-strip.tsx"),

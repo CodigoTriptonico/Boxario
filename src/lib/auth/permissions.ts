@@ -207,3 +207,11 @@ export function canAccessWarehouse(
     session.warehouseIds.includes(warehouseId)
   );
 }
+
+/** Shared route management capability (logistics + shipments). */
+export function canManageRoutes(session: AppSession | null) {
+  return (
+    sessionHasPermission(session, "routes.update_status") ||
+    sessionHasPermission(session, "sales.manage")
+  );
+}

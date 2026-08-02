@@ -1,12 +1,9 @@
 import assert from "node:assert/strict";
-import { readFile } from "node:fs/promises";
 import test from "node:test";
+import { readInventoryActionsSource } from "@/test-utils/inventory-route-actions-source";
 
-test("leaf ensure and movement actions share the same persistence helper", async () => {
-  const source = await readFile(
-    new URL("../app/actions/inventory.ts", import.meta.url),
-    "utf8",
-  );
+test("leaf ensure and movement actions share the same persistence helper", () => {
+  const source = readInventoryActionsSource();
   const ensureStart = source.indexOf("export async function ensureInventoryLeafItemAction");
   const movementStart = source.indexOf(
     "export async function recordInventoryMovementForLeafAction",

@@ -1,11 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaClientSource } from "@/test-utils/venta-source";
 
-const ventaSource = readFileSync(
-  new URL("../components/venta-client.tsx", import.meta.url),
-  "utf8",
-);
+const ventaSource = readVentaClientSource();
 const appFrameSource = readFileSync(
   new URL("../components/app-frame.tsx", import.meta.url),
   "utf8",

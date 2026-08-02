@@ -3,11 +3,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
-const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const source = readFileSync(join(root, "components/logistica-client.tsx"), "utf8");
+const root = join(dirname(fileURLToPath(import.meta.url)), "..", "..");
+const source = readLogisticaClientSource(root);
 const sidebarControls = readFileSync(
-  join(root, "components/ui/sidebar-page-surface-controls.tsx"),
+  join(root, "src/components/ui/sidebar-page-surface-controls.tsx"),
   "utf8",
 );
 
@@ -29,7 +30,7 @@ describe("logistica view layout eval", () => {
 
   it("applies the same page layout to seller route proposals", () => {
     const approval = readFileSync(
-      join(root, "components/logistica/customer-route-approval-panel.tsx"),
+      join(root, "src/components/logistica/customer-route-approval-panel.tsx"),
       "utf8",
     );
     assert.equal(approval.includes('usePageViewLayout("logistics.tasks")'), true);

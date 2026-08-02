@@ -39,7 +39,7 @@ export function LogisticsSettingsPanel({
     }
     setSettings(result.data);
     setBaseline(result.data);
-    notify.success("Configuración de logística guardada");
+    notify.success("Costos operativos guardados");
   }
 
   return (
@@ -48,13 +48,12 @@ export function LogisticsSettingsPanel({
         <div className="md:col-span-3">
           <div className="flex items-center gap-2">
             <DollarSign className="h-5 w-5 text-amber-300" />
-            <h2 className="text-lg font-black text-white">
-              Sugerencias de cargos adicionales
-            </h2>
+            <h2 className="text-lg font-black text-white">Costos operativos</h2>
           </div>
           <p className="mt-1 text-xs font-semibold text-slate-400">
-            Son opcionales: Ventas decide si aplicarlas. El servicio normal sigue incluido. Los días
-            y horarios se administran en Rutas.
+            Cargos sugeridos por entrega o recolección con conductor. Son opcionales: Ventas decide
+            si aplicarlos. El servicio normal sigue incluido. Los días y horarios se administran en
+            Logística → Rutas. Los tiempos de entrega por país se configuran en Países.
           </p>
         </div>
         {[

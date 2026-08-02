@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
 const root = process.cwd();
 const read = (path: string) => readFileSync(join(root, path), "utf8");
@@ -16,18 +18,18 @@ describe("security hardening regression gate", () => {
     assert.match(sql, /guard_agency_request_line_scope/);
   });
 
-  it("derives legacy sale money from server-side catalog data", () => {
-    const action = read("src/app/actions/shipments.ts");
+  it("derives sale money from server-side catalog data", () => {
+    const action = readShipmentActionsSource(root);
     assert.match(action, /authoritativeSaleQuote/);
     assert.match(action, /from\("pricing_countries"\)/);
     assert.match(action, /from\("pricing_promotions"\)/);
-    assert.match(action, /const cost = authoritativeQuote\.cost/);
-    assert.match(action, /invoiceStatus: InvoiceStatus[\s\S]*paid >= authoritativeQuote\.total/);
+    assert.match(action, /costCents: Math\.round\(quote\.cost \* 100\)/);
+    assert.match(action, /invoiceStatus: InvoiceStatus[\s\S]*paid >= quote\.total/);
     assert.doesNotMatch(action, /const cost = parseMoney\(input\.cost\)/);
   });
 
-  it("creates the legacy sale through one idempotent database command", () => {
-    const action = read("src/app/actions/shipments.ts");
+  it("creates the sale through one idempotent database command", () => {
+    const action = readShipmentActionsSource(root);
     const sql = read(
       "supabase/migrations/132_atomic_sales_tracking_and_authoritative_writes.sql",
     );
@@ -84,7 +86,7 @@ describe("security hardening regression gate", () => {
   it("minimizes public tracking and sanitizes uploaded images", () => {
     const tracking = read("src/lib/public-tracking.ts");
     const route = read("src/app/api/public/tracking/route.ts");
-    const conductor = read("src/app/actions/conductor-tasks.ts");
+    const conductor = readConductorTaskActionsSource(root);
     assert.doesNotMatch(tracking, /payment: \{/);
     assert.doesNotMatch(route, /shipment_payments\(amount/);
     assert.match(route, /public_tracking_token_hash/);

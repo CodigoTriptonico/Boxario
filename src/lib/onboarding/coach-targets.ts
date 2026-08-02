@@ -1,4 +1,4 @@
-import type { OnboardingProgress } from "@/app/actions/onboarding";
+import type { OnboardingProgress } from "@/lib/onboarding/types";
 import type { OnboardingMicroStepState } from "@/lib/onboarding/micro-steps";
 
 // Tiempo suficiente para leer el panel completo antes de mostrar el coach.
@@ -39,7 +39,6 @@ const CONFIG_SECTIONS = new Set([
   "prices",
   "distributors",
   "inventory",
-  "deliveries",
   "appearance",
   "company",
   "users",
@@ -184,7 +183,7 @@ export function resolveOnboardingCoachHint(
           hint(
             ONBOARDING_TARGETS.CONFIG_PRICES_CARD,
             title,
-            "Abre la tarjeta Países y precios (icono de globo).",
+            "Abre la tarjeta Costos (icono de dólar).",
           ),
           notificationsPanelOpen,
         );
@@ -246,7 +245,7 @@ export function resolveOnboardingCoachHint(
           hint(
             ONBOARDING_TARGETS.CONFIG_PRICES_CARD,
             title,
-            "Abre Países y precios en Configuración.",
+            "Abre Costos en Configuración.",
           ),
           notificationsPanelOpen,
         );

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaPartsSource } from "@/test-utils/venta-source";
 
-const source = readFileSync(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8");
+const source = readVentaPartsSource();
 
 describe("sale step bar mobile layout", () => {
   it("keeps each step number inside its narrow tile and uses a compact label", () => {

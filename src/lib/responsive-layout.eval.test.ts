@@ -51,6 +51,6 @@ describe("responsive layout eval", () => {
     assert.match(nav, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
     assert.match(metrics, /grid-cols-4/);
     assert.doesNotMatch(metrics, /min-w-\[4\.5rem\] px-3/);
-    assert.match(datePicker, /max-w-\[17\.5rem\]/);
+    assert.match(datePicker, /w-\[17\.5rem\]/);
   });
 });

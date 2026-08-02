@@ -1,3 +1,9 @@
+/**
+ * Contraseña temporal para usuarios internos (equipo, conductores).
+ * 10 caracteres alfanuméricos sin símbolos ambiguos (I/O/l/0/1).
+ * No confundir con `generateOrganizationAdminTemporaryPassword` (orgs/captadores:
+ * longitud variable + símbolo obligatorio).
+ */
 const TEMPORARY_PASSWORD_ALPHABET =
   "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
 

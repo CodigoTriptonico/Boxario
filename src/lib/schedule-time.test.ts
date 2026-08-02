@@ -12,6 +12,24 @@ import {
   scheduleTimeComplete,
   scheduleTimePresetMatches,
 } from "@/lib/sale/schedule-time";
+import {
+  DEFAULT_SCHEDULE_SUGGESTIONS,
+  scheduleSuggestionModeEnabled,
+} from "@/lib/sale/schedule-suggestions";
+
+const root = dirname(fileURLToPath(import.meta.url));
+const scheduleTimeFieldSource = readFileSync(
+  join(root, "../components/sale/schedule-time-field.tsx"),
+  "utf8",
+);
+const scheduleSuggestionsSource = readFileSync(
+  join(root, "sale/schedule-suggestions.ts"),
+  "utf8",
+);
+const calendarSource = readFileSync(
+  join(root, "../components/time-picker-calendar.tsx"),
+  "utf8",
+);
 
 describe("schedule time display", () => {
   it("starts without a default exact time", () => {
@@ -72,27 +90,31 @@ describe("schedule time display", () => {
 
 describe("schedule time field eval", () => {
   it("changes suggestions with the selected mode and applies complete ranges", () => {
-    const source = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/sale/schedule-time-field.tsx"),
-      "utf8",
+    assert.match(scheduleTimeFieldSource, /rangeTarget/);
+    assert.match(scheduleTimeFieldSource, /resolvedSuggestions\.range/);
+    assert.match(scheduleTimeFieldSource, /PRESET_LABELS\[activeKind\]/);
+    assert.match(
+      scheduleTimeFieldSource,
+      /formatScheduleTimePart\(\{ kind: "range", start, end \}\)/,
     );
+    assert.match(scheduleTimeFieldSource, /onFocus=\{\(\) => setRangeTarget\("end"\)\}/);
 
-    assert.match(source, /rangeTarget/);
-    assert.match(source, /DEFAULT_SCHEDULE_SUGGESTIONS/);
-    assert.match(source, /resolvedSuggestions\.range/);
-    assert.match(source, /PRESET_LABELS\[parsed\.kind\]/);
-    assert.match(source, /formatScheduleTimePart\(\{ kind: "range", start, end \}\)/);
-    assert.match(source, /onFocus=\{\(\) => setRangeTarget\("end"\)\}/);
+    // Defaults live in the shared config module; the field consumes props and does not invent hours.
+    assert.match(scheduleSuggestionsSource, /export const DEFAULT_SCHEDULE_SUGGESTIONS/);
+    assert.ok(DEFAULT_SCHEDULE_SUGGESTIONS.delivery.until.includes("18:00"));
+    assert.equal(
+      scheduleSuggestionModeEnabled(
+        { exact: [], until: [], from: [], range: [] },
+        "until",
+      ),
+      true,
+    );
+    assert.doesNotMatch(scheduleTimeFieldSource, /DEFAULT_SCHEDULE_SUGGESTIONS/);
   });
 
   it("renders preset shortcuts above time inputs so the picker does not cover them", () => {
-    const source = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/sale/schedule-time-field.tsx"),
-      "utf8",
-    );
-
-    const presetIndex = source.indexOf('PRESET_LABELS[parsed.kind]');
-    const timeInputIndex = source.indexOf("Hora exacta");
+    const presetIndex = scheduleTimeFieldSource.indexOf("PRESET_LABELS[activeKind]");
+    const timeInputIndex = scheduleTimeFieldSource.indexOf("Hora exacta");
 
     assert.ok(presetIndex > -1);
     assert.ok(timeInputIndex > -1);
@@ -100,23 +122,21 @@ describe("schedule time field eval", () => {
   });
 
   it("uses the custom grid time picker instead of native time inputs", () => {
-    const source = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/sale/schedule-time-field.tsx"),
-      "utf8",
+    assert.match(scheduleTimeFieldSource, /TimePickerInput/);
+    assert.match(
+      scheduleTimeFieldSource,
+      /kind === "until" \? "Antes de"/,
     );
-    const calendarSource = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../components/time-picker-calendar.tsx"),
-      "utf8",
+    assert.match(
+      scheduleTimeFieldSource,
+      /kind === "exact" \? "Exacta"/,
     );
-
-    assert.match(source, /TimePickerInput/);
-    assert.match(source, /\["until", "Antes de"\]/);
-    assert.match(source, /\["from", "A partir"\]/);
-    assert.match(source, /\["range", "Entre"\]/);
-    assert.equal(source.includes('type="time"'), false);
-    assert.equal(source.includes("openNativePicker"), false);
-    assert.match(calendarSource, /Elige la hora/);
-    assert.match(calendarSource, /Elige el minuto/);
+    assert.match(scheduleTimeFieldSource, /\["range", "Entre"\]/);
+    assert.match(scheduleTimeFieldSource, /"A partir"/);
+    assert.equal(scheduleTimeFieldSource.includes('type="time"'), false);
+    assert.equal(scheduleTimeFieldSource.includes("openNativePicker"), false);
+    assert.match(calendarSource, /aria-label="Seleccionar hora"/);
+    assert.match(calendarSource, /aria-label="Seleccionar minuto"/);
     assert.match(calendarSource, /setStep\("minute"\)/);
   });
 });

@@ -1,15 +1,75 @@
-export const SCGS_ORG_ID = "2029bf0c-e766-4840-9d90-f4b252cc3fe9";
+/**
+ * Fuente única del catálogo demo SCGS: organización, países, cajas y destinatarios.
+ * Los seeds de remitentes, cajas y catálogo leen de aquí para no divergir entre sí.
+ */
 
+const LEGACY_SCGS_ORG_ID = "2029bf0c-e766-4840-9d90-f4b252cc3fe9";
+
+/**
+ * Resuelve la org SCGS por `SCGS_ORG_ID` del entorno, el ID histórico o el slug.
+ * Las bases locales se recrean con IDs nuevos, así que el ID fijo no basta.
+ */
+export async function resolveScgsOrgId(client) {
+  const candidates = [process.env.SCGS_ORG_ID?.trim(), LEGACY_SCGS_ORG_ID].filter(Boolean);
+
+  for (const candidate of candidates) {
+    const { rows } = await client.query(
+      "select id, name from public.organizations where id = $1",
+      [candidate],
+    );
+
+    if (rows.length) {
+      return rows[0];
+    }
+  }
+
+  const { rows } = await client.query(
+    "select id, name from public.organizations where lower(slug) = 'scgs' limit 1",
+  );
+
+  if (!rows.length) {
+    throw new Error("No se encontró la org SCGS (ni por ID ni por slug).");
+  }
+
+  return rows[0];
+}
+
+/**
+ * `priceFactor` multiplica el precio base de cada caja: los destinos lejanos
+ * cuestan más que México sin duplicar la tabla de precios por país.
+ */
 export const COUNTRIES = [
-  { code: "MX", name: "México", deliveryTime: "3-5 dias" },
-  { code: "CO", name: "Colombia", deliveryTime: "7-10 dias" },
-  { code: "GT", name: "Guatemala", deliveryTime: "5-8 dias" },
-  { code: "SV", name: "El Salvador", deliveryTime: "5-8 dias" },
-  { code: "HN", name: "Honduras", deliveryTime: "5-8 dias" },
-  { code: "NI", name: "Nicaragua", deliveryTime: "6-9 dias" },
+  { code: "MX", name: "México", deliveryTime: "3-5 dias", priceFactor: 1 },
+  { code: "CO", name: "Colombia", deliveryTime: "7-10 dias", priceFactor: 1.35 },
+  { code: "GT", name: "Guatemala", deliveryTime: "5-8 dias", priceFactor: 1.15 },
+  { code: "SV", name: "El Salvador", deliveryTime: "5-8 dias", priceFactor: 1.15 },
+  { code: "HN", name: "Honduras", deliveryTime: "5-8 dias", priceFactor: 1.2 },
 ];
 
-export const RECIPIENTS_BY_COUNTRY = {
+/** Medidas de caja del catálogo demo, con precio y costo base en México. */
+export const BOX_SIZES = [
+  { name: "12x12x12", price: 28, cost: 17 },
+  { name: "14x14x14", price: 35, cost: 22 },
+  { name: "16x16x16", price: 50, cost: 31 },
+  { name: "18x18x18", price: 65, cost: 40 },
+  { name: "20x20x20", price: 80, cost: 50 },
+  { name: "22x22x22", price: 95, cost: 59 },
+  { name: "24x24x24", price: 110, cost: 68 },
+  { name: "20x14x14", price: 58, cost: 36 },
+  { name: "24x18x18", price: 78, cost: 48 },
+  { name: "30x20x20", price: 120, cost: 74 },
+];
+
+export function boxPricingForCountry(box, country) {
+  const factor = country.priceFactor ?? 1;
+
+  return {
+    price: `$${Math.round(box.price * factor)}`,
+    cost: `$${Math.round(box.cost * factor)}`,
+  };
+}
+
+const RECIPIENTS_BY_COUNTRY = {
   "México": [
     { first_name: "Rosa", last_name: "García", phone: "+52-33-3612-8840", street: "Av. Chapultepec", house_number: "245", neighborhood: "Americana", city: "Guadalajara", state: "Jalisco", postal_code: "44160" },
     { first_name: "Elena", last_name: "Vargas", phone: "+52-81-8345-2291", street: "Av. Constitución", house_number: "1520", neighborhood: "Centro", city: "Monterrey", state: "Nuevo León", postal_code: "64000" },
@@ -70,18 +130,6 @@ export const RECIPIENTS_BY_COUNTRY = {
     { first_name: "Oscar", last_name: "Amador", phone: "+504-2238-2233", street: "Col. Miraflores", house_number: "234", neighborhood: "Miraflores", city: "Tegucigalpa", state: "Francisco Morazán", postal_code: "11101" },
     { first_name: "Karen", last_name: "Sosa", phone: "+504-2559-5566", street: "Res. El Prado", house_number: "15", neighborhood: "El Prado", city: "San Pedro Sula", state: "Cortés", postal_code: "21102" },
   ],
-  Nicaragua: [
-    { first_name: "Javier", last_name: "Bermúdez", phone: "+505-2222-3344", street: "Carretera Masaya", house_number: "Km 4.5", neighborhood: "Las Colinas", city: "Managua", state: "Managua", postal_code: "14000" },
-    { first_name: "Lucía", last_name: "Corea", phone: "+505-2311-5566", street: "Calle Central", house_number: "45", neighborhood: "Centro", city: "León", state: "León", postal_code: "21000" },
-    { first_name: "Pedro", last_name: "Zeledón", phone: "+505-2266-7788", street: "Pista Juan Pablo II", house_number: "1234", neighborhood: "Los Robles", city: "Managua", state: "Managua", postal_code: "14000" },
-    { first_name: "Adriana", last_name: "Téllez", phone: "+505-2552-9900", street: "Av. Central", house_number: "12", neighborhood: "Centro", city: "Granada", state: "Granada", postal_code: "43000" },
-    { first_name: "Ramón", last_name: "Obando", phone: "+505-2782-1122", street: "Barrio El Calvario", house_number: "8", neighborhood: "Centro", city: "Chinandega", state: "Chinandega", postal_code: "25000" },
-    { first_name: "Estela", last_name: "Jarquín", phone: "+505-2223-6677", street: "Col. Los Ángeles", house_number: "56", neighborhood: "Los Ángeles", city: "Managua", state: "Managua", postal_code: "14000" },
-    { first_name: "Víctor", last_name: "Urbina", phone: "+505-2312-4455", street: "Calle Real", house_number: "90", neighborhood: "Centro", city: "León", state: "León", postal_code: "21000" },
-    { first_name: "Marisol", last_name: "Blandón", phone: "+505-2553-8899", street: "Calle La Calzada", house_number: "22", neighborhood: "Centro", city: "Granada", state: "Granada", postal_code: "43000" },
-    { first_name: "Ernesto", last_name: "Gutiérrez", phone: "+505-2783-2233", street: "Barrio San José", house_number: "34", neighborhood: "Centro", city: "Chinandega", state: "Chinandega", postal_code: "25000" },
-    { first_name: "Rebeca", last_name: "Montenegro", phone: "+505-2224-5566", street: "Res. Bolonia", house_number: "78", neighborhood: "Bolonia", city: "Managua", state: "Managua", postal_code: "14000" },
-  ],
 };
 
 export function normalizeCountryName(country) {
@@ -114,7 +162,7 @@ export function pickRandomRecipientCountries(random = Math.random) {
   return shuffle(COUNTRIES, random).slice(0, count);
 }
 
-export function pickRecipientTemplate(countryName, random = Math.random) {
+function pickRecipientTemplate(countryName, random = Math.random) {
   const templates = RECIPIENTS_BY_COUNTRY[countryName] || [];
   if (!templates.length) {
     return null;

@@ -1,4 +1,4 @@
-import type { ActivityHistoryRow } from "@/app/actions/history";
+import type { ActivityHistoryRow } from "@/lib/activity-history-types";
 import { AuditHistoryLine } from "@/components/audit-history-line";
 import { shipmentAuditActionLabel } from "@/lib/shipment-audit";
 import {

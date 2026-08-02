@@ -4,7 +4,11 @@ import { join } from "node:path";
 import { describe, it } from "node:test";
 
 const configSource = readFileSync(
-  join(process.cwd(), "src", "components", "configuracion-client.tsx"),
+  join(process.cwd(), "src", "components", "config", "config-sections.ts"),
+  "utf8",
+);
+const configUrlSource = readFileSync(
+  join(process.cwd(), "src", "components", "config", "config-url.ts"),
   "utf8",
 );
 const managementSource = readFileSync(
@@ -22,7 +26,7 @@ const labelsSource = readFileSync(
 
 describe("organization management information architecture", () => {
   it("keeps one organization landing card for company access and warehouses", () => {
-    assert.match(configSource, /id: "organization" as Section/);
+    assert.match(configSource, /id: "organization" as ConfigSection/);
     assert.match(labelsSource, /title: "Organización"/);
     assert.match(labelsSource, /usuarios, roles, bodegas e importación/);
     assert.doesNotMatch(configSource, /id: "plan" as Section/);
@@ -41,7 +45,7 @@ describe("organization management information architecture", () => {
     assert.match(managementSource, /"warehouses"/);
     assert.match(managementSource, /"import"/);
     assert.match(managementSource, /ariaLabel="Empresa, plan, usuarios, bodegas e importar"/);
-    assert.match(configSource, /isOrganizationManagementTab/);
+    assert.match(configUrlSource, /isOrganizationManagementTab/);
     assert.doesNotMatch(planUsageSource, /WAREHOUSES_CONFIG_HREF/);
   });
 });

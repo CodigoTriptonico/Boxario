@@ -1,6 +1,7 @@
-import { assertLocalSupabaseUrl, loadEnvLocal } from "./db-connection.mjs";
+import { assertLocalSupabaseUrl, loadEnvLocal } from "./env-local.mjs";
 
 const LOCAL_CREDENTIAL_FLAG = "ALLOW_LOCAL_CREDENTIAL_SCRIPTS";
+const LOOPBACK_HOSTS = new Set(["127.0.0.1", "localhost", "::1"]);
 
 export function localCredentialGuardError({
   nodeEnv,
@@ -45,4 +46,44 @@ export function requireLocalCredential(name) {
     throw new Error(`Falta ${name} en .env.local.`);
   }
   return value;
+}
+
+export function parseLoopbackHttpOrigin(name, rawValue) {
+  let parsed;
+
+  try {
+    parsed = new URL(rawValue);
+  } catch {
+    throw new Error(`${name} debe ser una URL válida.`);
+  }
+
+  const hostname = parsed.hostname.replace(/^\[|\]$/g, "").toLowerCase();
+  if (parsed.protocol !== "http:" || !LOOPBACK_HOSTS.has(hostname)) {
+    throw new Error(
+      `${name} debe usar HTTP y apuntar exactamente a localhost, 127.0.0.1 o ::1.`,
+    );
+  }
+
+  if (
+    parsed.username ||
+    parsed.password ||
+    parsed.pathname !== "/" ||
+    parsed.search ||
+    parsed.hash
+  ) {
+    throw new Error(
+      `${name} debe contener únicamente el origen local, sin credenciales, ruta, query ni hash.`,
+    );
+  }
+
+  return parsed.origin;
+}
+
+export function requireLoopbackHttpOrigin(name, fallback) {
+  const value = process.env[name]?.trim() || fallback?.trim();
+  if (!value) {
+    throw new Error(`Falta ${name} en .env.local.`);
+  }
+
+  return parseLoopbackHttpOrigin(name, value);
 }

@@ -25,9 +25,10 @@ import {
   stockValueToneClass,
   type InventoryStockItem,
 } from "@/lib/inventory-stock";
-import { formatInventoryStockLabel } from "@/lib/inventory-units";
+import { formatInventoryAvailableLabel } from "@/lib/inventory-units";
 import {
   formatBinPlacementSummary,
+  formatPrimaryItemLocation,
   type InventoryItemBinPlacement,
 } from "@/lib/inventory-bins";
 import {
@@ -56,10 +57,12 @@ type InventoryItemCardProps = {
     event: MouseEvent<HTMLElement>,
     item: InventoryTreeItem,
     stockItem: InventoryStockItem,
+    primaryLocation?: string,
   ) => void;
   onSaveItem: (categoryName: string, itemId: string) => void;
   coachTarget?: boolean;
   binPlacementSummary?: string;
+  primaryLocation?: string;
 };
 
 function InventoryItemCard({
@@ -75,6 +78,7 @@ function InventoryItemCard({
   onSaveItem,
   coachTarget = false,
   binPlacementSummary = "",
+  primaryLocation = "",
 }: InventoryItemCardProps) {
   const editing = editingItemId === item.id;
   const leafItems = inventoryItemsForLeaf(
@@ -96,7 +100,7 @@ function InventoryItemCard({
   );
   const stockLevel = metrics.level;
   const stockQty = metrics.warehouse;
-  const stockUnitLabel = formatInventoryStockLabel(stockItem, stockQty, leafItems);
+  const stockUnitLabel = formatInventoryAvailableLabel(stockQty);
   const photoUrl = stockItem.photoUrl || leafItems.find((item) => item.photoUrl)?.photoUrl;
 
   return (
@@ -106,7 +110,9 @@ function InventoryItemCard({
       data-onboarding-target={
         coachTarget ? ONBOARDING_TARGETS.INVENTORY_STOCK_ITEM : undefined
       }
-      onContextMenu={(event) => onContextMenu(event, item, stockItem)}
+      onContextMenu={(event) =>
+        onContextMenu(event, item, stockItem, primaryLocation || binPlacementSummary)
+      }
       className={`group relative flex min-h-[7.75rem] cursor-context-menu overflow-hidden rounded-2xl border p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(0,0,0,0.18)] sm:p-3.5 ${stockCardClass[stockLevel]}`}
     >
       <div className="mx-auto flex h-full w-full max-w-[10.5rem] flex-1 flex-col">
@@ -156,13 +162,13 @@ function InventoryItemCard({
                 {item.name}
               </p>
             )}
-            {!editing && binPlacementSummary ? (
+            {!editing && (primaryLocation || binPlacementSummary) ? (
               <p
                 className="mt-1 flex items-center justify-center gap-1 truncate text-[10px] font-black text-cyan-300"
-                title={binPlacementSummary}
+                title={primaryLocation || binPlacementSummary}
               >
                 <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">{binPlacementSummary}</span>
+                <span className="truncate">{primaryLocation || binPlacementSummary}</span>
               </p>
             ) : null}
           </div>
@@ -208,6 +214,7 @@ function InventoryItemRow({
   onContextMenu,
   onSaveItem,
   binPlacementSummary = "",
+  primaryLocation = "",
 }: Omit<InventoryItemCardProps, "coachTarget">) {
   const editing = editingItemId === item.id;
   const leafItems = inventoryItemsForLeaf(
@@ -225,12 +232,14 @@ function InventoryItemRow({
   const metrics = leafStockMetrics(leafItems.length > 0 ? leafItems : [stockItem]);
   const stockLevel = metrics.level;
   const stockQty = metrics.warehouse;
-  const stockUnitLabel = formatInventoryStockLabel(stockItem, stockQty, leafItems);
+  const stockUnitLabel = formatInventoryAvailableLabel(stockQty);
 
   return (
     <article
       data-inventory-item-id={item.id}
-      onContextMenu={(event) => onContextMenu(event, item, stockItem)}
+      onContextMenu={(event) =>
+        onContextMenu(event, item, stockItem, primaryLocation || binPlacementSummary)
+      }
       className={`group grid w-full min-w-0 cursor-context-menu items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(0,0,0,0.18)] sm:px-3 sm:py-2.5 ${
         editing
           ? "grid-cols-[auto_minmax(0,1fr)_auto]"
@@ -299,6 +308,7 @@ function InventoryItemRow({
 
 export type InventoryItemGridProps = {
   warehouseId?: string;
+  warehouseName?: string;
   embedded: boolean;
   selectedCategoryData: CategoryConfig | null;
   selectedSubcategory: InventoryTreeItem | null;
@@ -332,6 +342,7 @@ export type InventoryItemGridProps = {
     event: MouseEvent<HTMLElement>,
     item: InventoryTreeItem,
     stockItem: InventoryStockItem,
+    primaryLocation?: string,
   ) => void;
   onSaveItem: (categoryName: string, itemId: string) => void;
   viewLayout?: ViewLayout;
@@ -339,6 +350,7 @@ export type InventoryItemGridProps = {
 
 export function InventoryItemGrid({
   warehouseId,
+  warehouseName,
   embedded,
   selectedCategoryData,
   selectedSubcategory,
@@ -415,6 +427,21 @@ export function InventoryItemGrid({
       selectedSubcategory?.name,
     );
     return binSummaryByItemId.get(stockItem.id) || "";
+  };
+  const primaryLocationForItem = (item: InventoryTreeItem) => {
+    if (!selectedCategoryData || !warehouseId) {
+      return "";
+    }
+
+    const stockItem = stockItemForTreeItem(
+      inventoryItems,
+      selectedCategoryData.name,
+      item,
+      selectedSubcategory?.name,
+    );
+    const placements = binPlacements.filter((placement) => placement.itemId === stockItem.id);
+
+    return formatPrimaryItemLocation(placements, warehouseName);
   };
   const onItemContextMenuRef = useRef(onItemContextMenu);
   const contextMenuDataRef = useRef({
@@ -645,6 +672,7 @@ export function InventoryItemGrid({
                           onContextMenu={onItemContextMenu}
                           onSaveItem={onSaveItem}
                           binPlacementSummary={placementSummaryForItem(item)}
+                          primaryLocation={primaryLocationForItem(item)}
                         />
                       ) : null,
                     )}
@@ -665,6 +693,7 @@ export function InventoryItemGrid({
                         onContextMenu={onItemContextMenu}
                         onSaveItem={onSaveItem}
                         binPlacementSummary={placementSummaryForItem(item)}
+                        primaryLocation={primaryLocationForItem(item)}
                         coachTarget={itemIndex === 0}
                       />
                     ))}

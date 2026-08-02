@@ -10,7 +10,7 @@ export type ParsedTimeInput = {
 };
 
 export const HOUR_OPTIONS = Array.from({ length: 12 }, (_, index) => index + 1);
-export const MINUTE_OPTIONS = Array.from({ length: 60 }, (_, index) => index);
+export const MINUTE_OPTIONS = Array.from({ length: 12 }, (_, index) => index * 5);
 
 export function parseTimeInput(value: string): ParsedTimeInput | null {
   const match = /^(\d{2}):(\d{2})$/.exec(value);

@@ -1,25 +1,14 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
-const enviosSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/envios-client.tsx"),
-  "utf8",
-);
-const conductorSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/conductor/conductor-tareas-client.tsx"),
-  "utf8",
-);
-const logisticaSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica-client.tsx"),
-  "utf8",
-);
-const conductorActionsSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/conductor-tasks.ts"),
-  "utf8",
-);
+const enviosSource = readEnviosClientSource();
+const conductorSource = readConductorTareasClientSource();
+const logisticaSource = readLogisticaClientSource();
+const conductorActionsSource = readConductorTaskActionsSource();
 
 describe("logistics ops eval", () => {
   it("wires deep links, navigation, pickup inventory and live refresh", () => {

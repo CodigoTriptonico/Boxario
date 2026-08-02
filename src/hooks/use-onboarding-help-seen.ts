@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import type { OnboardingStepId } from "@/app/actions/onboarding";
+import type { OnboardingStepId } from "@/lib/onboarding/types";
 import {
   hasOnboardingHelpSeen,
   markOnboardingHelpSeen,

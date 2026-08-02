@@ -19,7 +19,18 @@ import {
   type LogisticsVehicleInput,
   type LogisticsVehicleRow,
 } from "@/lib/logistics-fleet";
-import type { AppSession, RoleSlug } from "@/lib/auth/types";
+import type {
+  FleetRoleJoin,
+  LogisticsDriverLabelRecord,
+  LogisticsDriverProfileRecord,
+  LogisticsVehicleRecord,
+} from "@/lib/logistics-fleet-records";
+import {
+  fleetRoleSlug,
+  logisticsDriverLabel,
+  mapLogisticsVehicleRecord,
+} from "@/lib/logistics-fleet-records";
+import type { AppSession } from "@/lib/auth/types";
 import { decodeAndSanitizeImage } from "@/lib/security/safe-image";
 
 export type {
@@ -31,51 +42,8 @@ export type {
 
 type Supabase = NonNullable<Awaited<ReturnType<typeof createScopedSupabase>>>;
 
-type RoleJoin = { slug: RoleSlug; name?: string } | { slug: RoleSlug; name?: string }[] | null;
-
-type DriverProfileRow = {
-  id: string;
-  email: string;
-  full_name: string | null;
-  phone: string | null;
-  is_active: boolean;
-  created_at: string;
-  roles: RoleJoin;
-};
-
-type VehicleDbRow = {
-  id: string;
-  name: string;
-  plate: string;
-  photo_url: string;
-  cargo_box_size: string;
-  cargo_capacity: string;
-  notes: string;
-  assigned_driver_id: string | null;
-  is_active: boolean;
-  created_at: string;
-  updated_at: string;
-};
-
-type DriverLabelRow = {
-  id: string;
-  email: string;
-  full_name: string | null;
-  is_active: boolean;
-  roles?: RoleJoin;
-};
-
 function canManageFleet(session: AppSession) {
   return session.roleSlug === "administrador";
-}
-
-function roleSlug(row: { roles: RoleJoin }) {
-  const role = Array.isArray(row.roles) ? row.roles[0] : row.roles;
-  return role?.slug || "vendedor";
-}
-
-function driverLabel(row: Pick<DriverLabelRow, "email" | "full_name"> | null | undefined) {
-  return ((row?.full_name || row?.email || "") as string).trim();
 }
 
 async function requireFleetSession() {
@@ -120,7 +88,7 @@ async function loadDriverCandidates(supabase: Supabase, session: AppSession) {
   return (data || []).map((row) => ({
     id: row.id as string,
     isActive: row.is_active === true,
-    roleSlug: roleSlug(row as { roles: RoleJoin }),
+    roleSlug: fleetRoleSlug(row as { roles: FleetRoleJoin }),
   })) satisfies AssignableDriverCandidate[];
 }
 
@@ -194,36 +162,16 @@ async function resolveVehiclePhotoUrl(
 
 async function mapVehicleRows(
   admin: ReturnType<typeof createSupabaseAdminClient>,
-  rows: VehicleDbRow[],
-  driverById: Map<string, DriverLabelRow>,
+  rows: LogisticsVehicleRecord[],
+  driverById: Map<string, LogisticsDriverLabelRecord>,
   organizationId: string,
 ): Promise<LogisticsVehicleRow[]> {
   return Promise.all(
     rows.map(async (row) => {
       const photoUrl = await resolveVehiclePhotoUrl(admin, row.photo_url, organizationId);
-      return mapVehicle(row, driverById, photoUrl);
+      return mapLogisticsVehicleRecord(row, driverById, photoUrl);
     }),
   );
-}
-
-function mapVehicle(row: VehicleDbRow, driverById: Map<string, DriverLabelRow>, photoUrl: string): LogisticsVehicleRow {
-  const driver = row.assigned_driver_id ? driverById.get(row.assigned_driver_id) : null;
-
-  return {
-    id: row.id,
-    name: row.name,
-    plate: row.plate,
-    photoUrl,
-    cargoBoxSize: row.cargo_box_size,
-    cargoCapacity: row.cargo_capacity,
-    notes: row.notes,
-    assignedDriverId: row.assigned_driver_id,
-    assignedDriverName: driverLabel(driver),
-    assignedDriverEmail: driver?.email || "",
-    isActive: row.is_active,
-    createdAt: row.created_at,
-    updatedAt: row.updated_at,
-  };
 }
 
 async function loadVehicleRows(supabase: Supabase, session: AppSession) {
@@ -242,7 +190,7 @@ async function loadVehicleRows(supabase: Supabase, session: AppSession) {
     throw new Error(error.message);
   }
 
-  return (data || []) as VehicleDbRow[];
+  return (data || []) as LogisticsVehicleRecord[];
 }
 
 async function loadDriverLabels(
@@ -253,7 +201,7 @@ async function loadDriverLabels(
   const ids = Array.from(new Set(driverIds.filter(Boolean)));
 
   if (!ids.length) {
-    return new Map<string, DriverLabelRow>();
+    return new Map<string, LogisticsDriverLabelRecord>();
   }
 
   const { data, error } = await supabase
@@ -266,7 +214,9 @@ async function loadDriverLabels(
     throw new Error(error.message);
   }
 
-  return new Map(((data || []) as DriverLabelRow[]).map((row) => [row.id, row]));
+  return new Map(
+    ((data || []) as LogisticsDriverLabelRecord[]).map((row) => [row.id, row]),
+  );
 }
 
 function duplicateFleetMessage(error: { code?: string; message?: string }) {
@@ -313,8 +263,8 @@ export async function listLogisticsDriversAction(): Promise<ActionResult<Logisti
         ]),
     );
 
-    const drivers = ((data || []) as DriverProfileRow[])
-      .filter((row) => roleSlug(row) === "conductor")
+    const drivers = ((data || []) as LogisticsDriverProfileRecord[])
+      .filter((row) => fleetRoleSlug(row) === "conductor")
       .map((row) => {
         const vehicle = vehicleByDriverId.get(row.id);
         return {
@@ -444,7 +394,7 @@ export async function updateLogisticsDriverAction(input: {
       return fail(profileError.message);
     }
 
-    if (!profile || roleSlug(profile as { roles: RoleJoin }) !== "conductor") {
+    if (!profile || fleetRoleSlug(profile as { roles: FleetRoleJoin }) !== "conductor") {
       return fail("Conductor no encontrado");
     }
 
@@ -508,7 +458,7 @@ export async function deactivateLogisticsDriverAction(driverId: string): Promise
       return fail(profileError.message);
     }
 
-    if (!profile || roleSlug(profile as { roles: RoleJoin }) !== "conductor") {
+    if (!profile || fleetRoleSlug(profile as { roles: FleetRoleJoin }) !== "conductor") {
       return fail("Conductor no encontrado");
     }
 
@@ -533,8 +483,8 @@ export async function deactivateLogisticsDriverAction(driverId: string): Promise
       action: "logistics.driver_deactivated",
       entityType: "profile",
       entityId: driverId,
-      title: `Conductor desactivado: ${driverLabel(profile as DriverLabelRow)}`,
-      metadata: { email: (profile as DriverLabelRow).email },
+      title: `Conductor desactivado: ${logisticsDriverLabel(profile as LogisticsDriverLabelRecord)}`,
+      metadata: { email: (profile as LogisticsDriverLabelRecord).email },
     });
 
     return ok(null);
@@ -567,7 +517,7 @@ export async function resetLogisticsDriverPasswordAction(input: {
       .eq("organization_id", session.organizationId)
       .maybeSingle();
 
-    if (!profile || roleSlug(profile as { roles: RoleJoin }) !== "conductor") {
+    if (!profile || fleetRoleSlug(profile as { roles: FleetRoleJoin }) !== "conductor") {
       return fail("Conductor no encontrado");
     }
 
@@ -659,7 +609,12 @@ export async function createLogisticsVehicleAction(
       session,
       [validation.data.assignedDriverId || ""],
     );
-    const [vehicle] = await mapVehicleRows(admin, [data as VehicleDbRow], driverById, session.organizationId);
+    const [vehicle] = await mapVehicleRows(
+      admin,
+      [data as LogisticsVehicleRecord],
+      driverById,
+      session.organizationId,
+    );
 
     await recordActivityHistory(supabase, session, {
       action: "logistics.vehicle_created",
@@ -729,7 +684,12 @@ export async function updateLogisticsVehicleAction(input: {
       session,
       [validation.data.assignedDriverId || ""],
     );
-    const [vehicle] = await mapVehicleRows(admin, [data as VehicleDbRow], driverById, session.organizationId);
+    const [vehicle] = await mapVehicleRows(
+      admin,
+      [data as LogisticsVehicleRecord],
+      driverById,
+      session.organizationId,
+    );
 
     await recordActivityHistory(supabase, session, {
       action: "logistics.vehicle_updated",

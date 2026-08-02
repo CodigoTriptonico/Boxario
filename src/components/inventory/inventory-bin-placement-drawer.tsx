@@ -234,7 +234,14 @@ export function InventoryBinPlacementDrawer({
         </div>
 
         <div className="min-h-0 flex-1 overflow-y-auto px-4 py-4">
-          {loading ? (
+          {warehouseStock <= 0 ? (
+            <div className="rounded-xl border border-dashed border-slate-600/70 px-4 py-10 text-center">
+              <p className="text-sm font-black text-slate-300">No hay unidades para ubicar</p>
+              <p className="mt-1 text-xs font-bold text-slate-500">
+                Registra una entrada antes de asignar ubicaciones físicas.
+              </p>
+            </div>
+          ) : loading ? (
             <div className="flex items-center justify-center gap-2 py-16 text-sm font-bold text-slate-400">
               <Loader2 className="h-4 w-4 animate-spin" />
               Cargando estantes...

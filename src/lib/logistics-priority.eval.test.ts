@@ -3,17 +3,19 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
-const logisticaSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica-client.tsx"),
-  "utf8",
-);
+const logisticaSource = readLogisticaClientSource();
 const badgeSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/invoice-priority-badge.tsx"),
   "utf8",
 );
 const viewSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "logistics-view.ts"),
+  "utf8",
+);
+const timingSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "logistics-view", "timing.ts"),
   "utf8",
 );
 describe("logistics invoice priority eval", () => {
@@ -53,7 +55,7 @@ describe("logistics invoice priority eval", () => {
   });
 
   it("pulses priority only while the invoice still needs a driver", () => {
-    assert.equal(viewSource.includes("export function logisticsPriorityAwaitingDriver"), true);
+    assert.equal(timingSource.includes("export function logisticsPriorityAwaitingDriver"), true);
     assert.equal(logisticaSource.includes("pulsing={priorityAwaitingDriver}"), true);
     assert.equal(badgeSource.includes("pulsing = false"), true);
     assert.equal(badgeSource.includes("logistics-priority-awaiting-driver"), true);

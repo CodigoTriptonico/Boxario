@@ -3,10 +3,12 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readShipmentDisplaySource } from "@/test-utils/shipment-domain-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
-const enviosSource = readFileSync(join(root, "components/envios-client.tsx"), "utf8");
-const displaySource = readFileSync(join(root, "lib/shipment-display.ts"), "utf8");
+const enviosSource = readEnviosClientSource();
+const displaySource = readShipmentDisplaySource();
 const historialPageSource = readFileSync(
   join(root, "app/seguimiento/historial/page.tsx"),
   "utf8",
@@ -14,6 +16,15 @@ const historialPageSource = readFileSync(
 const trackingPageSource = readFileSync(join(root, "app/seguimiento/page.tsx"), "utf8");
 
 describe("envios tracking vs history eval", () => {
+  it("uses server-side pagination for shipment lists", () => {
+    assert.match(enviosSource, /ENVIOS_SHIPMENTS_PAGE_SIZE/);
+    assert.match(enviosSource, /listShipmentsAction\(\{[\s\S]*limit: ENVIOS_SHIPMENTS_PAGE_SIZE/);
+    assert.match(enviosSource, /offset: page \* ENVIOS_SHIPMENTS_PAGE_SIZE/);
+    assert.match(enviosSource, /setPage\(0\)/);
+    assert.match(enviosSource, /Anterior/);
+    assert.match(enviosSource, /Siguiente/);
+  });
+
   it("wires mode prop and partition helper in EnviosClient", () => {
     assert.match(enviosSource, /mode\?: EnviosClientMode/);
     assert.match(enviosSource, /filterShipmentsForEnviosMode\(shipments, activeMode\)/);

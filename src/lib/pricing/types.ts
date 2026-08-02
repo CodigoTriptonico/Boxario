@@ -1,6 +1,14 @@
-import type { InventoryCatalogProduct } from "@/lib/pricing-catalog";
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import type { ScheduleSuggestionConfig } from "@/lib/sale/schedule-suggestions";
+
+export type InventoryCatalogProduct = {
+  catalogKey: string;
+  label: string;
+  path: string;
+  category: string;
+  kind: string;
+  subcategory?: string;
+};
 
 export type PricingBoxConfig = {
   size: string;

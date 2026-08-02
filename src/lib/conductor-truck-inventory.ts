@@ -1,139 +1,48 @@
 import { catalogKeyFromStockItem } from "@/lib/pricing-catalog";
 import { normalizeInventoryText } from "@/lib/inventory-tree";
 import { formatScheduleDateInput } from "@/lib/schedule-date";
+import {
+  CONDUCTOR_TASK_FAILURE_REASONS,
+  CONDUCTOR_TRUCK_RETURN_REASONS,
+  type ConductorFullBoxCargoLine,
+  type ConductorFullBoxCargoSummary,
+  type ConductorRouteDeliveryBoardLine,
+  type ConductorTaskFailureReason,
+  type ConductorTruckBalance,
+  type ConductorTruckBoxLine,
+  type ConductorTruckInventoryEvent,
+  type ConductorTruckInventoryLine,
+  type ConductorTruckInventoryScope,
+  type ConductorTruckInventorySummary,
+  type ConductorTruckOnTruckLine,
+  type ConductorTruckReturnReason,
+  type ConductorTruckStockItem,
+  type ConductorTruckTaskInput,
+} from "@/lib/conductor-truck-inventory/contracts";
 
-export const LOGISTICS_TASK_EVIDENCE_BUCKET = "logistics-task-evidence";
-
-export const CONDUCTOR_TASK_FAILURE_REASONS = [
-  "Cliente no contesto",
-  "No abrio puerta",
-  "Direccion incorrecta",
-  "Calle o acceso cerrado",
-  "Cliente cancelo",
-  "Caja no lista",
-  "Invoice no visible",
-  "Problema de ruta",
-  "Otra",
-] as const;
-
-export type ConductorTaskFailureReason = (typeof CONDUCTOR_TASK_FAILURE_REASONS)[number];
-
-export const CONDUCTOR_TRUCK_RETURN_REASONS = [
-  "Sobro carga",
-  "Caja danada",
-  "Error al subir",
-  "Ruta reprogramada",
-  "Fin de jornada",
-  "Cambio de vehiculo",
-  "Otra",
-] as const;
-
-type ConductorTruckReturnReason = (typeof CONDUCTOR_TRUCK_RETURN_REASONS)[number];
+export {
+  CONDUCTOR_TASK_FAILURE_REASONS,
+  CONDUCTOR_TRUCK_RETURN_REASONS,
+  LOGISTICS_TASK_EVIDENCE_BUCKET,
+} from "@/lib/conductor-truck-inventory/contracts";
+export type {
+  ConductorFullBoxCargoSummary,
+  ConductorRouteDeliveryBoardLine,
+  ConductorTaskFailureReason,
+  ConductorTransferVehicleOption,
+  ConductorTruckBalance,
+  ConductorTruckBoxLine,
+  ConductorTruckEventType,
+  ConductorTruckInventoryEvent,
+  ConductorTruckInventoryLine,
+  ConductorTruckInventoryScope,
+  ConductorTruckInventorySummary,
+  ConductorTruckOnTruckLine,
+  ConductorTruckStockItem,
+  ConductorTruckTaskInput,
+} from "@/lib/conductor-truck-inventory/contracts";
 
 const CONDUCTOR_TRUCK_VEHICLE_CHANGE_REASON: ConductorTruckReturnReason = "Cambio de vehiculo";
-
-export type ConductorTransferVehicleOption = {
-  id: string;
-  label: string;
-};
-
-export type ConductorTruckEventType =
-  | "load"
-  | "deliver"
-  | "return"
-  | "adjust"
-  | "collect_full_box"
-  | "unload_full_box";
-
-export type ConductorTruckBoxLine = {
-  key: string;
-  catalogKey: string;
-  label: string;
-  quantity: number;
-};
-
-export type ConductorTruckTaskInput = {
-  id: string;
-  shipmentId: string;
-  routeId: string | null;
-  routeName: string | null;
-  routeDate: string | null;
-  taskType: "deliver_empty_box" | "pickup_full_box";
-  status: string;
-  warehouseId: string | null;
-  boxLines: ConductorTruckBoxLine[];
-};
-
-export type ConductorTruckInventoryEvent = {
-  id?: string;
-  eventType: ConductorTruckEventType;
-  routeId: string | null;
-  taskId: string | null;
-  shipmentId: string | null;
-  warehouseId: string | null;
-  itemId: string | null;
-  itemName: string;
-  catalogKey: string;
-  itemLabel: string;
-  qty: number;
-  createdAt?: string;
-};
-
-export type ConductorTruckStockItem = {
-  itemId: string;
-  itemName: string;
-  category: string;
-  kind: string;
-  subcategory?: string;
-  warehouseId: string;
-  stock: number;
-};
-
-export type ConductorTruckInventoryLine = {
-  key: string;
-  catalogKey: string;
-  label: string;
-  requiredQty: number;
-  loadedQty: number;
-  deliveredQty: number;
-  returnedQty: number;
-  currentQty: number;
-  shortageQty: number;
-  stockQty: number;
-  itemId: string | null;
-  itemName: string;
-  warehouseId: string | null;
-  taskIds: string[];
-  routeIds: string[];
-};
-
-export type ConductorTruckInventoryScope = {
-  date: string;
-  routeIds: string[];
-  taskIds: string[];
-};
-
-export type ConductorTruckInventorySummary = {
-  lines: ConductorTruckInventoryLine[];
-  requiredTotal: number;
-  loadedTotal: number;
-  deliveredTotal: number;
-  currentTotal: number;
-  shortageTotal: number;
-  ready: boolean;
-};
-
-export type ConductorTruckOnTruckLine = {
-  key: string;
-  lineKey: string;
-  label: string;
-  qty: number;
-  maxReturnQty: number;
-  itemId: string | null;
-  warehouseId: string | null;
-  catalogKey: string;
-  origin: "route" | "extra";
-};
 
 export function splitTruckLineOnTruckQty(
   line: Pick<ConductorTruckInventoryLine, "requiredQty" | "deliveredQty" | "currentQty">,
@@ -184,15 +93,6 @@ export function buildRouteBoxesOnTruck(
     .sort((left, right) => left.label.localeCompare(right.label, "es"));
 }
 
-export type ConductorRouteDeliveryBoardLine = {
-  key: string;
-  label: string;
-  requiredQty: number;
-  onTruckQty: number;
-  pendingQty: number;
-  line: ConductorTruckInventoryLine;
-};
-
 export function buildRouteDeliveryBoard(
   lines: ReadonlyArray<ConductorTruckInventoryLine>,
 ): ConductorRouteDeliveryBoardLine[] {
@@ -235,34 +135,6 @@ export function buildExtraBoxesOnTruck(
 export function sumOnTruckLines(lines: ReadonlyArray<ConductorTruckOnTruckLine>) {
   return lines.reduce((sum, line) => sum + line.qty, 0);
 }
-
-export type ConductorTruckBalance = {
-  vehicleId: string;
-  vehicleName: string;
-  vehiclePlate: string;
-  assignedDriverId: string | null;
-  assignedDriverName: string;
-  lines: ConductorTruckInventoryLine[];
-  totalQty: number;
-};
-
-type ConductorFullBoxCargoLine = {
-  key: string;
-  taskId: string;
-  shipmentId: string | null;
-  routeId: string | null;
-  label: string;
-  collectedQty: number;
-  unloadedQty: number;
-  pendingQty: number;
-};
-
-export type ConductorFullBoxCargoSummary = {
-  lines: ConductorFullBoxCargoLine[];
-  collectedTotal: number;
-  unloadedTotal: number;
-  pendingTotal: number;
-};
 
 function asRecord(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)

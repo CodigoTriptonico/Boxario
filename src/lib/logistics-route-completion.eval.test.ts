@@ -3,15 +3,13 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import {
+  readConductorTaskActionsSource,
+  readLogisticsRouteActionsSource,
+} from "@/test-utils/conductor-logistics-action-sources";
 
-const routesSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/logistics-routes.ts"),
-  "utf8",
-);
-const conductorSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../app/actions/conductor-tasks.ts"),
-  "utf8",
-);
+const routesSource = readLogisticsRouteActionsSource();
+const conductorSource = readConductorTaskActionsSource();
 const arrivalPanelSource = readFileSync(
   join(dirname(fileURLToPath(import.meta.url)), "../components/conductor/conductor-route-arrival-panel.tsx"),
   "utf8",

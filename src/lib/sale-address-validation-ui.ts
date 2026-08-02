@@ -1,4 +1,4 @@
-import type { AddressValidation } from "@/components/sale/venta-parts";
+import type { AddressValidation } from "@/lib/sale-address-validation";
 
 export type AddressValidationTone =
   | "disabled"

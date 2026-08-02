@@ -1,8 +1,5 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import {
   distanceKm,
   logisticsZoneKey,
@@ -17,6 +14,7 @@ import {
   routeAddressFromCustomer,
   routeAddressFromRecipientSnapshot,
 } from "./logistics-address";
+import { readLogisticsRouteActionsSource } from "@/test-utils/conductor-logistics-action-sources";
 
 function task(input: {
   id: string;
@@ -227,13 +225,16 @@ describe("logistics routing", () => {
 });
 
 describe("logistics route action eval", () => {
-  it("filters route candidates to current invoice steps", () => {
-    const source = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../app/actions/logistics-routes.ts"),
-      "utf8",
-    );
+  it("filters manual stop picks to current invoice steps", () => {
+    const source = readLogisticsRouteActionsSource();
 
     assert.match(source, /activeLogisticsRouteTaskIds/);
-    assert.ok((source.match(/onlyCurrentStep: true/g) || []).length >= 3);
+    // Stop picker still scopes to the current invoice step; schedule confirm
+    // from Ventas must accept preassigned delivery/pickup without that filter.
+    assert.ok(((source.match(/onlyCurrentStep: true/g) || []).length) >= 2);
+    assert.match(
+      source,
+      /No filtrar por paso logístico actual[\s\S]*loadTaskInputs\([\s\S]*excludeRouted: true/,
+    );
   });
 });

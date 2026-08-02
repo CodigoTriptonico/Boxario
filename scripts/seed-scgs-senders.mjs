@@ -1,12 +1,14 @@
 /**
  * Inserta remitentes de prueba para la org SCGS (desarrollo local).
+ * Siembra los primeros `SCGS_DEMO_SENDERS` del catálogo (5 por defecto).
  * Uso: node scripts/seed-scgs-senders.mjs
  */
 import { connectPg } from "./lib/db-connection.mjs";
+import { resolveScgsOrgId } from "./lib/scgs-demo-recipients.mjs";
 
-const SCGS_ORG_ID = "2029bf0c-e766-4840-9d90-f4b252cc3fe9";
+const DEFAULT_SENDER_COUNT = 5;
 
-const senders = [
+const SENDER_CATALOG = [
   {
     first_name: "Maria",
     last_name: "Gonzalez",
@@ -129,17 +131,23 @@ const senders = [
   },
 ];
 
+function requestedSenderCount() {
+  const raw = Number(process.env.SCGS_DEMO_SENDERS);
+  if (!Number.isFinite(raw) || raw <= 0) {
+    return DEFAULT_SENDER_COUNT;
+  }
+
+  return Math.min(Math.trunc(raw), SENDER_CATALOG.length);
+}
+
+const senders = SENDER_CATALOG.slice(0, requestedSenderCount());
+
 const { client } = await connectPg();
 
-const orgCheck = await client.query(
-  "SELECT id, name FROM public.organizations WHERE id = $1",
-  [SCGS_ORG_ID],
-);
+const org = await resolveScgsOrgId(client);
+const SCGS_ORG_ID = org.id;
 
-if (!orgCheck.rows.length) {
-  console.error("No se encontró la org SCGS.");
-  process.exit(1);
-}
+console.log(`Sembrando ${senders.length} remitente(s) en: ${org.name}\n`);
 
 let inserted = 0;
 

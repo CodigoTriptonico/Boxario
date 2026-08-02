@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { TimePickerInput } from "@/components/time-picker-input";
 import {
   applyScheduleTimePreset,
@@ -9,9 +9,11 @@ import {
   parseScheduleTime,
   scheduleTimePresetMatches,
   type ScheduleTimeKind,
+  type ScheduleTimeValue,
 } from "@/lib/sale/schedule-time";
 import {
-  DEFAULT_SCHEDULE_SUGGESTIONS,
+  scheduleSuggestionModeEnabled,
+  SCHEDULE_SINGLE_TIME_MODE_KEYS,
   type ScheduleTimeSuggestions,
 } from "@/lib/sale/schedule-suggestions";
 
@@ -38,44 +40,16 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
   const parsed = parseScheduleTime(value);
   const [rangeTarget, setRangeTarget] = useState<"start" | "end">("start");
   const resolvedSuggestions: ScheduleTimeSuggestions = suggestions ?? {
-    ...DEFAULT_SCHEDULE_SUGGESTIONS.delivery,
-    range: ["08:00-10:00", "10:00-12:00", "12:00-14:00", "14:00-17:00"],
+    exact: [],
+    until: [],
+    from: [],
+    ranges: [],
+    range: [],
   };
+  const configurableModes = SCHEDULE_SINGLE_TIME_MODE_KEYS.filter((kind) =>
+    scheduleSuggestionModeEnabled(resolvedSuggestions, kind),
+  );
 
-  function update(next: Partial<typeof parsed>) {
-    onChange(formatScheduleTimePart({ ...parsed, ...next }));
-  }
-
-  function setKind(kind: ScheduleTimeKind) {
-    if (kind === parsed.kind) {
-      return;
-    }
-
-    if (kind === "range") {
-      setRangeTarget("start");
-      onChange(
-        formatScheduleTimePart({
-          kind,
-          start: parsed.start,
-          end: parsed.kind === "range" ? parsed.end || "" : "",
-        }),
-      );
-      return;
-    }
-
-    onChange(
-      formatScheduleTimePart({
-        kind,
-        start: parsed.kind === "range" ? parsed.end || parsed.start : parsed.start,
-      }),
-    );
-  }
-
-  const singleTimePresets =
-    parsed.kind === "range" ? [] : resolvedSuggestions[parsed.kind].map((time) => [
-      formatTime12Hour(time).replace(":00", ""),
-      time,
-    ] as const);
   const rangePresets = resolvedSuggestions.range.flatMap((range) => {
     const [start, end] = range.split("-");
     if (!start || !end) {
@@ -84,23 +58,82 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
 
     return [[`${formatTime12Hour(start).replace(":00", "")}–${formatTime12Hour(end).replace(":00", "")}`, start, end] as const];
   });
+  const rangeAvailable = scheduleSuggestionModeEnabled(resolvedSuggestions, "range");
+  const activeKind: ScheduleTimeKind =
+    parsed.kind === "range"
+      ? rangeAvailable
+        ? "range"
+        : configurableModes[0] || "exact"
+      : configurableModes.includes(parsed.kind)
+        ? parsed.kind
+        : configurableModes[0] || (rangeAvailable ? "range" : "exact");
+  const activeParsed: ScheduleTimeValue =
+    activeKind === parsed.kind
+      ? parsed
+      : {
+          ...parsed,
+          kind: activeKind,
+          end: activeKind === "range" ? parsed.end : undefined,
+        };
+  const activeValue = formatScheduleTimePart(activeParsed);
+
+  useEffect(() => {
+    if (parsed.kind !== activeKind) {
+      onChange(activeValue);
+    }
+  }, [activeKind, activeValue, onChange, parsed.kind]);
+
+  function update(next: Partial<typeof activeParsed>) {
+    onChange(formatScheduleTimePart({ ...activeParsed, ...next }));
+  }
+
+  function setKind(kind: ScheduleTimeKind) {
+    if (kind === activeKind && parsed.kind === kind) {
+      return;
+    }
+
+    if (kind === "range") {
+      setRangeTarget("start");
+      onChange(
+        formatScheduleTimePart({
+          kind,
+          start: activeParsed.start,
+          end: activeParsed.kind === "range" ? activeParsed.end || "" : "",
+        }),
+      );
+      return;
+    }
+
+    onChange(
+      formatScheduleTimePart({
+        kind,
+        start: activeParsed.kind === "range" ? activeParsed.end || activeParsed.start : activeParsed.start,
+      }),
+    );
+  }
+
+  const singleTimePresets =
+    activeKind === "range" ? [] : resolvedSuggestions[activeKind].map((time) => [
+      formatTime12Hour(time).replace(":00", ""),
+      time,
+    ] as const);
+  const modeOptions = [
+    ...configurableModes.map((kind) => [
+      kind,
+      kind === "exact" ? "Exacta" : kind === "until" ? "Antes de" : "A partir",
+    ] as const),
+    ...(rangeAvailable ? ([(["range", "Entre"] as const)] as const) : []),
+  ] as Array<readonly [ScheduleTimeKind, string]>;
 
   return (
     <div className="grid min-w-0 gap-2">
       <div className="flex min-w-0 gap-1 rounded-lg bg-surface-panel p-1">
-        {(
-          [
-            ["exact", "Exacta"],
-            ["until", "Antes de"],
-            ["from", "A partir"],
-            ["range", "Entre"],
-          ] as const
-        ).map(([kind, label]) => (
+        {modeOptions.map(([kind, label]) => (
           <button
             key={kind}
             type="button"
             onClick={() => setKind(kind)}
-            className={`h-9 min-w-0 flex-1 whitespace-nowrap rounded-md px-1 text-[10px] font-black transition ${segmentClass(parsed.kind === kind)}`}
+            className={`h-9 min-w-0 flex-1 whitespace-nowrap rounded-md px-1 text-[10px] font-black transition ${segmentClass(activeKind === kind)}`}
           >
             {label}
           </button>
@@ -109,10 +142,10 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
 
       <div className="grid gap-1.5">
         <span className="text-[11px] font-black uppercase text-slate-500">
-          {PRESET_LABELS[parsed.kind]}
+          {PRESET_LABELS[activeKind]}
         </span>
         <div className="grid grid-cols-4 gap-1.5">
-          {parsed.kind === "range"
+          {activeKind === "range"
             ? rangePresets.map(([label, start, end]) => (
                 <button
                   key={label}
@@ -121,7 +154,7 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
                     onChange(formatScheduleTimePart({ kind: "range", start, end }))
                   }
                   className={`h-8 min-w-0 rounded-md border px-1 text-[10px] font-black transition ${
-                    parsed.start === start && parsed.end === end
+                    activeParsed.start === start && activeParsed.end === end
                       ? "border-emerald-600 bg-emerald-400 text-slate-950"
                       : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
                   }`}
@@ -133,9 +166,9 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
             <button
               key={label}
               type="button"
-              onClick={() => onChange(applyScheduleTimePreset(value, time))}
+              onClick={() => onChange(applyScheduleTimePreset(activeValue, time))}
               className={`h-8 min-w-0 rounded-md border px-1 text-[11px] font-black transition ${
-                scheduleTimePresetMatches(value, time)
+                scheduleTimePresetMatches(activeValue, time)
                   ? "border-emerald-600 bg-emerald-400 text-slate-950"
                   : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
               }`}
@@ -146,23 +179,23 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
         </div>
       </div>
 
-      {parsed.kind === "exact" ? (
+      {activeKind === "exact" ? (
         <label className="grid gap-1.5">
           <span className="text-[11px] font-black uppercase text-slate-500">Hora exacta</span>
           <TimePickerInput
-            value={parsed.start}
+            value={activeParsed.start}
             ariaLabel="Hora exacta de entrega"
             onChange={(nextValue) => update({ start: nextValue })}
           />
         </label>
       ) : null}
 
-      {parsed.kind === "range" ? (
+      {activeKind === "range" ? (
         <div className="grid min-w-0 grid-cols-1 gap-2">
           <label className="grid min-w-0 gap-1.5">
             <span className="text-[11px] font-black uppercase text-slate-500">Desde</span>
             <TimePickerInput
-              value={parsed.start}
+              value={activeParsed.start}
               ariaLabel="Hora desde"
               active={rangeTarget === "start"}
               onFocus={() => setRangeTarget("start")}
@@ -172,7 +205,7 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
           <label className="grid min-w-0 gap-1.5">
             <span className="text-[11px] font-black uppercase text-slate-500">Hasta</span>
             <TimePickerInput
-              value={parsed.end || ""}
+              value={activeParsed.end || ""}
               ariaLabel="Hora hasta"
               active={rangeTarget === "end"}
               onFocus={() => setRangeTarget("end")}
@@ -182,22 +215,22 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
         </div>
       ) : null}
 
-      {parsed.kind === "from" ? (
+      {activeKind === "from" ? (
         <label className="grid gap-1.5">
           <span className="text-[11px] font-black uppercase text-slate-500">A partir de</span>
           <TimePickerInput
-            value={parsed.start}
+            value={activeParsed.start}
             ariaLabel="Hora a partir de"
             onChange={(nextValue) => update({ start: nextValue })}
           />
         </label>
       ) : null}
 
-      {parsed.kind === "until" ? (
+      {activeKind === "until" ? (
         <label className="grid gap-1.5">
           <span className="text-[11px] font-black uppercase text-slate-500">Antes de</span>
           <TimePickerInput
-            value={parsed.start}
+            value={activeParsed.start}
             ariaLabel="Hora antes de"
             onChange={(nextValue) => update({ start: nextValue })}
           />

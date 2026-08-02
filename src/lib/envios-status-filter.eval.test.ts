@@ -1,16 +1,10 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { join } from "node:path";
 import { describe, it } from "node:test";
+import { readEnviosClientSource } from "@/test-utils/envios-client-source";
+import { readShipmentDisplaySource } from "@/test-utils/shipment-domain-source";
 
-const displaySource = readFileSync(
-  join(process.cwd(), "src/lib/shipment-display.ts"),
-  "utf8",
-);
-const enviosSource = readFileSync(
-  join(process.cwd(), "src/components/envios-client.tsx"),
-  "utf8",
-);
+const displaySource = readShipmentDisplaySource();
+const enviosSource = readEnviosClientSource();
 
 describe("envios status filter buckets eval", () => {
   it("defines the four tracking bucket labels without pendiente wording", () => {

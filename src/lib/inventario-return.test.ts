@@ -43,7 +43,7 @@ describe("inventario return navigation", () => {
     );
     assert.equal(
       inventarioReturnActionLabel("/configuracion?view=prices"),
-      "Volver a Países y precios",
+      "Volver a Costos",
     );
     assert.equal(inventarioReturnActionLabel("/venta"), "Volver a Nueva venta");
   });

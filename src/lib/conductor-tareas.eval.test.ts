@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
+import { readConductorTareasClientSource } from "@/test-utils/conductor-tareas-client-source";
 
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -11,12 +13,9 @@ const appFrameSource = readFileSync(join(root, "components/app-frame.tsx"), "utf
 const appNavigationSource = readFileSync(join(root, "lib/app-navigation.ts"), "utf8");
 const permissionsSource = readFileSync(join(root, "lib/auth/permissions.ts"), "utf8");
 const conductorPageSource = readFileSync(join(root, "app/conductor/tareas/page.tsx"), "utf8");
-const conductorClientSource = readFileSync(
-  join(root, "components/conductor/conductor-tareas-client.tsx"),
-  "utf8",
-);
+const conductorClientSource = readConductorTareasClientSource(root);
 const conductorViewSource = readFileSync(join(root, "lib/conductor-tareas-view.ts"), "utf8");
-const conductorActionsSource = readFileSync(join(root, "app/actions/conductor-tasks.ts"), "utf8");
+const conductorActionsSource = readConductorTaskActionsSource();
 
 describe("conductor tareas shell eval", () => {
   it("registers tareas conductor nav item", () => {
@@ -90,7 +89,7 @@ describe("conductor tareas shell eval", () => {
   });
 
   it("keeps the admin explanation behind a compact disclosure", () => {
-    assert.match(conductorClientSource, /function CompactInfoDisclosure/);
+    assert.match(conductorClientSource, /export function CompactInfoDisclosure/);
     assert.match(conductorClientSource, /ariaLabel="Ver detalle de vista administrativa"/);
     assert.match(conductorClientSource, /Vista del conductor\. Puedes completar tareas en su nombre/);
     assert.doesNotMatch(conductorClientSource, /Actúas como conductor y queda registrado como admin/);

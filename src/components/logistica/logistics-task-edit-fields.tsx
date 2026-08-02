@@ -2,7 +2,7 @@
 
 import type { Dispatch, SetStateAction } from "react";
 import { CalendarDays, Warehouse } from "lucide-react";
-import type { LogisticsTaskStatus } from "@/app/actions/shipments";
+import type { LogisticsTaskStatus } from "@/lib/shipment-types";
 import { DateInput } from "@/components/date-input";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import { ScheduleTimeField } from "@/components/sale/schedule-time-field";

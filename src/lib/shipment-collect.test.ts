@@ -8,6 +8,7 @@ import {
   shipmentCollectCopy,
   shipmentCollectSuccessMessage,
 } from "@/lib/shipment-collect";
+import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source";
 
 describe("resolveShipmentCollectAmount", () => {
   it("defaults to the full balance when amount is omitted", () => {
@@ -49,11 +50,11 @@ describe("shipmentCollectCopy", () => {
     assert.equal(copy.partialOptionLabel, "Abono");
   });
 
-  it("labels partial collection clearly", () => {
+  it("labels partial collection with the current payment terminology", () => {
     const copy = shipmentCollectCopy(15, "partial");
 
-    assert.equal(copy.title, "Registrar abono");
-    assert.equal(copy.confirmLabel, "Registrar abono");
+    assert.equal(copy.title, "Registrar pago");
+    assert.equal(copy.confirmLabel, "Registrar pago");
   });
 });
 
@@ -69,10 +70,7 @@ describe("shipmentCollectSuccessMessage", () => {
 
 describe("invoice collection atomicity eval", () => {
   it("uses one database function for shipment update and payment insert", () => {
-    const actionsSource = readFileSync(
-      join(dirname(fileURLToPath(import.meta.url)), "../app/actions/shipments.ts"),
-      "utf8",
-    );
+    const actionsSource = readShipmentActionsSource();
     const migrationSource = readFileSync(
       join(dirname(fileURLToPath(import.meta.url)), "../../supabase/migrations/043_atomic_invoice_collection.sql"),
       "utf8",

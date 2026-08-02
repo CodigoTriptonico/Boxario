@@ -1,11 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
-import { dirname, join } from "node:path";
-import { fileURLToPath } from "node:url";
 import { describe, it } from "node:test";
+import { readInventoryActionsSource } from "@/test-utils/inventory-route-actions-source";
 
-const actionsDir = dirname(fileURLToPath(import.meta.url));
-const source = readFileSync(join(actionsDir, "inventory.ts"), "utf8");
+const source = readInventoryActionsSource();
 
 describe("inventory deletion safety eval", () => {
   it("keeps audit-linked items and blocks destructive category cascades", () => {
@@ -20,7 +17,10 @@ describe("inventory deletion safety eval", () => {
     assert.match(source, /const categoryNames = new Set<string>\(\)/);
     assert.match(source, /const subcategoryNames = new Set<string>\(\)/);
     assert.match(source, /normalizeInventoryName\(category.name\)/);
-    assert.match(source, /normalizeInventoryName\(subcategory.name\)/);
+    assert.match(
+      source,
+      /normalizeInventoryName\(\s*subcategory\.name,\s*\)/,
+    );
     assert.match(source, /No se pueden crear categorías duplicadas/);
     assert.match(source, /No se pueden crear subcategorías duplicadas/);
     assert.match(source, /existingByNormalizedName/);

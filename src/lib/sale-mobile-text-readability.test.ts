@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import { describe, it } from "node:test";
+import { readVentaPartsSource } from "@/test-utils/venta-source";
 
-const stepBarSource = readFileSync(new URL("../components/sale/venta-parts.tsx", import.meta.url), "utf8");
+const stepBarSource = readVentaPartsSource();
 const boxPickerSource = readFileSync(new URL("../components/sale/sale-box-picker.tsx", import.meta.url), "utf8");
 
 describe("venta mobile text readability", () => {
@@ -19,8 +20,13 @@ describe("venta mobile text readability", () => {
   });
 
   it("keeps a product row to name, timing, price, and quantity", () => {
-    assert.match(boxPickerSource, /grid-cols-\[2rem_minmax\(0,1fr\)_auto\]/);
-    assert.match(boxPickerSource, /min-w-\[4\.5rem\] flex-col items-end/);
+    assert.match(
+      boxPickerSource,
+      /flex min-w-0 items-center gap-2[\s\S]*?\{box\[0\]\}[\s\S]*?\{box\[1\]\}[\s\S]*?SaleBoxCartQtyBadge/,
+    );
+    assert.match(boxPickerSource, /SaleBoxStockBadge/);
+    assert.doesNotMatch(boxPickerSource, /grid-cols-\[2rem_minmax\(0,1fr\)_auto\]/);
     assert.doesNotMatch(boxPickerSource, /minmax\(0,6rem\)_minmax\(0,5\.5rem\)_auto/);
+    assert.doesNotMatch(boxPickerSource, /min-w-0 flex-1/);
   });
 });

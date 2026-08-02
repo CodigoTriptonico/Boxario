@@ -1,6 +1,6 @@
 ﻿import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import type { ShipmentRow } from "@/app/actions/shipments";
+import type { ShipmentRow } from "@/lib/shipment-types";
 import {
   PENDING_EMPTY_BOX_STATUS,
   PENDING_FULL_BOX_STATUS,

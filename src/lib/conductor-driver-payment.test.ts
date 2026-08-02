@@ -44,6 +44,10 @@ describe("conductor driver payment", () => {
     assert.equal(conductorPaymentChoiceError({ choice: null, expectedAmount: 20, customAmount: 0 }), "Indica si recibiste el depósito.");
     assert.equal(conductorPaymentChoiceError({ choice: "custom", expectedAmount: 20, customAmount: 0 }), "Indica un monto recibido válido.");
     assert.equal(conductorPaymentChoiceError({ choice: "none", expectedAmount: 20, customAmount: 0 }), null);
+    assert.equal(
+      conductorPaymentChoiceError({ choice: "custom", expectedAmount: 20, customAmount: 50, balanceDue: 30 }),
+      "El monto no puede superar el saldo pendiente.",
+    );
     assert.equal(isConductorPaymentChoice("expected"), true);
     assert.equal(isConductorPaymentChoice("pending"), false);
   });
@@ -58,22 +62,19 @@ describe("conductor driver payment", () => {
     assert.deepEqual(resolveConductorPaymentAmount({ choice: "custom", expectedAmount: 20, customAmount: 7.5 }), { amount: 7.5, outcome: "collected" });
   });
 
-  it("preserves a balance for a partial collection and accommodates an overpayment", () => {
+  it("preserves a balance for a partial collection and rejects overpayment (FIN-004)", () => {
     assert.deepEqual(settleConductorPayment({ quotedTotal: 100, alreadyPaid: 20, receivedAmount: 30 }), {
       paid: 50,
       balanceDue: 50,
+      quotedTotal: 100,
       adjustedQuotedTotal: 100,
       totalAdjusted: false,
       totalAdjustment: 0,
       isPaidInFull: false,
     });
-    assert.deepEqual(settleConductorPayment({ quotedTotal: 100, alreadyPaid: 90, receivedAmount: 20 }), {
-      paid: 110,
-      balanceDue: 0,
-      adjustedQuotedTotal: 110,
-      totalAdjusted: true,
-      totalAdjustment: 10,
-      isPaidInFull: true,
-    });
+    assert.throws(
+      () => settleConductorPayment({ quotedTotal: 100, alreadyPaid: 90, receivedAmount: 20 }),
+      /no puede superar/,
+    );
   });
 });

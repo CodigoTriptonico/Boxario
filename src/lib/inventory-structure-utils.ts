@@ -20,6 +20,7 @@ export type ItemContextMenu = {
   stockItem: InventoryStockItem;
   categoryName: string;
   subcategoryName?: string;
+  primaryLocation?: string;
 };
 
 export type MovementDraft = {
@@ -27,6 +28,8 @@ export type MovementDraft = {
   qty: string;
   note: string;
   supplierName?: string;
+  invoiceReference?: string;
+  purchaseDate?: string;
   reasonCode: InventoryMovementReasonCode;
   unitCost?: string;
   totalCost?: string;
