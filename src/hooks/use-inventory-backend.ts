@@ -11,6 +11,10 @@ import { getCurrentSessionAction } from "@/app/actions/session";
 import type { InventoryAssignment, InventoryMovement } from "@/lib/inventory-types";
 import type { InventoryStockItem } from "@/lib/inventory-stock";
 import { mergeOrphanItemsIntoCategoryConfigs } from "@/lib/inventory-stock";
+import {
+  INVENTORY_STOCK_PAGE_SIZE,
+  type WarehouseInventoryStockQuery,
+} from "@/lib/inventory-stock-pagination";
 import type { CategoryConfig } from "@/lib/inventory-tree";
 import { dispatchOnboardingProgressChanged } from "@/lib/onboarding/refresh";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -26,6 +30,11 @@ export type InventoryBackendInitialData = {
   items: InventoryStockItem[];
   movements: InventoryMovement[];
   assignments: InventoryAssignment[];
+  stockPage?: {
+    limit: number;
+    offset: number;
+    hasMore: boolean;
+  };
 };
 
 const SAVE_DEBOUNCE_MS = 600;
@@ -57,6 +66,12 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
   const [assignments, setAssignments] = useState<InventoryAssignment[]>(
     initialData?.assignments || [],
   );
+  const [stockOffset, setStockOffset] = useState(initialData?.stockPage?.offset ?? 0);
+  const [stockHasMore, setStockHasMore] = useState(
+    Boolean(initialData?.stockPage?.hasMore),
+  );
+  const [stockLoading, setStockLoading] = useState(false);
+  const [stockCategoryName, setStockCategoryName] = useState("");
   const [loaded, setLoaded] = useState(!enabled || Boolean(initialData));
   const [error, setError] = useState("");
   const inventoryHydratedRef = useRef(Boolean(initialData?.warehouseId));
@@ -77,13 +92,17 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
   const categoryConfigsRef = useRef(categoryConfigs);
   const inventoryItemsRef = useRef(inventoryItems);
   const warehouseIdRef = useRef(warehouseId);
+  const stockOffsetRef = useRef(stockOffset);
+  const stockCategoryNameRef = useRef(stockCategoryName);
   const inflightSaveRef = useRef<Promise<void> | null>(null);
 
   useEffect(() => {
     categoryConfigsRef.current = categoryConfigs;
     inventoryItemsRef.current = inventoryItems;
     warehouseIdRef.current = warehouseId;
-  }, [categoryConfigs, inventoryItems, warehouseId]);
+    stockOffsetRef.current = stockOffset;
+    stockCategoryNameRef.current = stockCategoryName;
+  }, [categoryConfigs, inventoryItems, stockCategoryName, stockOffset, warehouseId]);
 
   const activeWarehouses = useMemo(
     () => warehouses.filter((warehouse) => warehouse.is_active),
@@ -184,37 +203,130 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
     [flushSaves],
   );
 
-  const loadRemote = useCallback(async (targetWarehouseId: string) => {
-    const coreResult = await loadWarehouseInventoryCoreAction(targetWarehouseId);
+  const loadRemote = useCallback(
+    async (
+      targetWarehouseId: string,
+      query?: WarehouseInventoryStockQuery & { skipHistory?: boolean },
+    ) => {
+      const offset = Math.max(query?.offset ?? 0, 0);
+      const categoryName = query?.categoryName?.trim() || "";
+      setStockLoading(true);
 
-    if (!coreResult.ok) {
-      setError(coreResult.error);
-      setLoaded(true);
-      inventoryHydratedRef.current = false;
-      return;
-    }
+      const coreResult = await loadWarehouseInventoryCoreAction(targetWarehouseId, {
+        limit: query?.limit ?? INVENTORY_STOCK_PAGE_SIZE,
+        offset,
+        search: query?.search,
+        categoryId: query?.categoryId,
+        categoryName: categoryName || undefined,
+        kind: query?.kind,
+        debugCounts: query?.debugCounts,
+      });
 
-    lastSavedInventoryRef.current = snapshotInventory(
-      targetWarehouseId,
-      coreResult.data.categoryConfigs,
-      coreResult.data.items,
-    );
-    setCategoryConfigs(coreResult.data.categoryConfigs);
-    setInventoryItems(coreResult.data.items);
-    lastLoadedWarehouse.current = targetWarehouseId;
-    inventoryHydratedRef.current = true;
-    setLoaded(true);
-
-    void loadWarehouseInventoryHistoryAction(targetWarehouseId).then((historyResult) => {
-      if (!historyResult.ok) {
-        setError(historyResult.error);
+      if (!coreResult.ok) {
+        setError(coreResult.error);
+        setLoaded(true);
+        inventoryHydratedRef.current = false;
+        setStockLoading(false);
         return;
       }
 
-      setMovements(historyResult.data.movements);
-      setAssignments(historyResult.data.assignments);
-    });
-  }, []);
+      lastSavedInventoryRef.current = snapshotInventory(
+        targetWarehouseId,
+        coreResult.data.categoryConfigs,
+        coreResult.data.items,
+      );
+      setCategoryConfigs(coreResult.data.categoryConfigs);
+      setInventoryItems(coreResult.data.items);
+      setStockOffset(coreResult.data.stockPage.offset);
+      setStockHasMore(coreResult.data.stockPage.hasMore);
+      setStockCategoryName(categoryName);
+      lastLoadedWarehouse.current = targetWarehouseId;
+      inventoryHydratedRef.current = true;
+      setLoaded(true);
+      setStockLoading(false);
+
+      if (query?.skipHistory) {
+        return;
+      }
+
+      void loadWarehouseInventoryHistoryAction(targetWarehouseId).then((historyResult) => {
+        if (!historyResult.ok) {
+          setError(historyResult.error);
+          return;
+        }
+
+        setMovements(historyResult.data.movements);
+        setAssignments(historyResult.data.assignments);
+      });
+    },
+    [],
+  );
+
+  const reloadCurrentStockPage = useCallback(
+    async (overrides?: WarehouseInventoryStockQuery) => {
+      const targetWarehouseId = warehouseIdRef.current;
+
+      if (!targetWarehouseId) {
+        return;
+      }
+
+      await loadRemote(targetWarehouseId, {
+        offset: overrides?.offset ?? stockOffsetRef.current,
+        categoryName:
+          overrides?.categoryName !== undefined
+            ? overrides.categoryName
+            : stockCategoryNameRef.current || undefined,
+        categoryId: overrides?.categoryId,
+        search: overrides?.search,
+        kind: overrides?.kind,
+        limit: overrides?.limit,
+        debugCounts: overrides?.debugCounts,
+        skipHistory: true,
+      });
+    },
+    [loadRemote],
+  );
+
+  const goToStockPage = useCallback(
+    async (nextOffset: number) => {
+      const targetWarehouseId = warehouseIdRef.current;
+
+      if (!targetWarehouseId || stockLoading) {
+        return;
+      }
+
+      await loadRemote(targetWarehouseId, {
+        offset: Math.max(nextOffset, 0),
+        categoryName: stockCategoryNameRef.current || undefined,
+        skipHistory: true,
+      });
+    },
+    [loadRemote, stockLoading],
+  );
+
+  const setStockCategoryFilter = useCallback(
+    async (categoryName: string) => {
+      const targetWarehouseId = warehouseIdRef.current;
+      const nextName = categoryName.trim();
+
+      if (!targetWarehouseId) {
+        setStockCategoryName(nextName);
+        setStockOffset(0);
+        return;
+      }
+
+      if (nextName === stockCategoryNameRef.current && stockOffsetRef.current === 0) {
+        return;
+      }
+
+      await loadRemote(targetWarehouseId, {
+        offset: 0,
+        categoryName: nextName || undefined,
+        skipHistory: true,
+      });
+    },
+    [loadRemote],
+  );
 
   useEffect(() => {
     if (
@@ -279,7 +391,7 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
       }
 
       setWarehouseId(defaultWarehouse.id);
-      await loadRemote(defaultWarehouse.id);
+      await loadRemote(defaultWarehouse.id, { offset: 0 });
     }
 
     queueMicrotask(() => {
@@ -300,7 +412,9 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
           await flushSaves(previousWarehouse);
         }
 
-        await loadRemote(warehouseId);
+        setStockOffset(0);
+        setStockCategoryName("");
+        await loadRemote(warehouseId, { offset: 0 });
       })();
     });
   }, [enabled, flushSaves, loadRemote, warehouseId]);
@@ -373,6 +487,8 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
     };
   }, [enabled, flushSaves]);
 
+  const stockPage = Math.floor(stockOffset / INVENTORY_STOCK_PAGE_SIZE);
+
   return {
     enabled,
     loaded,
@@ -391,5 +507,13 @@ export function useInventoryBackend(initialData?: InventoryBackendInitialData) {
     setMovements,
     assignments,
     setAssignments,
+    stockPage,
+    stockOffset,
+    stockHasMore,
+    stockLoading,
+    stockCategoryName,
+    reloadCurrentStockPage,
+    goToStockPage,
+    setStockCategoryFilter,
   };
 }

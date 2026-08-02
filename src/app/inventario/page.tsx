@@ -70,6 +70,7 @@ export default async function InventarioPage() {
         canManageWarehouses,
         categoryConfigs: inventoryResult.data.categoryConfigs,
         items: inventoryResult.data.items,
+        stockPage: inventoryResult.data.stockPage,
         movements: [],
         assignments: [],
       }

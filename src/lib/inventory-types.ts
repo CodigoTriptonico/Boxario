@@ -3,7 +3,7 @@ import type {
   InventoryMovementLocationType,
   InventoryMovementReasonCode,
   InventoryMovementReferenceType,
-} from "@/lib/inventory-movement-audit";
+} from "@/lib/inventory-movement-contracts";
 
 export type InventoryMovementType =
   | "entrada"
@@ -68,6 +68,8 @@ export type InventoryAssignment = {
   status: InventoryAssignmentStatus;
   outcome: InventoryAssignmentOutcome | null;
   note: string;
+  purpose?: string;
+  expectedReturnAt?: string | null;
   assignedBy?: string | null;
   assignedByName?: string | null;
   assignedAt: string;
@@ -80,6 +82,8 @@ export type InventoryMovementFilters = {
   assigneeId?: string;
   type?: InventoryMovementType;
   createdBy?: string;
+  /** Filters by `inventory_movements.reference_id` (e.g. shipment id). */
+  referenceId?: string;
   dateFrom?: string;
   dateTo?: string;
   limit?: number;

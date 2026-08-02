@@ -11,7 +11,7 @@ import {
   UserRound,
   X,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { listInventoryMovementsAction } from "@/app/actions/inventory-assignments";
 import { DateInput } from "@/components/date-input";
@@ -39,6 +39,8 @@ import {
   readInventoryMovementEvidencePhotos,
   readInventoryMovementSupplierName,
 } from "@/lib/inventory-movement-audit";
+import { INVENTORY_MOVEMENTS_PAGE_SIZE } from "@/lib/inventory-movements-pagination";
+import { secondaryButtonClass } from "@/components/ui-blocks";
 
 type MovementsTab = "history" | "summary";
 
@@ -179,6 +181,11 @@ function MovementList({
               ) : null}
               {referenceLabel ? (
                 <p className="mt-1 text-xs font-bold text-violet-300">{referenceLabel}</p>
+              ) : null}
+              {movement.reversalOfMovementId ? (
+                <p className="mt-1 text-[11px] font-bold text-amber-300">
+                  Reversa de {movement.reversalOfMovementId.slice(0, 8)}…
+                </p>
               ) : null}
               {movement.assigneeName ? (
                 <p className="mt-1 flex items-center gap-1 text-xs font-bold text-sky-300">
@@ -340,6 +347,10 @@ export function InventoryMovementsSidePanel({
   const [members, setMembers] = useState<InventoryMemberRow[]>([]);
   const [loading, setLoading] = useState(false);
   const [rows, setRows] = useState(movements);
+  const [page, setPage] = useState(0);
+  const [hasMore, setHasMore] = useState(
+    () => movements.length === INVENTORY_MOVEMENTS_PAGE_SIZE,
+  );
   const [assigneeId, setAssigneeId] = useState("");
   const [createdBy, setCreatedBy] = useState("");
   const [typeFilter, setTypeFilter] = useState("");
@@ -350,6 +361,7 @@ export function InventoryMovementsSidePanel({
   useEffect(() => {
     queueMicrotask(() => {
       setRows(movements);
+      setHasMore(movements.length === INVENTORY_MOVEMENTS_PAGE_SIZE);
     });
   }, [movements]);
 
@@ -381,39 +393,70 @@ export function InventoryMovementsSidePanel({
     [items],
   );
 
-  const reload = useCallback(async () => {
-    if (!warehouseId) {
+  const prevWarehouseKeyRef = useRef(`${warehouseId}|${fixedItemId || ""}`);
+
+  useEffect(() => {
+    const nextKey = `${warehouseId}|${fixedItemId || ""}`;
+    if (prevWarehouseKeyRef.current === nextKey) {
       return;
     }
+    prevWarehouseKeyRef.current = nextKey;
+    setPage(0);
+  }, [fixedItemId, warehouseId]);
 
-    setLoading(true);
-    const result = await listInventoryMovementsAction({
-      warehouseId,
-      itemId: fixedItemId || selectedItemId || undefined,
-      assigneeId: assigneeId || undefined,
-      createdBy: createdBy || undefined,
-      type: (typeFilter as InventoryMovementType) || undefined,
-      dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
-      dateTo: dateTo ? new Date(`${dateTo}T23:59:59`).toISOString() : undefined,
-      limit: 100,
-    });
-    setLoading(false);
+  function updateFilter<T>(setter: (value: T) => void) {
+    return (value: T) => {
+      setPage(0);
+      setter(value);
+    };
+  }
 
-    if (result.ok) {
+  const reload = useCallback(
+    async (targetPage = page) => {
+      if (!warehouseId) {
+        return;
+      }
+
+      setLoading(true);
+      const result = await listInventoryMovementsAction({
+        warehouseId,
+        itemId: fixedItemId || selectedItemId || undefined,
+        assigneeId: assigneeId || undefined,
+        createdBy: createdBy || undefined,
+        type: (typeFilter as InventoryMovementType) || undefined,
+        dateFrom: dateFrom ? new Date(dateFrom).toISOString() : undefined,
+        dateTo: dateTo ? new Date(`${dateTo}T23:59:59`).toISOString() : undefined,
+        limit: INVENTORY_MOVEMENTS_PAGE_SIZE,
+        offset: targetPage * INVENTORY_MOVEMENTS_PAGE_SIZE,
+      });
+      setLoading(false);
+
+      if (!result.ok) {
+        return;
+      }
+
+      if (targetPage > 0 && result.data.length === 0) {
+        setPage((current) => Math.max(0, current - 1));
+        return;
+      }
+
       setRows(result.data);
+      setHasMore(result.data.length === INVENTORY_MOVEMENTS_PAGE_SIZE);
       onMovementsChange?.(result.data);
-    }
-  }, [
-    assigneeId,
-    createdBy,
-    dateFrom,
-    dateTo,
-    fixedItemId,
-    onMovementsChange,
-    selectedItemId,
-    typeFilter,
-    warehouseId,
-  ]);
+    },
+    [
+      assigneeId,
+      createdBy,
+      dateFrom,
+      dateTo,
+      fixedItemId,
+      onMovementsChange,
+      page,
+      selectedItemId,
+      typeFilter,
+      warehouseId,
+    ],
+  );
 
   useEffect(() => {
     if (!open) {
@@ -421,9 +464,21 @@ export function InventoryMovementsSidePanel({
     }
 
     queueMicrotask(() => {
-      void reload();
+      void reload(page);
     });
-  }, [open, reload]);
+  }, [open, page, reload]);
+
+  const showPaginationControls = page > 0 || hasMore;
+
+  function goToPreviousPage() {
+    setPage((current) => Math.max(0, current - 1));
+  }
+
+  function goToNextPage() {
+    if (hasMore && !loading) {
+      setPage((current) => current + 1);
+    }
+  }
 
   useEffect(() => {
     if (!open || embedded) {
@@ -494,7 +549,7 @@ export function InventoryMovementsSidePanel({
         <div className="shrink-0 space-y-2 border-b border-black/70 p-4">
           <InlineSearchPicker
             value={selectedItemId}
-            onChange={setSelectedItemId}
+            onChange={updateFilter(setSelectedItemId)}
             options={itemOptions}
             placeholder="Item"
             searchPlaceholder="Buscar item…"
@@ -505,7 +560,7 @@ export function InventoryMovementsSidePanel({
           />
           <InlineSearchPicker
             value={assigneeId}
-            onChange={setAssigneeId}
+            onChange={updateFilter(setAssigneeId)}
             options={[{ value: "", label: "Empleado (todos)" }, ...memberOptions]}
             placeholder="Empleado"
             searchPlaceholder="Buscar…"
@@ -515,7 +570,7 @@ export function InventoryMovementsSidePanel({
           />
           <InlineSearchPicker
             value={createdBy}
-            onChange={setCreatedBy}
+            onChange={updateFilter(setCreatedBy)}
             options={[{ value: "", label: "Responsable (todos)" }, ...memberOptions]}
             placeholder="Responsable"
             searchPlaceholder="Buscar…"
@@ -525,7 +580,7 @@ export function InventoryMovementsSidePanel({
           />
           <InlineSearchPicker
             value={typeFilter}
-            onChange={setTypeFilter}
+            onChange={updateFilter(setTypeFilter)}
             options={[{ value: "", label: "Tipo (todos)" }, ...TYPE_FILTER_OPTIONS]}
             placeholder="Tipo"
             searchPlaceholder="Buscar…"
@@ -533,29 +588,29 @@ export function InventoryMovementsSidePanel({
             className="w-full"
             minWidthClass="w-full min-w-0"
           />
-          <div className="grid grid-cols-2 gap-2">
-            <label className="grid gap-1 text-[11px] font-black uppercase text-slate-400">
-              Desde
+            <div className="grid grid-cols-2 gap-2">
+            <div className="grid gap-1 text-[11px] font-black uppercase text-slate-400">
+              <span>Desde</span>
               <DateInput
                 compact={false}
                 value={dateFrom}
                 ariaLabel="Fecha desde"
-                onChange={setDateFrom}
+                onChange={updateFilter(setDateFrom)}
               />
-            </label>
-            <label className="grid gap-1 text-[11px] font-black uppercase text-slate-400">
-              Hasta
+            </div>
+            <div className="grid gap-1 text-[11px] font-black uppercase text-slate-400">
+              <span>Hasta</span>
               <DateInput
                 compact={false}
                 value={dateTo}
                 ariaLabel="Fecha hasta"
-                onChange={setDateTo}
+                onChange={updateFilter(setDateTo)}
               />
-            </label>
+            </div>
           </div>
           <button
             type="button"
-            onClick={() => void reload()}
+            onClick={() => void reload(page)}
             className="inline-flex h-9 w-full items-center justify-center rounded-lg border border-black bg-emerald-400/10 text-sm font-black text-emerald-200"
           >
             Aplicar filtros
@@ -578,6 +633,32 @@ export function InventoryMovementsSidePanel({
           />
         )}
       </div>
+
+      {tab === "history" && showPaginationControls ? (
+        <div className="flex shrink-0 items-center justify-between gap-2 border-t border-black/70 px-4 py-3">
+          <button
+            type="button"
+            className={`${secondaryButtonClass} h-9 px-3 text-xs font-black disabled:opacity-40`}
+            disabled={page === 0 || loading}
+            onClick={goToPreviousPage}
+          >
+            Anterior
+          </button>
+          <p className="text-xs font-bold text-slate-400">
+            {loading
+              ? "Cargando…"
+              : `Página ${page + 1}${hasMore ? "" : " · última"}`}
+          </p>
+          <button
+            type="button"
+            className={`${secondaryButtonClass} h-9 px-3 text-xs font-black disabled:opacity-40`}
+            disabled={!hasMore || loading}
+            onClick={goToNextPage}
+          >
+            Siguiente
+          </button>
+        </div>
+      ) : null}
     </>
   );
 

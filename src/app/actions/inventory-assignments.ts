@@ -29,6 +29,10 @@ import type {
 } from "@/lib/inventory-types";
 import type { InventoryStockItem } from "@/lib/inventory-stock";
 import { isAgencyInventoryMovement } from "@/lib/inventory-movement-audit";
+import {
+  INVENTORY_MOVEMENTS_MAX_LIMIT,
+  INVENTORY_MOVEMENTS_PAGE_SIZE,
+} from "@/lib/inventory-movements-pagination";
 
 async function fetchMovementById(
   supabase: NonNullable<Awaited<ReturnType<typeof createScopedSupabase>>>,
@@ -88,7 +92,8 @@ export async function listInventoryMovementsAction(
       .select(MOVEMENT_SELECT)
       .eq("warehouse_id", filters.warehouseId)
       .eq("organization_id", session.organizationId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false });
 
     if (filters.itemId) {
       query = query.eq("item_id", filters.itemId);
@@ -106,6 +111,10 @@ export async function listInventoryMovementsAction(
       query = query.eq("created_by", filters.createdBy);
     }
 
+    if (filters.referenceId) {
+      query = query.eq("reference_id", filters.referenceId);
+    }
+
     if (filters.dateFrom) {
       query = query.gte("created_at", filters.dateFrom);
     }
@@ -114,8 +123,11 @@ export async function listInventoryMovementsAction(
       query = query.lte("created_at", filters.dateTo);
     }
 
-    const limit = filters.limit ?? 100;
-    const offset = filters.offset ?? 0;
+    const limit = Math.min(
+      Math.max(filters.limit ?? INVENTORY_MOVEMENTS_PAGE_SIZE, 1),
+      INVENTORY_MOVEMENTS_MAX_LIMIT,
+    );
+    const offset = Math.max(filters.offset ?? 0, 0);
     query = query.range(offset, offset + limit - 1);
 
     const { data, error } = await query;
@@ -125,6 +137,8 @@ export async function listInventoryMovementsAction(
     }
 
     const movements = movementsFromDb((data || []) as DbMovementRow[]);
+    // Agency movements are filtered in JS (reason/location/reference spans several
+    // columns). When agency module is off, pages may slightly underfill — acceptable.
     return ok(
       session.agencyModuleEnabled
         ? movements
@@ -205,6 +219,8 @@ export async function assignInventoryItemAction(input: {
   assigneeId: string;
   qty: number;
   note?: string;
+  purpose?: string;
+  expectedReturnAt?: string | null;
 }): Promise<
   ActionResult<{ assignment: InventoryAssignment; movement: InventoryMovement; item: InventoryStockItem }>
 > {
@@ -230,6 +246,8 @@ export async function assignInventoryItemAction(input: {
       p_assignee_id: input.assigneeId,
       p_qty: input.qty,
       p_note: input.note || "",
+      p_purpose: input.purpose || "",
+      p_expected_return_at: input.expectedReturnAt || null,
     });
 
     if (error) {

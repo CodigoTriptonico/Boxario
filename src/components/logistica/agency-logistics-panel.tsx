@@ -6,6 +6,7 @@ import { assignAgencyRequestToRouteAction, listLogisticsAgencyRequestsAction, ty
 import { listAgencyRouteProposalsAction, reviewAgencyRouteProposalAction, type AgencyRouteProposal } from "@/app/actions/agencies";
 import { listLogisticsRoutesAction } from "@/app/actions/logistics-routes";
 import type { LogisticsRouteRow } from "@/lib/logistics-routing";
+import { LOGISTICS_ROUTES_PAGE_SIZE } from "@/lib/logistics-routes-pagination";
 import { useNotify } from "@/hooks/use-notify";
 import { CompactInfoDisclosure, Panel, primaryButtonClass } from "@/components/ui-blocks";
 
@@ -13,7 +14,7 @@ const serviceLabels: Record<string,string> = { agency_office_empty_box_delivery:
 
 export function AgencyLogisticsPanel() {
   const notify=useNotify(); const [requests,setRequests]=useState<LogisticsAgencyRequest[]>([]); const [routes,setRoutes]=useState<LogisticsRouteRow[]>([]); const [proposals,setProposals]=useState<AgencyRouteProposal[]>([]); const [routeByRequest,setRouteByRequest]=useState<Record<string,string>>({}); const [pending,startTransition]=useTransition();
-  const reload=useCallback(async()=>{const [requestResult,routeResult,proposalResult]=await Promise.all([listLogisticsAgencyRequestsAction(),listLogisticsRoutesAction(),listAgencyRouteProposalsAction()]);if(requestResult.ok)setRequests(requestResult.data);if(routeResult.ok)setRoutes(routeResult.data.filter((route)=>!["cancelled","completed"].includes(route.status)));if(proposalResult.ok)setProposals(proposalResult.data);},[]);
+  const reload=useCallback(async()=>{const [requestResult,routeResult,proposalResult]=await Promise.all([listLogisticsAgencyRequestsAction(),listLogisticsRoutesAction({ statusMode: "active", limit: LOGISTICS_ROUTES_PAGE_SIZE, offset: 0 }),listAgencyRouteProposalsAction()]);if(requestResult.ok)setRequests(requestResult.data);if(routeResult.ok)setRoutes(routeResult.data);if(proposalResult.ok)setProposals(proposalResult.data);},[]);
   useEffect(()=>{const timer=window.setTimeout(()=>{void reload();},0);return()=>window.clearTimeout(timer);},[reload]);
   function assign(request:LogisticsAgencyRequest){const routeId=routeByRequest[request.id];if(!routeId)return notify.error("Selecciona una ruta para la visita.");startTransition(async()=>{const result=await assignAgencyRequestToRouteAction({requestId:request.id,routeId});if(!result.ok)return notify.error(result.error);notify.success(`Visita de ${request.agencyName} asignada a la ruta.`);await reload();});}
   function reviewProposal(proposal:AgencyRouteProposal,decision:"approved"|"rejected"){startTransition(async()=>{const result=await reviewAgencyRouteProposalAction({proposalId:proposal.id,decision});if(!result.ok)return notify.error(result.error);notify.success(decision==="approved"?`Ruta de ${proposal.agencyName} aprobada.`:"Propuesta rechazada.");await reload();});}

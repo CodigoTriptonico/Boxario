@@ -5,10 +5,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { createWarehouseAction, rememberPreferredWarehouseAction } from "@/app/actions/warehouses";
-import {
-  loadWarehouseInventoryCoreAction,
-  loadWarehouseInventoryHistoryAction,
-} from "@/app/actions/inventory";
+import { loadWarehouseInventoryHistoryAction } from "@/app/actions/inventory";
 import {
   assignInventoryItemAction,
   closeInventoryAssignmentAction,
@@ -19,6 +16,7 @@ import {
   type CloseAssignmentSubmit,
 } from "@/components/inventory-assignment-modals";
 import { InventoryControlMenu } from "@/components/inventory/inventory-control-menu";
+import { InventoryHistoricalShipmentRefsPanel } from "@/components/inventory/inventory-historical-shipment-refs-panel";
 import {
   InventoryTrackingDrawer,
   type InventoryTrackingTab,
@@ -29,6 +27,7 @@ import { InventoryWarehouseBar } from "@/components/inventory-warehouse-bar";
 import { WarehousesSettingsPanel } from "@/components/config/warehouses-settings-panel";
 import { PageLoading } from "@/components/page-loading";
 import { SupabaseRequiredBanner } from "@/components/supabase-required-banner";
+import { secondaryButtonClass } from "@/components/ui-blocks";
 import { useContextNav } from "@/hooks/use-context-nav";
 import { useNotify } from "@/hooks/use-notify";
 import {
@@ -43,7 +42,7 @@ import {
 } from "@/lib/pricing-catalog";
 import type { InventoryStockItem } from "@/lib/inventory-stock";
 import type { ConductorTruckBalance } from "@/lib/conductor-truck-inventory";
-import { mergeTreeIntoInventoryItems } from "@/lib/inventory-stock";
+import { INVENTORY_STOCK_PAGE_SIZE } from "@/lib/inventory-stock-pagination";
 import type { PricingConfigPayload } from "@/lib/pricing/types";
 import {
   inventarioReturnActionLabel,
@@ -84,7 +83,6 @@ export function InventarioClient({
     warehouseId,
     setWarehouseId,
     categoryConfigs,
-    setCategoryConfigs,
     persistCategoryConfigs,
     inventoryItems,
     setInventoryItems,
@@ -92,6 +90,13 @@ export function InventarioClient({
     setMovements,
     assignments,
     setAssignments,
+    stockPage,
+    stockOffset,
+    stockHasMore,
+    stockLoading,
+    reloadCurrentStockPage,
+    goToStockPage,
+    setStockCategoryFilter,
   } = useInventoryBackend(initialData);
   const {
     countries: pricingCountries,
@@ -157,21 +162,30 @@ export function InventarioClient({
       return;
     }
 
-    const [coreResult, historyResult] = await Promise.all([
-      loadWarehouseInventoryCoreAction(warehouseId),
-      loadWarehouseInventoryHistoryAction(warehouseId),
+    await Promise.all([
+      reloadCurrentStockPage(),
+      loadWarehouseInventoryHistoryAction(warehouseId).then((historyResult) => {
+        if (!historyResult.ok) {
+          return;
+        }
+
+        setMovements(historyResult.data.movements);
+        setAssignments(historyResult.data.assignments);
+      }),
     ]);
+  }, [
+    reloadCurrentStockPage,
+    setAssignments,
+    setMovements,
+    warehouseId,
+  ]);
 
-    if (coreResult.ok) {
-      setCategoryConfigs(coreResult.data.categoryConfigs);
-      setInventoryItems(coreResult.data.items);
-    }
-
-    if (historyResult.ok) {
-      setMovements(historyResult.data.movements);
-      setAssignments(historyResult.data.assignments);
-    }
-  }, [setAssignments, setCategoryConfigs, setInventoryItems, setMovements, warehouseId]);
+  const handleSelectedCategoryChange = useCallback(
+    (categoryName: string) => {
+      void setStockCategoryFilter(categoryName);
+    },
+    [setStockCategoryFilter],
+  );
 
   const inventarioNavTitle = useMemo(() => {
     if (!loaded || !enabled) {
@@ -221,18 +235,6 @@ export function InventarioClient({
       void rememberPreferredWarehouseAction(target);
     }
   }, [loaded, warehouseId, warehouses, setWarehouseId]);
-
-  useEffect(() => {
-    if (!loaded || !categoryConfigs.length) {
-      return;
-    }
-
-    queueMicrotask(() => {
-      setInventoryItems((current) =>
-        mergeTreeIntoInventoryItems(categoryConfigs, current),
-      );
-    });
-  }, [categoryConfigs, loaded, setInventoryItems]);
 
   useEffect(() => {
     if (initialInventoryError) {
@@ -440,6 +442,7 @@ export function InventarioClient({
         embedded
         pricingReturnHref={returnTo}
         pricingReturnLabel={returnActionLabel}
+        pricingCountries={pricingCountries}
         categoryConfigs={categoryConfigs}
         onCategoryConfigsChange={persistCategoryConfigs}
         inventoryItems={inventoryItems}
@@ -448,6 +451,7 @@ export function InventarioClient({
         warehouseName={activeWarehouseName}
         movements={movements}
         assignments={assignments}
+        onSelectedCategoryChange={handleSelectedCategoryChange}
         onMovementRecorded={(movement) =>
           setMovements((current) => [movement, ...current])
         }
@@ -536,6 +540,39 @@ export function InventarioClient({
             closingAssignmentId={closingAssignmentId}
           />
         }
+        footerSlot={
+          stockPage > 0 || stockHasMore ? (
+            <div className="flex shrink-0 items-center justify-between gap-2 border-t border-black px-4 py-3 sm:px-5">
+              <button
+                type="button"
+                className={`${secondaryButtonClass} h-9 px-3 text-xs font-black disabled:opacity-40`}
+                disabled={stockOffset <= 0 || stockLoading}
+                onClick={() =>
+                  void goToStockPage(
+                    Math.max(stockOffset - INVENTORY_STOCK_PAGE_SIZE, 0),
+                  )
+                }
+              >
+                Anterior
+              </button>
+              <p className="text-xs font-bold text-slate-400">
+                {stockLoading
+                  ? "Cargando…"
+                  : `Página ${stockPage + 1}${stockHasMore ? "" : " · última"}`}
+              </p>
+              <button
+                type="button"
+                className={`${secondaryButtonClass} h-9 px-3 text-xs font-black disabled:opacity-40`}
+                disabled={!stockHasMore || stockLoading}
+                onClick={() =>
+                  void goToStockPage(stockOffset + INVENTORY_STOCK_PAGE_SIZE)
+                }
+              >
+                Siguiente
+              </button>
+            </div>
+          ) : null
+        }
       />
 
       <InventoryTrackingDrawer
@@ -563,7 +600,7 @@ export function InventarioClient({
         maxQty={assignDraft?.maxQty || 0}
         saving={assignSaving}
         onClose={() => setAssignDraft(null)}
-        onSubmit={async ({ assigneeId, qty, note }) => {
+        onSubmit={async ({ assigneeId, qty, note, purpose, deliveryDate, expectedReturnAt }) => {
           if (!assignDraft || !warehouseId) {
             return;
           }
@@ -582,7 +619,14 @@ export function InventarioClient({
             itemId,
             assigneeId,
             qty,
-            note,
+            note: [
+              note.trim(),
+              deliveryDate ? `Entrega: ${deliveryDate}` : "",
+            ]
+              .filter(Boolean)
+              .join(" · "),
+            purpose,
+            expectedReturnAt: expectedReturnAt || null,
           });
           setAssignSaving(false);
 
@@ -606,6 +650,12 @@ export function InventarioClient({
         onClose={() => setProductCountriesDraft(null)}
         onSave={saveProductCountryAssignments}
       />
+
+      {canManageInventory ? (
+        <div className="mt-4">
+          <InventoryHistoricalShipmentRefsPanel canAdjust={canManageInventory} />
+        </div>
+      ) : null}
     </div>
   );
 }
