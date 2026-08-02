@@ -606,9 +606,13 @@ export async function updateShipmentJournalReminderAction(input: {
   }
 }
 
-export async function listMyShipmentJournalRemindersAction(): Promise<
-  ActionResult<ShipmentJournalEntry[]>
-> {
+const JOURNAL_REMINDERS_DEFAULT_LIMIT = 20;
+const JOURNAL_REMINDERS_MAX_LIMIT = 50;
+
+export async function listMyShipmentJournalRemindersAction(options?: {
+  limit?: number;
+  offset?: number;
+}): Promise<ActionResult<ShipmentJournalEntry[]>> {
   try {
     const session = await requireAppSession();
     if (!canReadJournal(session)) {
@@ -618,6 +622,11 @@ export async function listMyShipmentJournalRemindersAction(): Promise<
     if (!supabase) {
       return ok([]);
     }
+    const limit = Math.min(
+      Math.max(options?.limit ?? JOURNAL_REMINDERS_DEFAULT_LIMIT, 1),
+      JOURNAL_REMINDERS_MAX_LIMIT,
+    );
+    const offset = Math.max(options?.offset ?? 0, 0);
     const { data, error } = await supabase
       .from("shipment_journal_entries")
       .select("id, shipment_id, category, body, details, follow_up_at, assigned_to, reminder_status, source, created_by, created_at, updated_at, revision_count, deleted_at, delete_reason, shipments(code)")
@@ -627,7 +636,8 @@ export async function listMyShipmentJournalRemindersAction(): Promise<
       .is("deleted_at", null)
       .not("follow_up_at", "is", null)
       .order("follow_up_at", { ascending: true })
-      .limit(20);
+      .order("id", { ascending: true })
+      .range(offset, offset + limit - 1);
     if (error) {
       return error.code === "42P01" ? ok([]) : fail(error.message);
     }
