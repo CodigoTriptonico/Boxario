@@ -16,6 +16,7 @@
     "quality:gate": "npm run typecheck && npm run lint && npm run check:architecture && npm run check:duplicates && npm run test:gate",
     "quality:db": "npm run test:db-integrity && node scripts/test-logistics-route-integrity.mjs && node scripts/phase1-closeout-verify.mjs && node scripts/report-overpayment-adjustments.mjs && npm run check:db-types",
     "quality:full": "npm run quality:gate && npm run build && npm run quality:db",
+    "benchmark:pagination": "node scripts/benchmark-list-pagination.mjs",
     "check:architecture": "node scripts/check-architecture.mjs",
     "check:duplicates": "jscpd src --min-lines 5 --min-tokens 50 --ignore \"**/*.test.ts,**/*.eval.test.ts\" --threshold 3 --reporters threshold --no-tips",
     "db:check": "node scripts/check-schema.mjs",
