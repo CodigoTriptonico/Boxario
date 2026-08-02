@@ -6,10 +6,16 @@ import { canAccessWarehouse, sessionHasPermission } from "@/lib/auth/permissions
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
 import type { WarehouseRow } from "@/lib/auth/types";
+import type { DbWarehouse } from "@/lib/db";
 import {
   getConfiguredWarehouseLimit,
   type OrganizationSettings,
 } from "@/lib/organizations/settings";
+
+type WarehouseSelectRow = Pick<
+  DbWarehouse,
+  "id" | "name" | "code" | "is_active" | "is_default"
+>;
 
 const WAREHOUSE_LIMIT_NOT_CONFIGURED =
   "Límite de bodegas no configurado en el plan. Contacte al administrador.";
@@ -120,7 +126,7 @@ export async function listWarehousesAction(): Promise<ActionResult<WarehouseRow[
       return fail(error.message);
     }
 
-    return ok((data || []) as WarehouseRow[]);
+    return ok((data || []) as WarehouseSelectRow[]);
   } catch (error) {
     return fail(actionErrorMessage(error));
   }
@@ -189,7 +195,7 @@ export async function createWarehouseAction(input: {
       return fail(actionErrorMessage(seedError));
     }
 
-    return ok(data as WarehouseRow);
+    return ok(data as WarehouseSelectRow);
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

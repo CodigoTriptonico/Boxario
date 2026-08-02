@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import type { DbInventoryMovement, DbInventoryStock } from "@/lib/db";
 import type {
   InventoryAssignment,
   InventoryMovement,
@@ -17,16 +18,19 @@ export type DbCategory = {
   tree_data: InventoryTreeItem[];
 };
 
-export type DbStockRow = {
-  id: string;
-  item_id: string;
-  warehouse_id: string;
-  stock: number;
-  reserved: number;
-  assigned: number;
-  unavailable: number;
-  min_stock: number;
-  avg_cost?: number;
+/** Core stock columns aligned with generated `inventory_stock`; join shape matches warehouse select. */
+export type DbStockRow = Pick<
+  DbInventoryStock,
+  | "id"
+  | "item_id"
+  | "warehouse_id"
+  | "stock"
+  | "reserved"
+  | "assigned"
+  | "unavailable"
+  | "min_stock"
+  | "avg_cost"
+> & {
   inventory_items: {
     id: string;
     name: string;
@@ -43,31 +47,38 @@ export type DbStockRow = {
 
 type ProfileJoin = { full_name: string | null; email: string } | null;
 
-export type DbMovementRow = {
-  id: string;
-  item_id: string;
-  item_name: string;
+/** Core movement columns from generated `inventory_movements` plus profile joins. */
+export type DbMovementRow = Omit<
+  Pick<
+    DbInventoryMovement,
+    | "id"
+    | "item_id"
+    | "item_name"
+    | "qty"
+    | "note"
+    | "reason_code"
+    | "from_location_type"
+    | "from_location_id"
+    | "from_location_label"
+    | "to_location_type"
+    | "to_location_id"
+    | "to_location_label"
+    | "reference_type"
+    | "reference_id"
+    | "evidence"
+    | "reversal_of_movement_id"
+    | "warehouse_transfer_id"
+    | "created_at"
+    | "created_by"
+    | "assignee_id"
+    | "assignment_id"
+    | "unit_cost"
+    | "total_cost"
+  >,
+  "type" | "evidence"
+> & {
   type: InventoryMovementType;
-  qty: number;
-  note: string;
-  reason_code?: string | null;
-  from_location_type?: string | null;
-  from_location_id?: string | null;
-  from_location_label?: string | null;
-  to_location_type?: string | null;
-  to_location_id?: string | null;
-  to_location_label?: string | null;
-  reference_type?: string | null;
-  reference_id?: string | null;
   evidence?: Record<string, unknown> | null;
-  reversal_of_movement_id?: string | null;
-  warehouse_transfer_id?: string | null;
-  created_at: string;
-  created_by?: string | null;
-  assignee_id?: string | null;
-  assignment_id?: string | null;
-  unit_cost?: number | null;
-  total_cost?: number | null;
   created_by_profile?: ProfileJoin | ProfileJoin[];
   assignee_profile?: ProfileJoin | ProfileJoin[];
 };
@@ -86,6 +97,8 @@ export type DbAssignmentRow = {
   status: "open" | "closed";
   outcome: InventoryAssignment["outcome"];
   note: string;
+  purpose?: string;
+  expected_return_at?: string | null;
   assigned_by: string | null;
   assigned_at: string;
   closed_at: string | null;
@@ -393,6 +406,8 @@ export function assignmentsFromDb(rows: DbAssignmentRow[]): InventoryAssignment[
     status: row.status,
     outcome: row.outcome,
     note: row.note || "",
+    purpose: row.purpose || "",
+    expectedReturnAt: row.expected_return_at ?? null,
     assignedBy: row.assigned_by,
     assignedByName: profileDisplayName(row.assigned_by_profile),
     assignedAt: row.assigned_at,
@@ -415,7 +430,8 @@ export const MOVEMENT_SELECT = `
 export const ASSIGNMENT_SELECT = `
   id, warehouse_id, item_id, item_name, assignee_id,
   qty_assigned, qty_returned, qty_consumed, qty_damaged, qty_lost,
-  status, outcome, note, assigned_by, assigned_at, closed_at,
+  status, outcome, note, purpose, expected_return_at,
+  assigned_by, assigned_at, closed_at,
   assignee_profile:profiles!inventory_assignments_assignee_id_fkey(full_name, email),
   assigned_by_profile:profiles!inventory_assignments_assigned_by_fkey(full_name, email)
 `;
