@@ -12,6 +12,7 @@
 
 # testing
 /coverage
+/.jscpd-report/
 
 # next.js
 /.next/
