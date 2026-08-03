@@ -35,8 +35,9 @@ describe("invoice visible on physical boxes eval", () => {
   it("enforces the rule on the server and records both evidence and incidents", () => {
     assert.match(actionSource, /const invoiceVisible = cleanText\(formData\.get\("invoiceVisible"\), 10\) === "true"/);
     assert.match(actionSource, /invoiceVisible,/);
-    assert.match(actionSource, /recordInvoiceEvidence\(admin, session/);
-    assert.match(actionSource, /recordInvoiceIncident\(admin, session/);
+    assert.match(actionSource, /applyConductorCompletedPostCommitEffects/);
+    assert.match(actionSource, /recordInvoiceEvidence\(/);
+    assert.match(actionSource, /recordInvoiceIncident\(/);
     assert.match(actionSource, /Invoice no visible/);
   });
 

@@ -230,7 +230,20 @@ describe("logistics route integrity", () => {
     assert.match(resultSupport, /complete_conductor_task_atomic/);
     assert.match(resultSupport, /p_collect_payment/);
     assert.match(resultSupport, /clientOperationId/);
+    assert.match(resultSupport, /resolveConductorCompleteOutcome/);
     assert.match(migration, /complete_conductor_task_atomic/);
+    const idempotencyMigration = readFileSync(
+      join(process.cwd(), "supabase/migrations/167_conductor_complete_attempt_idempotency.sql"),
+      "utf8",
+    );
+    assert.match(idempotencyMigration, /attempt_task_status = 'completed'/);
+    assert.match(idempotencyMigration, /delete from public\.shipment_logistics_task_attempts/);
+    const billingMigration = readFileSync(
+      join(process.cwd(), "supabase/migrations/168_conductor_complete_preserve_sql_billing.sql"),
+      "utf8",
+    );
+    assert.match(billingMigration, /L-H3: never accept a full logistics_plan replace/);
+    assert.match(billingMigration, /lastDriverCollection/);
   });
 
   it("syncs custody acceptance with physical package status and closes pallets", () => {

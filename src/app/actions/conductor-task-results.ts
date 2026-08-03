@@ -3,9 +3,8 @@
 import { randomUUID } from "node:crypto";
 import { revalidatePath } from "next/cache";
 import { formatConductorAdminActionNote, formatConductorAdminActorDescription } from "@/lib/conductor-tareas-view";
-import { buildRouteByTaskId, conductorScopeDate, conductorTaskTypeLabel, isConductorClosedTaskInScope, isTaskAssignedToDriver, scheduledAtScopeDate } from "@/lib/conductor-tasks";
-import { hasDeliverEventForTaskLine, hasPickupReturnEventForTaskLine, validateConductorTruckDeliver, validateConductorTaskResultInput, type ConductorTaskFailureReason } from "@/lib/conductor-truck-inventory";
-import { createScopedSupabase } from "@/lib/supabase/scoped";
+import { buildRouteByTaskId, buildConductorDriverTasks, conductorScopeDate, conductorTaskTypeLabel, isConductorClosedTaskInScope, isTaskAssignedToDriver, scheduledAtScopeDate } from "@/lib/conductor-tasks";
+import { validateConductorTaskResultInput, type ConductorTaskFailureReason } from "@/lib/conductor-truck-inventory";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
 import { recordActivityHistory } from "@/lib/activity-history";
 import { parseMoneyValue } from "@/lib/logistics-fees";
@@ -17,25 +16,20 @@ import {
   cleanText,
   conductorActionAudit,
   conductorActionAuditMetadata,
-  findInventoryLine,
-  insertFullBoxCollectionEvent,
-  insertTruckEvent,
   loadConductorData,
   loadDriverTaskFromDb,
-  loadTruckEvents,
-  loadTruckInventoryView,
   readPaymentMethod,
   requireConductorMutationContext,
-  requireTruckVehicleId,
   resolveConductorActionDriverId,
 } from "@/app/actions/conductor-tasks-shared";
 import {
+  applyConductorCompletedPostCommitEffects,
   completeTask,
   failTask,
-  recordInvoiceEvidence,
   recordInvoiceIncident,
   recordTaskAttempt,
   uploadEvidence,
+  validateConductorCompletedTruckEffects,
 } from "@/app/actions/conductor-task-result-support";
 
 export async function submitConductorTaskResultAction(
@@ -76,6 +70,64 @@ export async function submitConductorTaskResultAction(
     }
 
     if (taskRow.status === "completed") {
+      // L-H2 case 4: close already committed — reconcile idempotent post-commit effects.
+      const taskScopeDate = scheduledAtScopeDate(taskRow.scheduled_at) || conductorScopeDate();
+      const data = await loadConductorData(driverId, taskScopeDate);
+      const routeByTaskId = buildRouteByTaskId(data.routes);
+      const routeInfo = routeByTaskId.get(taskRow.id);
+      if (
+        !isTaskAssignedToDriver(
+          { assignedTo: taskRow.assigned_to, status: taskRow.status },
+          routeInfo,
+          driverId,
+          { includeClosed: true },
+        )
+      ) {
+        throw new Error("FORBIDDEN");
+      }
+      const closedTasks = buildConductorDriverTasks({
+        shipments: data.shipments,
+        routes: data.routes,
+        taskAddresses: data.taskAddresses,
+        vehicles: data.vehicles,
+        driverId,
+        scopeDate: data.scopeDate || taskScopeDate,
+        visibility: "closed",
+      });
+      const task = closedTasks.find((entry) => entry.id === taskId);
+      const shipment = data.shipments.find((entry) => entry.id === taskRow.shipment_id);
+      if (task && shipment) {
+        const evidenceUrl = await uploadEvidence(admin, session, task.id, clientOperationId, evidenceFile);
+        const { data: attemptRow } = await admin
+          .from("shipment_logistics_task_attempts")
+          .select("note, payment_expected_amount, payment_amount, payment_method, payment_outcome")
+          .eq("organization_id", session.organizationId)
+          .eq("client_operation_id", clientOperationId)
+          .maybeSingle();
+        await applyConductorCompletedPostCommitEffects({
+          admin,
+          session,
+          supabase,
+          task,
+          shipment,
+          driverId,
+          taskScopeDate,
+          evidenceUrl,
+          note: typeof attemptRow?.note === "string" ? attemptRow.note : note,
+          paymentExpectedAmount: Number(attemptRow?.payment_expected_amount || 0),
+          paymentAmount: Number(attemptRow?.payment_amount || 0),
+          paymentMethod: readPaymentMethod(attemptRow?.payment_method || paymentMethod),
+          paymentOutcome: (attemptRow?.payment_outcome === "collected"
+            || attemptRow?.payment_outcome === "not_collected"
+            || attemptRow?.payment_outcome === "not_applicable")
+            ? attemptRow.payment_outcome
+            : "not_applicable",
+        });
+      }
+      revalidatePath("/conductor/tareas");
+      revalidatePath("/conductor/inventario-camion");
+      revalidatePath("/seguimiento");
+      revalidatePath("/logistica");
       return ok({ taskId });
     }
 
@@ -164,124 +216,37 @@ export async function submitConductorTaskResultAction(
       return fail("Invoice no encontrado");
     }
 
+    // L-H2: prepare evidence blob only (keyed by clientOperationId). Do not bind it as
+    // completed-task evidence until after the atomic close confirms status=completed.
     const evidenceUrl = await uploadEvidence(admin, session, task.id, clientOperationId, evidenceFile);
 
-    if (result === "completed") {
-      await recordInvoiceEvidence(admin, session, {
-        task,
-        shipment,
-        driverId,
-        evidenceUrl,
-      });
-    } else if (failureReason === "Invoice no visible") {
-      await recordInvoiceIncident(admin, session, {
-        task,
-        shipment,
-        driverId,
-        evidenceUrl,
-      });
-    }
-
-    if (result === "completed" && task.taskType === "deliver_empty_box") {
-      const supabase = await createScopedSupabase(session);
-
-      if (!supabase) {
-        throw new Error("Supabase service role no configurado");
-      }
-
-      const view = await loadTruckInventoryView(session, driverId, task.routeId, taskScopeDate);
-      const vehicleId = requireTruckVehicleId(view);
-      const existingEvents = await loadTruckEvents(supabase, session, vehicleId);
-
-      for (const boxLine of task.boxLines) {
-        if (hasDeliverEventForTaskLine(existingEvents, task.id, boxLine)) {
-          continue;
-        }
-
-        const line = findInventoryLine(view.summary, boxLine.key);
-        const deliverError = validateConductorTruckDeliver(line, boxLine.quantity);
-
-        if (deliverError) {
-          return fail(deliverError);
-        }
-      }
-
-      for (const boxLine of task.boxLines) {
-        if (hasDeliverEventForTaskLine(existingEvents, task.id, boxLine)) {
-          continue;
-        }
-
-        const line = findInventoryLine(view.summary, boxLine.key);
-
-        if (line) {
-          await insertTruckEvent(admin, session, {
-            driverId,
-            vehicleId,
-            line,
-            eventType: "deliver",
-            qty: boxLine.quantity,
-            taskId: task.id,
-            shipmentId: task.shipmentId,
-            routeId: task.routeId,
-            note: formatConductorAdminActionNote(`Entrega - ${shipment.code}`, conductorActionAudit(session, driverId)),
-          });
-        }
-      }
-    }
-
-    if (result === "completed" && task.taskType === "pickup_full_box") {
-      const supabase = await createScopedSupabase(session);
-
-      if (!supabase) {
-        throw new Error("Supabase service role no configurado");
-      }
-
-      const view = await loadTruckInventoryView(session, driverId, task.routeId, taskScopeDate);
-      const vehicleId = requireTruckVehicleId(view);
-      const existingEvents = await loadTruckEvents(supabase, session, vehicleId);
-
-      if (!task.routeId) {
-        return fail("La recoleccion necesita una ruta activa");
-      }
-
-      for (const boxLine of task.boxLines) {
-        if (hasPickupReturnEventForTaskLine(existingEvents, task.id, boxLine)) {
-          continue;
-        }
-
-        await insertFullBoxCollectionEvent(admin, session, {
+    if (result === "failed") {
+      if (failureReason === "Invoice no visible") {
+        await recordInvoiceIncident(admin, session, {
+          task,
+          shipment,
           driverId,
-          vehicleId,
-          taskId: task.id,
-          shipmentId: task.shipmentId,
-          routeId: task.routeId,
-          warehouseId: task.warehouseId,
-          boxLine,
-          note: formatConductorAdminActionNote(
-            `Caja llena recogida - ${shipment.code}`,
-            conductorActionAudit(session, driverId),
-          ),
+          evidenceUrl,
         });
       }
-    }
 
-    await recordTaskAttempt(admin, session, {
-      task,
-      result,
-      driverId,
-      failureReason: result === "failed" ? failureReason : "",
-      note,
-      evidenceUrl,
-      paymentExpectedAmount: hasDeliveryCollection ? expectedPaymentAmount : null,
-      paymentAmount,
-      paymentMethod: paymentOutcome === "collected" ? paymentMethod : "",
-      paymentOutcome,
-      invoiceVisible,
-      clientOperationId,
-      capturedAt,
-    });
+      // Failed path still records the attempt here (RPC not used for failed today / L-H5).
+      await recordTaskAttempt(admin, session, {
+        task,
+        result,
+        driverId,
+        failureReason: failureReason,
+        note,
+        evidenceUrl,
+        paymentExpectedAmount: hasDeliveryCollection ? expectedPaymentAmount : null,
+        paymentAmount,
+        paymentMethod: paymentOutcome === "collected" ? paymentMethod : "",
+        paymentOutcome,
+        invoiceVisible,
+        clientOperationId,
+        capturedAt,
+      });
 
-    if (result === "failed") {
       await failTask(supabase, session, {
         task,
         shipment,
@@ -309,6 +274,19 @@ export async function submitConductorTaskResultAction(
         }
       }
     } else {
+      // L-H2 frontier: validate → prepare → atomic close → verify completed → post-commit.
+      const truckValidationError = await validateConductorCompletedTruckEffects({
+        session,
+        supabase,
+        task,
+        driverId,
+        taskScopeDate,
+      });
+      if (truckValidationError) {
+        return fail(truckValidationError);
+      }
+
+      // L-H1: do NOT insert shipment_logistics_task_attempts before the RPC.
       await completeTask(supabase, session, {
         task,
         shipment,
@@ -322,6 +300,24 @@ export async function submitConductorTaskResultAction(
         clientOperationId,
         capturedAt,
         invoiceVisible,
+      });
+
+      // Post-commit only after completeTask verified persisted status=completed.
+      // Idempotent for replay / offline retry (case 4).
+      await applyConductorCompletedPostCommitEffects({
+        admin,
+        session,
+        supabase,
+        task,
+        shipment,
+        driverId,
+        taskScopeDate,
+        evidenceUrl,
+        note,
+        paymentExpectedAmount: expectedPaymentAmount,
+        paymentAmount,
+        paymentMethod,
+        paymentOutcome,
       });
     }
 

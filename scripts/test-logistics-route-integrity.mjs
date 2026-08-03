@@ -471,6 +471,130 @@ try {
   );
   assert.equal(taskState.rows[0].status, "completed");
 
+  // L-H1: orphan attempt (same operation key, task still incomplete) must not fake replay.
+  const orphanOp = randomUUID();
+  await client.query(
+    `
+    update public.shipment_logistics_tasks
+    set status = 'assigned', completed_at = null, updated_at = now()
+    where id = $1
+  `,
+    [taskA],
+  );
+  await client.query(
+    `
+    update public.logistics_route_stops
+    set outcome = null, outcome_at = null
+    where task_id = $1 and released_at is null
+  `,
+    [taskA],
+  );
+  await client.query(
+    `
+    insert into public.shipment_logistics_task_attempts (
+      organization_id, task_id, shipment_id, route_id, driver_id, result,
+      failure_reason, note, evidence_url, payment_expected_amount, payment_amount,
+      payment_method, payment_outcome, invoice_visible, client_operation_id, captured_at, created_by
+    )
+    select
+      organization_id, id, shipment_id, $2, $3, 'completed',
+      '', 'orphan', 'evidence://orphan', 0, 0,
+      '', 'not_applicable', false, $4::uuid, now(), $3
+    from public.shipment_logistics_tasks
+    where id = $1
+  `,
+    [taskA, routeA, driverA, orphanOp],
+  );
+  await authenticated(driverA, async () => {
+    const recovered = await client.query(
+      `
+      select public.complete_conductor_task_atomic(
+        $1, $2, $3, 'completed', 'recovered', null, 'evidence://qa', $4, now(),
+        0, null, 0, null, false, $3,
+        jsonb_build_object('status','completed','completed_at', now()::text),
+        '{}'::jsonb, '{}'::jsonb, 0, 0, null, null, null, null, false
+      ) as result
+    `,
+      [ctx.organization_id, taskA, driverA, orphanOp],
+    );
+    assert.equal(recovered.rows[0].result.replayed, false);
+  });
+  const orphanTaskState = await client.query(
+    "select status from public.shipment_logistics_tasks where id = $1",
+    [taskA],
+  );
+  assert.equal(orphanTaskState.rows[0].status, "completed");
+
+  // L-H3: client logistics_plan in p_shipment_patch must not replace SQL-owned plan/billing.
+  const lh3Op = randomUUID();
+  const shipmentForTaskA = await client.query(
+    "select shipment_id from public.shipment_logistics_tasks where id = $1",
+    [taskA],
+  );
+  const shipmentAId = shipmentForTaskA.rows[0].shipment_id;
+  await client.query(
+    `
+    update public.shipments
+    set logistics_plan = $2::jsonb
+    where id = $1
+  `,
+    [
+      shipmentAId,
+      JSON.stringify({
+        keepMe: true,
+        feeAdjustments: { delivery: { enabled: true } },
+        billing: { quotedTotal: "$10.00", payNow: "$0.00", balanceDue: "$10.00" },
+      }),
+    ],
+  );
+  await client.query(
+    `
+    update public.shipment_logistics_tasks
+    set status = 'assigned', completed_at = null, updated_at = now()
+    where id = $1
+  `,
+    [taskA],
+  );
+  await client.query(
+    `
+    update public.logistics_route_stops
+    set outcome = null, outcome_at = null
+    where task_id = $1 and released_at is null
+  `,
+    [taskA],
+  );
+  await authenticated(driverA, async () => {
+    await client.query(
+      `
+      select public.complete_conductor_task_atomic(
+        $1, $2, $3, 'completed', 'lh3', null, 'evidence://qa', $4, now(),
+        0, null, 0, 'not_applicable', false, $3,
+        jsonb_build_object('status','completed','completed_at', now()::text),
+        jsonb_build_object(
+          'status', 'En ruta',
+          'logistics_plan', jsonb_build_object(
+            'keepMe', false,
+            'billing', jsonb_build_object('stale', true, 'payNow', '$0.00')
+          )
+        ),
+        jsonb_build_object('billing', jsonb_build_object('stale', true)),
+        0, 0, null, null, null, null, false
+      ) as result
+    `,
+      [ctx.organization_id, taskA, driverA, lh3Op],
+    );
+  });
+  const lh3Plan = await client.query(
+    "select logistics_plan from public.shipments where id = $1",
+    [shipmentAId],
+  );
+  assert.equal(lh3Plan.rows[0].logistics_plan.keepMe, true);
+  assert.deepEqual(lh3Plan.rows[0].logistics_plan.feeAdjustments, {
+    delivery: { enabled: true },
+  });
+  assert.equal(lh3Plan.rows[0].logistics_plan.billing?.stale, undefined);
+  assert.equal(lh3Plan.rows[0].logistics_plan.billing?.quotedTotal, "$10.00");
+
   // intentional failure mid-way: force TASK_CANCELLED path
   await client.query(
     `update public.shipment_logistics_tasks set status = 'cancelled' where id = $1`,

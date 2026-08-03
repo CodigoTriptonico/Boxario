@@ -20,6 +20,6 @@ describe("conductor offline server idempotency", () => {
   it("replays an assigned task using its original schedule day after midnight", async () => {
     assert.match(source, /scheduledAtScopeDate\(taskRow\.scheduled_at\) \|\| conductorScopeDate\(\)/);
     assert.match(source, /loadConductorData\(driverId, taskScopeDate\)/);
-    assert.match(source, /loadTruckInventoryView\(session, driverId, task\.routeId, taskScopeDate\)/);
+    assert.match(source, /loadTruckInventoryView\(\s*input\.session,\s*input\.driverId,\s*input\.task\.routeId,\s*input\.taskScopeDate,/);
   });
 });

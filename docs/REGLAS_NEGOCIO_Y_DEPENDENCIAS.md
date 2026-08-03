@@ -340,6 +340,46 @@ El mapa funcional detallado vive en `docs/MAPA_FUNCIONAL_ACTUAL.md`. Estado por 
 
 **Resultado verificado en DB local (2026-08-02):** `draft → publicar → planned → iniciar (GPS) → in_progress → completar paradas/pagos → completar ruta`, con RLS de dos conductores, RPC atómico, custodia, inventario histórico y notificaciones. Script: `scripts/test-logistics-route-integrity.mjs`.
 
+### 2026-08-02 — LOG-015 / L-H1: attempt no implica éxito de cierre
+
+**Contexto:** El path `completed` de conductor insertaba `shipment_logistics_task_attempts` con `client_operation_id` antes de `complete_conductor_task_atomic`. Si el RPC fallaba, el reintento encontraba el attempt y devolvía `replayed: true` sin completar ni cobrar; la action podía responder `ok`.
+
+**Decisión:**
+
+- En el path `completed`, TypeScript no inserta attempt antes del RPC; el attempt lo crea el RPC al cerrar de verdad.
+- `replayed: true` solo es válido si la tarea persistida está en estado terminal coherente (`completed` / `cancelled` según el resultado). Un attempt huérfano se elimina y el RPC continúa.
+- Tras el RPC, la action relee `shipment_logistics_tasks.status` y solo trata éxito/replay si quedó `completed`; si no, falla (la cola offline no marca `synced`).
+
+**Resultado:** Éxito falso por attempt prematuro ya no es posible; reintentos con la misma clave pueden completar tras un fallo real.
+
+### 2026-08-02 — LOG-015 / L-H3: preview TS no reemplaza logistics_plan del RPC
+
+**Contexto:** `completeTask` enviaba en `p_shipment_patch.logistics_plan` un snapshot/preview (paymentPlan / noCollectionPlan) construido antes del cierre. Tras `collect_shipment_invoice_payment`, el mismo RPC reemplazaba el `logistics_plan` entero con ese preview y podía pisar billing, saldo, depositStatus y metadatos SQL.
+
+**Decisión:**
+
+- Un preview TypeScript anterior al cierre nunca puede reemplazar el `logistics_plan` persistido por un RPC atómico. Billing, dinero y resultado del cierre son autoridad SQL.
+- TypeScript solo envía patches de hitos/status allowlisteados (`buildConductorCompleteShipmentPatch`); no manda `logistics_plan`.
+- El RPC ignora `logistics_plan` del cliente y, si aplica, fusiona solo `billing.lastDriverCollection` sobre el plan ya autoritativo.
+- Los cambios posteriores deben ser patches parciales explícitos; está prohibido el read-modify-write completo del plan desde TypeScript tras el RPC.
+
+**Resultado:** El billing SQL y los campos operativos del plan sobreviven al cierre online/offline; un replay legítimo no reescribe el plan.
+
+### 2026-08-02 — LOG-015 / L-H2: efectos de finalización solo post-commit
+
+**Contexto:** En el path `completed`, el conductor aplicaba movimientos de camión, vinculación de evidencia en paquetes e historial de invoice **antes** de `complete_conductor_task_atomic`. Si el RPC fallaba, la tarea quedaba incompleta con inventario/evidencia/historial adelantados.
+
+**Decisión:**
+
+- Los efectos que materializan la finalización de una tarea del conductor solo pueden confirmarse dentro del cierre atómico o después de verificar que la tarea quedó `completed`.
+- Antes del RPC: validaciones, preparación de evidencia en storage (clave `client_operation_id`) y comprobaciones de camión sin mutar.
+- Después del commit (status persistido `completed`): `recordInvoiceEvidence` + eventos de camión + historial de cierre (`shipment.logistics_task_updated` / cobro pendiente), todos idempotentes (guards de paquete + índices únicos / 23505 + lookup de historial por `taskId`).
+- Un fallo del RPC no puede dejar movimientos definitivos de camión, historial de cierre ni evidencia de cierre vinculada.
+- Si el RPC ya cerró y falla un efecto post-commit, el reintento reconcilia sin duplicar (incluida la rama `status === completed`).
+- Los efectos post-commit deben ser idempotentes y reconciliables. Offline solo marca `synced` tras `ok` real.
+
+**Resultado:** Camión, evidencia e historial de finalización ya no se adelantan a un cierre fallido.
+
 ### 2026-07-26 — LOG-005: horario operativo de la ruta
 
 **Fuente:** Logística → catálogo de rutas semanales.
