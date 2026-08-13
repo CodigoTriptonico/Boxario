@@ -469,7 +469,7 @@ export function LogisticaClient({
         title="Logistica"
         hideHeader
         clipContent={false}
-        className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
+        className="!border-0 flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
         contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
       >
         <div className="mb-3 h-12 shrink-0 rounded-xl border border-black bg-surface-card-header" />
@@ -483,7 +483,7 @@ export function LogisticaClient({
       title="Logistica"
       hideHeader
       clipContent={false}
-      className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
+      className="!border-0 flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
       contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
     >
       {!supabaseReady ? (

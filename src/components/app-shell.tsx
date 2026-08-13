@@ -257,7 +257,7 @@ export function AppShell({
         }`}
       >
         <aside
-          className={`app-shell-desktop-sidebar hidden shrink-0 overflow-visible rounded-xl border border-app-border-control bg-surface-panel shadow-md transition-[width,transform,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:sticky lg:top-5 lg:z-[100] lg:flex lg:max-h-[calc(100vh-2.5rem)] lg:min-h-[calc(100vh-2.5rem)] lg:flex-col ${
+          className={`app-shell-desktop-sidebar hidden shrink-0 overflow-visible rounded-xl border-0 bg-surface-panel shadow-md transition-[width,transform,opacity] duration-300 ease-[cubic-bezier(0.4,0,0.2,1)] lg:sticky lg:top-5 lg:z-[100] lg:flex lg:max-h-[calc(100vh-2.5rem)] lg:min-h-[calc(100vh-2.5rem)] lg:flex-col ${
             showDesktopRail ? "w-16 p-2" : "w-64 p-3"
           }`}
         >

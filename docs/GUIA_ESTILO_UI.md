@@ -2824,3 +2824,11 @@ En `Paradas`, cada fila o tarjeta identifica claramente entrega o recolección, 
 **Motivo:** el cliente debe entender que está revisando y confirmando su propia ubicación, no abriendo una herramienta operativa del vendedor.
 
 **Preferir:** usar `Cliente verifica mapa` en el formulario y `Confirmar ubicación` dentro de la ventana.
+
+### 2026-08-13 - Preferencia UI: sin contorno exterior claro
+
+**No repetir:** dibujar un marco blanco o gris claro alrededor del panel lateral y la superficie principal de la aplicación.
+
+**Motivo:** el contorno reapareció en Logística y compite visualmente con el contenido; los bordes exteriores no son parte de la jerarquía visual aprobada.
+
+**Preferir:** mantener las superficies principales sin borde exterior; conservar únicamente divisores internos y estados de foco/selección necesarios para orientar la interacción.
