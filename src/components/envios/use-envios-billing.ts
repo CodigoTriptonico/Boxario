@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { finalizeShipmentInvoiceAction, updateShipmentInvoicePriorityAction } from "@/app/actions/shipments";
 import type { ShipmentRow } from "@/lib/shipment-types";
 import { useNotify } from "@/hooks/use-notify";
@@ -15,6 +15,16 @@ import {
   type ShipmentCollectMode,
 } from "@/lib/shipment-collect";
 import {
+  isDefinitiveOfficePaymentClientError,
+  isPaymentIdempotencyConflict,
+  paymentIdempotencyConflictUserMessage,
+} from "@/lib/office-payment-idempotency";
+import {
+  beginOfficePaymentIntention,
+  clearPendingOfficePaymentIntention,
+  resolveOfficePaymentIntentionOnOpen,
+} from "@/lib/office-payment-pending";
+import {
   balanceDueFromShipment,
   depositFromShipment,
   quoteFromShipment,
@@ -26,9 +36,14 @@ type UseEnviosBillingOptions = {
   setShipments: React.Dispatch<React.SetStateAction<ShipmentRow[]>>;
 };
 
+function newClientPaymentId() {
+  return globalThis.crypto?.randomUUID?.() || `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
 export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBillingOptions) {
   const notify = useNotify();
   const [busyId, setBusyId] = useState<string | null>(null);
+  const busyRef = useRef(false);
   const [priorityBusyId, setPriorityBusyId] = useState<string | null>(null);
   const [finalizeTarget, setFinalizeTarget] = useState<ShipmentRow | null>(null);
   const [finalizeCollectMode, setFinalizeCollectMode] = useState<ShipmentCollectMode>("choose");
@@ -36,6 +51,8 @@ export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBill
   const [finalizePaymentMethod, setFinalizePaymentMethod] =
     useState<PaymentMethod>(DEFAULT_PAYMENT_METHOD);
   const [finalizePaymentNote, setFinalizePaymentNote] = useState("");
+  const clientPaymentIdRef = useRef<string | null>(null);
+  const [pendingReconcileHint, setPendingReconcileHint] = useState(false);
 
   const finalizeQuote = finalizeTarget ? quoteFromShipment(finalizeTarget) : null;
   const finalizeBalance = finalizeTarget
@@ -51,22 +68,47 @@ export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBill
   );
 
   function openFinalize(row: ShipmentRow) {
-    setFinalizePaymentMethod(DEFAULT_PAYMENT_METHOD);
+    const resolved = resolveOfficePaymentIntentionOnOpen({
+      shipmentId: row.id,
+      mintId: newClientPaymentId,
+    });
+    clientPaymentIdRef.current = resolved.clientPaymentId;
+    setPendingReconcileHint(resolved.restored);
     setFinalizePaymentNote("");
-    setFinalizeCollectMode("choose");
-    setFinalizePartialAmount("");
+    if (resolved.restored && resolved.pending) {
+      setFinalizePaymentMethod(resolved.pending.method);
+      if (resolved.pending.amount !== null) {
+        setFinalizeCollectMode("partial");
+        setFinalizePartialAmount(String(resolved.pending.amount));
+      } else {
+        setFinalizeCollectMode("choose");
+        setFinalizePartialAmount("");
+      }
+    } else {
+      setFinalizePaymentMethod(DEFAULT_PAYMENT_METHOD);
+      setFinalizeCollectMode("choose");
+      setFinalizePartialAmount("");
+    }
     setFinalizeTarget(row);
   }
 
   function closeFinalize() {
-    if (busyId !== finalizeTarget?.id) {
-      setFinalizeTarget(null);
-      setFinalizeCollectMode("choose");
-      setFinalizePartialAmount("");
+    if (busyId === finalizeTarget?.id) {
+      return;
     }
+    // Keep ambiguous pending intentions in storage; only drop the in-memory ref.
+    setFinalizeTarget(null);
+    setFinalizeCollectMode("choose");
+    setFinalizePartialAmount("");
+    setPendingReconcileHint(false);
+    clientPaymentIdRef.current = null;
   }
 
   async function finalizeInvoice(row: ShipmentRow) {
+    if (busyRef.current) {
+      return;
+    }
+
     const quote = quoteFromShipment(row);
     const balanceDue = balanceDueFromShipment(row, quote);
     const amountInput =
@@ -74,10 +116,24 @@ export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBill
     const resolved = resolveShipmentCollectAmount(amountInput, balanceDue);
 
     if (!resolved.ok) {
+      // Definitive client-side validation before send — do not persist.
       notify.error(resolved.error);
       return;
     }
 
+    if (!clientPaymentIdRef.current) {
+      clientPaymentIdRef.current = newClientPaymentId();
+    }
+
+    // Persist before await so close/reopen after timeout keeps the same intention.
+    beginOfficePaymentIntention({
+      shipmentId: row.id,
+      clientPaymentId: clientPaymentIdRef.current,
+      amount: finalizeCollectMode === "partial" ? resolved.amount : null,
+      method: finalizePaymentMethod,
+    });
+
+    busyRef.current = true;
     setBusyId(row.id);
 
     try {
@@ -90,13 +146,33 @@ export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBill
         cost: quote?.cost,
         paymentMethod: finalizePaymentMethod,
         paymentNote: finalizePaymentNote,
+        clientPaymentId: clientPaymentIdRef.current,
       });
 
       if (!result.ok) {
+        if (isPaymentIdempotencyConflict(result.error)) {
+          clearPendingOfficePaymentIntention(row.id);
+          clientPaymentIdRef.current = null;
+          setPendingReconcileHint(false);
+          notify.error(paymentIdempotencyConflictUserMessage());
+          return;
+        }
+        if (isDefinitiveOfficePaymentClientError(result.error)) {
+          clearPendingOfficePaymentIntention(row.id);
+          clientPaymentIdRef.current = null;
+          setPendingReconcileHint(false);
+          notify.error(result.error);
+          return;
+        }
+        // Ambiguous / network-like failures keep the persisted key for reopen/replay.
+        setPendingReconcileHint(true);
         notify.error(result.error);
         return;
       }
 
+      clearPendingOfficePaymentIntention(row.id);
+      clientPaymentIdRef.current = null;
+      setPendingReconcileHint(false);
       setShipments((current) =>
         current.map((entry) => (entry.id === row.id ? result.data : entry)),
       );
@@ -106,7 +182,12 @@ export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBill
       notify.success(
         shipmentCollectSuccessMessage(row.code, resolved.amount, resolved.isFullPayment),
       );
+    } catch (error) {
+      // Thrown / network failure: keep persisted intention.
+      setPendingReconcileHint(true);
+      notify.error(error instanceof Error ? error.message : "No se pudo completar la operacion");
     } finally {
+      busyRef.current = false;
       setBusyId(null);
     }
   }
@@ -151,6 +232,7 @@ export function useEnviosBilling({ canManageSales, setShipments }: UseEnviosBill
     finalizeDeposit,
     finalizeBalance,
     finalizeCopy,
+    pendingReconcileHint,
     setFinalizeCollectMode,
     setFinalizePartialAmount,
     setFinalizePaymentMethod,

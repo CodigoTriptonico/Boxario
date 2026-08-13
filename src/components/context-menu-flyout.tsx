@@ -1,7 +1,34 @@
 "use client";
 
 import { ChevronRight } from "lucide-react";
-import type { ReactNode } from "react";
+import { useCallback, useRef, useState, type ReactNode } from "react";
+
+export type ContextMenuFlyoutSide = "left" | "right";
+
+/** Prefers opening to the right; flips left when the panel would leave the viewport. */
+export function resolveContextMenuFlyoutSide(
+  anchor: Pick<DOMRect, "left" | "right">,
+  panelWidth: number,
+  padding = 8,
+): ContextMenuFlyoutSide {
+  const width = Math.max(0, panelWidth);
+  const spaceRight = window.innerWidth - anchor.right - padding;
+  const spaceLeft = anchor.left - padding;
+
+  if (spaceRight >= width) {
+    return "right";
+  }
+  if (spaceLeft >= width) {
+    return "left";
+  }
+  return spaceLeft > spaceRight ? "left" : "right";
+}
+
+export function contextMenuFlyoutSideClass(side: ContextMenuFlyoutSide) {
+  return side === "left"
+    ? "right-[calc(100%-1px)] left-auto"
+    : "left-[calc(100%-1px)]";
+}
 
 type ContextMenuFlyoutProps = {
   title: string;
@@ -24,11 +51,39 @@ export function ContextMenuFlyout({
   onMouseEnter,
   children,
 }: ContextMenuFlyoutProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  const [side, setSide] = useState<ContextMenuFlyoutSide>("right");
+  const [alignBottom, setAlignBottom] = useState(false);
+
+  const updatePlacement = useCallback(() => {
+    const root = rootRef.current;
+    const panel = panelRef.current;
+    if (!root) {
+      return;
+    }
+
+    const rect = root.getBoundingClientRect();
+    const width = panel?.offsetWidth || 256;
+    const height = panel?.offsetHeight || 200;
+    const nextSide = resolveContextMenuFlyoutSide(rect, width);
+    const fitsBelow = rect.top + height <= window.innerHeight - 8;
+
+    setSide(nextSide);
+    setAlignBottom(!fitsBelow);
+  }, []);
+
   return (
-    <div className="group relative mt-1">
+    <div
+      ref={rootRef}
+      className="group relative mt-1"
+      onMouseEnter={() => {
+        updatePlacement();
+        onMouseEnter?.();
+      }}
+    >
       <button
         type="button"
-        onMouseEnter={onMouseEnter}
         className={`flex min-h-11 w-full items-center gap-3 rounded-lg px-3 py-2 text-left font-black hover:bg-surface-card ${
           active ? "bg-emerald-950/20" : ""
         }`}
@@ -56,7 +111,12 @@ export function ContextMenuFlyout({
       </button>
 
       <div
-        className={`invisible absolute left-[calc(100%-1px)] top-0 z-50 rounded-xl border border-black bg-surface-panel p-2 opacity-0 shadow-2xl delay-300 duration-150 group-hover:visible group-hover:opacity-100 group-hover:delay-0 ${panelClassName}`}
+        ref={panelRef}
+        data-context-menu-flyout-panel
+        data-flyout-side={side}
+        className={`invisible absolute z-50 rounded-xl border border-black bg-surface-panel p-2 opacity-0 shadow-2xl delay-300 duration-150 group-hover:visible group-hover:opacity-100 group-hover:delay-0 ${
+          alignBottom ? "bottom-0 top-auto" : "top-0"
+        } ${contextMenuFlyoutSideClass(side)} ${panelClassName}`}
       >
         {children}
       </div>

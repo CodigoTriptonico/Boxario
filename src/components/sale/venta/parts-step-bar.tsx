@@ -84,7 +84,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
           )}
         </span>
         <span
-          className={`w-full min-w-0 max-w-full break-words text-center text-[10px] font-black uppercase leading-snug tracking-wide sm:truncate sm:text-[11px] lg:text-xs ${step.isActive ? "text-emerald-200" : ""
+          className={`w-full min-w-0 max-w-full break-words text-center text-[10px] font-black uppercase leading-snug tracking-normal sm:truncate sm:text-[11px] sm:tracking-wide lg:text-xs ${step.isActive ? "text-emerald-200" : ""
             }`}
         >
           <span className="sm:hidden">{step.compactLabel}</span>
@@ -128,7 +128,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
               ? step.id === "box"
                 ? step.isActive
                   ? "text-sm font-black text-emerald-300 sm:text-base"
-                  : "text-sm font-black text-emerald-400/80"
+                  : "text-sm font-black text-emerald-400"
                 : step.isActive
                   ? "text-[11px] font-black tracking-tight text-emerald-100"
                   : "text-[11px] font-black tracking-tight text-slate-200"
@@ -143,7 +143,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
                   key={row.label}
                   className="grid min-w-0 grid-cols-[3.9rem_minmax(0,1fr)] items-start gap-1 border-t border-black/35 pt-0.5 text-left first:border-t-0 first:pt-0"
                 >
-                  <span className="truncate text-[8px] font-black uppercase tracking-wide text-emerald-300/80">
+                  <span className="truncate text-[8px] font-black uppercase tracking-wide text-emerald-300">
                     {row.label}
                   </span>
                   <span className="line-clamp-2 min-w-0 break-words text-[10px] font-bold leading-[1.1] text-slate-100">
@@ -205,10 +205,10 @@ export function SaleStepBar({
           <div
             className={`min-w-0 flex-1 ${hasOpenStepPopover
                 ? "overflow-visible"
-                : "overflow-x-auto snap-x snap-mandatory [scrollbar-width:none] [&::-webkit-scrollbar]:hidden lg:snap-x lg:snap-mandatory lg:overflow-x-auto"
+                : "overflow-x-hidden lg:snap-x lg:snap-mandatory lg:overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               }`}
           >
-            <ol className="flex min-w-max items-start gap-0 lg:min-w-0 lg:w-full lg:gap-0">
+            <ol className="grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0">
               {steps.map((step, index) => {
                 const connectorDone =
                   index > 0 && (steps[index - 1]?.isDone || steps[index - 1]?.isActive);
@@ -227,9 +227,9 @@ export function SaleStepBar({
                       </div>
                     ) : null}
                     <li
-                      className={`relative flex shrink-0 snap-start flex-col lg:min-w-0 lg:w-auto ${step.detailRows?.length
-                          ? "w-[13.5rem] lg:flex-[1.45]"
-                          : "w-[8.5rem] lg:flex-1"
+                      className={`relative flex min-w-0 flex-col lg:w-auto lg:snap-start ${step.detailRows?.length
+                          ? "lg:flex-[1.45]"
+                          : "lg:flex-1"
                         }`}
                     >
                       {step.isActive && stepPopovers?.[step.id] ? (

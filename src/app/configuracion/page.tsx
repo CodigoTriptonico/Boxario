@@ -4,7 +4,6 @@ import { requirePathAccess } from "@/lib/auth/require";
 import { loadTimeClockDashboard, syncTimeClockAlertsForOrganization } from "@/lib/time-clock-data";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { redirect } from "next/navigation";
-import { loadAxisSettingsAction } from "@/app/actions/axis-settings";
 
 async function loadTimeClockInitialSnapshot(
   session: NonNullable<Awaited<ReturnType<typeof requirePathAccess>>>,
@@ -28,18 +27,17 @@ export default async function ConfiguracionPage({
   const session = await requirePathAccess("/configuracion");
   const { view } = await searchParams;
   if (view === "deliveries") {
-    redirect("/seguimiento?view=configuracion");
+    redirect("/configuracion?view=prices&panel=deposito");
   }
   const canManageTimeClock = Boolean(session && sessionHasPermission(session, "time_clock.manage"));
-  const canManageLogisticsSettings = Boolean(
+  const canManageRoutes = Boolean(
     session &&
-      (sessionHasPermission(session, "logistics.settings.manage") ||
+      (sessionHasPermission(session, "routes.update_status") ||
         sessionHasPermission(session, "settings.manage")),
   );
 
   let initialPricing;
   let timeClockInitialSnapshot;
-  let initialLogisticsSettings;
 
   if (isSupabaseConfigured() && session) {
     if (view === "timeclock") {
@@ -51,13 +49,6 @@ export default async function ConfiguracionPage({
       } catch {
         initialPricing = undefined;
       }
-
-      if (view === "prices" && canManageLogisticsSettings) {
-        const axisSettingsResult = await loadAxisSettingsAction();
-        if (axisSettingsResult.ok) {
-          initialLogisticsSettings = axisSettingsResult.data?.logistics;
-        }
-      }
     }
   }
 
@@ -66,9 +57,8 @@ export default async function ConfiguracionPage({
       initialPricing={initialPricing}
       timeClockInitialSnapshot={timeClockInitialSnapshot}
       canManageTimeClock={canManageTimeClock}
+      canManageRoutes={canManageRoutes}
       agencyModuleEnabled={session?.agencyModuleEnabled ?? false}
-      initialLogisticsSettings={initialLogisticsSettings}
-      canManageOperatingCosts={canManageLogisticsSettings}
     />
   );
 }

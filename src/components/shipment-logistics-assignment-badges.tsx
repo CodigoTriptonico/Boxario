@@ -28,7 +28,7 @@ export function ShipmentLogisticsAssignmentBadges({
         className={`inline-flex items-center gap-1 whitespace-nowrap rounded-lg border px-2 py-1 text-[10px] font-black leading-tight ${badgeClass(assignment.routeAssigned, assignment.isReady)}`}
         title={assignment.routeAssigned ? `Ruta: ${assignment.routeLabel}` : assignment.routeLabel}
       >
-        <Route className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+        <Route className="h-3 w-3 shrink-0" aria-hidden />
         {assignment.routeLabel}
       </span>
       <span
@@ -39,7 +39,7 @@ export function ShipmentLogisticsAssignmentBadges({
             : assignment.driverLabel
         }
       >
-        <UserRound className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+        <UserRound className="h-3 w-3 shrink-0" aria-hidden />
         {assignment.driverLabel}
       </span>
     </div>

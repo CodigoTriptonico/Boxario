@@ -18,9 +18,11 @@ const conductorViewSource = readFileSync(join(root, "lib/conductor-tareas-view.t
 const conductorActionsSource = readConductorTaskActionsSource();
 
 describe("conductor tareas shell eval", () => {
-  it("registers tareas conductor nav item", () => {
-    assert.match(appShellSource, /label: "Tareas conductor"/);
-    assert.match(appShellSource, /href: "\/conductor\/tareas"/);
+  it("registers a single conductor route nav item", () => {
+    const appShellNavSource = readFileSync(join(root, "components/app-shell-nav.tsx"), "utf8");
+    assert.match(appShellNavSource, /label: "Ruta conductor"/);
+    assert.match(appShellNavSource, /href: "\/conductor\/tareas"/);
+    assert.doesNotMatch(appShellNavSource, /href: "\/conductor\/inventario-camion"/);
     assert.doesNotMatch(appShellSource, /conductorOnly: true/);
   });
 

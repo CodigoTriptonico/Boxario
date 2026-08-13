@@ -128,9 +128,9 @@ export function SaleQuickEmptyBoxModal({
     }
 
     queueMicrotask(() => {
-      setDepositDraft(defaultSaleDepositDraft(minimumDeposit, quotedTotal));
+      setDepositDraft(defaultSaleDepositDraft(minimumDeposit, quotedTotal, boxCount));
     });
-  }, [depositDraftTouched, minimumDeposit, quotedTotal]);
+  }, [boxCount, depositDraftTouched, minimumDeposit, quotedTotal]);
 
   function updateBoxSelection(boxKey: string, action: "add" | "remove") {
     const next = nextQuickBoxSelection(
@@ -303,6 +303,7 @@ export function SaleQuickEmptyBoxModal({
             mode={paymentMode}
             depositDraft={depositDraft}
             minimumDeposit={minimumDeposit}
+            boxCount={boxCount}
             quotedTotal={quotedTotal}
             paid={depositPaid}
             boxDetail={selectedBox ? `${selectedBox[1]} x ${boxCount}` : ""}
@@ -350,6 +351,7 @@ export function SaleQuickEmptyBoxModal({
                   mode: paymentMode,
                   depositDraft,
                   minimumDeposit,
+                  boxCount,
                   quotedTotal,
                 }),
                 emptyBoxMode,

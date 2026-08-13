@@ -48,6 +48,10 @@ type ConductorTruckInventoryClientProps = {
   effectiveDriverLabel?: string;
   initialView?: ConductorTruckInventoryView | null;
   initialError?: string;
+  embedded?: boolean;
+  mode?: "load" | "truck";
+  onViewChange?: (view: ConductorTruckInventoryView) => void;
+  onRouteStarted?: () => void;
 };
 
 type LocalTruckResult = {
@@ -68,6 +72,10 @@ export function ConductorTruckInventoryClient({
   effectiveDriverLabel = "Conductor",
   initialView = null,
   initialError = "",
+  embedded = false,
+  mode = "load",
+  onViewChange,
+  onRouteStarted,
 }: ConductorTruckInventoryClientProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -83,9 +91,12 @@ export function ConductorTruckInventoryClient({
   const [unloadReason, setUnloadReason] = useState<string>(CONDUCTOR_TRUCK_RETURN_REASONS[0]);
   const [unloadNote, setUnloadNote] = useState("");
   const [unloadTargetVehicleId, setUnloadTargetVehicleId] = useState("");
-  const localResultMatches = localResult?.driverId === effectiveDriverId;
-  const view = localResultMatches ? localResult.view : initialView;
-  const error = localResultMatches ? localResult.error : initialError;
+  const requestedRouteId = initialView?.selectedRouteId ?? null;
+  const localResultMatches =
+    localResult?.driverId === effectiveDriverId &&
+    (localResult.view?.selectedRouteId ?? null) === requestedRouteId;
+  const view = embedded ? initialView : localResultMatches ? localResult.view : initialView;
+  const error = embedded ? initialError : localResultMatches ? localResult.error : initialError;
 
   const handlePreviewDriverChange = useCallback(
     (nextDriverId: string) => {
@@ -96,9 +107,10 @@ export function ConductorTruckInventoryClient({
       } else {
         params.delete("conductor");
       }
+      params.set("view", "carga");
 
       const query = params.toString();
-      router.replace(query ? `/conductor/inventario-camion?${query}` : "/conductor/inventario-camion", {
+      router.replace(query ? `/conductor/tareas?${query}` : "/conductor/tareas?view=carga", {
         scroll: false,
       });
     },
@@ -110,9 +122,10 @@ export function ConductorTruckInventoryClient({
       return;
     }
 
-    const result = await getConductorTruckInventoryAction(effectiveDriverId);
+    const result = await getConductorTruckInventoryAction(effectiveDriverId, requestedRouteId);
     if (result.ok) {
       setLocalResult({ driverId: result.data.driverId, view: result.data, error: "" });
+      onViewChange?.(result.data);
     }
   }
 
@@ -132,6 +145,7 @@ export function ConductorTruckInventoryClient({
       }
 
       setLocalResult({ driverId: result.data.driverId, view: result.data, error: "" });
+      onViewChange?.(result.data);
       const updatedLine = result.data.summary.lines.find((line) => line.key === lineKey);
       if (updatedLine) {
         setLoadQuantities((current) => ({
@@ -172,6 +186,7 @@ export function ConductorTruckInventoryClient({
       }
 
       setLocalResult({ driverId: result.data.driverId, view: result.data, error: "" });
+      onViewChange?.(result.data);
       notify.success("Caja extra cargada");
     } finally {
       setBusyKey("");
@@ -204,6 +219,7 @@ export function ConductorTruckInventoryClient({
       }
 
       setLocalResult({ driverId: result.data.driverId, view: result.data, error: "" });
+      onViewChange?.(result.data);
       setUnloadDialog(null);
       setUnloadNote("");
       setUnloadTargetVehicleId("");
@@ -252,8 +268,13 @@ export function ConductorTruckInventoryClient({
       }
 
       setLocalResult({ driverId: result.data.driverId, view: result.data, error: "" });
+      onViewChange?.(result.data);
       notify.success("Ruta iniciada");
-      router.push("/conductor/tareas");
+      if (onRouteStarted) {
+        onRouteStarted();
+      } else {
+        router.push("/conductor/tareas?view=paradas");
+      }
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "No se pudo iniciar la ruta");
     } finally {
@@ -294,6 +315,8 @@ export function ConductorTruckInventoryClient({
   const extraStock = (view?.stock || [])
     .filter((item) => item.stock > 0)
     .sort((left, right) => left.itemName.localeCompare(right.itemName, "es"));
+  const selectedRoute = view?.routes.find((route) => route.id === view.selectedRouteId) || null;
+  const routeInProgress = selectedRoute?.status === "in_progress";
 
   function openUnloadDialog(line: ConductorTruckOnTruckLine) {
     setUnloadQty(String(line.maxReturnQty));
@@ -347,9 +370,10 @@ export function ConductorTruckInventoryClient({
       <Panel
         title="Inventario camion"
         hideHeader
-        contentClassName="flex min-h-0 flex-1 flex-col p-3 sm:p-4"
+        className={embedded ? "!rounded-none !border-0 !bg-transparent" : undefined}
+        contentClassName={embedded ? "flex min-h-0 flex-1 flex-col" : "flex min-h-0 flex-1 flex-col p-3 sm:p-4"}
       >
-        {canPreview ? (
+        {canPreview && !embedded ? (
           <div className="mb-3 flex flex-col gap-3 rounded-lg border border-sky-700/50 bg-sky-950/30 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               <p className="text-xs font-black uppercase text-sky-300">Vista previa admin</p>
@@ -382,7 +406,7 @@ export function ConductorTruckInventoryClient({
           </div>
         ) : null}
 
-        <details className="group mb-3 w-fit max-w-full rounded-lg border border-black bg-surface-card">
+        {mode === "load" ? <details className="group mb-3 w-fit max-w-full rounded-lg border border-black bg-surface-card">
           <summary className="flex h-10 w-fit max-w-full cursor-pointer list-none items-center gap-2 px-3 text-xs font-black text-slate-300 marker:content-none">
             <PackagePlus className="h-4 w-4 text-sky-300" />
             <span>Cajas extra</span>
@@ -427,10 +451,10 @@ export function ConductorTruckInventoryClient({
               </button>
             </div>
           </div>
-        </details>
+        </details> : null}
 
         <div className="min-h-0 flex-1 overflow-y-auto pr-1">
-          <div className="grid items-start gap-4 xl:grid-cols-2">
+          <div className={`grid items-start gap-4 ${mode === "truck" ? "xl:grid-cols-2" : "grid-cols-1"}`}>
             <div className="grid gap-4">
               <RouteDeliverySection
                 boardLines={routeDeliveryBoard}
@@ -440,7 +464,7 @@ export function ConductorTruckInventoryClient({
                 onLoad={(lineKey, qty) => void loadLine(lineKey, qty)}
                 onUnload={openUnloadDialog}
               />
-              <TruckOnTruckSection
+              {mode === "truck" ? <TruckOnTruckSection
                 title="Cajas extra en camión"
                 total={extraBoxTotal}
                 tone="sky"
@@ -448,10 +472,10 @@ export function ConductorTruckInventoryClient({
                 lines={extraBoxLines}
                 busyKey={busyKey}
                 onUnload={openUnloadDialog}
-              />
+              /> : null}
             </div>
 
-            <section className="overflow-hidden rounded-xl border border-black bg-surface-card">
+            {mode === "truck" ? <section className="overflow-hidden rounded-xl border border-black bg-surface-card">
               <header className="flex items-center justify-between gap-3 border-b border-black bg-surface-card-header px-4 py-3">
                 <p className="text-sm font-black text-[#f8fafc]">Cajas recogidas</p>
                 <span className="rounded-md border border-amber-700/60 bg-amber-950/30 px-2 py-1 text-xs font-black tabular-nums text-amber-200">
@@ -480,28 +504,32 @@ export function ConductorTruckInventoryClient({
               ) : (
                 <p className="px-4 py-6 text-sm font-bold text-slate-400">Sin cajas llenas en el camión.</p>
               )}
-            </section>
+            </section> : null}
           </div>
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black pt-3">
+        {mode === "load" ? <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-black pt-3">
           <button
             type="button"
             className={`${primaryButtonClass} h-11 px-4 text-sm disabled:cursor-not-allowed disabled:opacity-40`}
-            disabled={!ready || !hasRequiredBoxes || !view?.selectedRouteId || Boolean(busyKey)}
+            disabled={!ready || !view?.selectedRouteId || routeInProgress || Boolean(busyKey)}
             onClick={() => void startRoute()}
           >
             {busyKey === "start" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Truck className="h-4 w-4" />}
             Iniciar ruta
           </button>
           <p className="text-xs font-bold text-slate-300">
-            {ready
+            {routeInProgress
+              ? "La ruta ya estÃ¡ en curso. ContinÃºa con las paradas."
+              : ready
               ? view?.selectedRouteId
-                ? "Carga lista. Puedes salir a ruta."
+                ? hasRequiredBoxes
+                  ? "Carga lista. Puedes salir a ruta."
+                  : "No hay cajas vacias por cargar. Puedes salir a ruta."
                 : "Carga lista. Asigna una ruta para salir."
               : "Primero sube las cajas indicadas."}
           </p>
-        </div>
+        </div> : null}
       </Panel>
 
       {unloadDialog ? (

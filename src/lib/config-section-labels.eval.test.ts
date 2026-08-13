@@ -23,18 +23,18 @@ describe("config section naming contract", () => {
     assert.match(configSource, /CONFIG_SECTION_LABELS\.organization\.title/);
     assert.doesNotMatch(configSource, /CONFIG_SECTION_LABELS\.deliveries/);
     assert.equal(CONFIG_SECTION_LABELS.organization.title, "Organización");
-    assert.equal(CONFIG_SECTION_LABELS.prices.title, "Costos");
+    assert.equal(CONFIG_SECTION_LABELS.prices.title, "Ventas");
   });
 
   it("describes administration without vague acceso wording", () => {
     assert.match(menuSource, /Organización, asistencia y apariencia/);
     assert.doesNotMatch(menuSource, /Empresa, acceso, equipo/);
-    assert.match(menuSource, /Precios por país y cargos/);
+    assert.match(menuSource, /Precios, depósito y rutas semanales\./);
   });
 
   it("keeps the legacy deliveries URL as a server redirect only", () => {
     assert.match(configPageSource, /view === "deliveries"/);
-    assert.match(configPageSource, /redirect\("\/seguimiento\?view=configuracion"\)/);
+    assert.match(configPageSource, /redirect\("\/configuracion\?view=prices&panel=deposito"\)/);
     assert.doesNotMatch(configSource, /section === "deliveries"/);
   });
 });

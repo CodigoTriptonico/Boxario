@@ -10,8 +10,10 @@ export {
 export {
   listPendingCustomerRouteAssignmentRequestsAction,
   listPendingCustomerRouteAssignmentTaskIdsAction,
+  listReviewedCustomerRouteAssignmentRequestsAction,
 } from "@/app/actions/customer-route-assignments/queries";
 export {
+  deferCustomerRouteAssignmentRequestAction,
   replaceCustomerRouteAssignmentRequestAction,
   reviewCustomerRouteAssignmentRequestAction,
 } from "@/app/actions/customer-route-assignments/review";

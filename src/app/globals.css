@@ -26,6 +26,18 @@ html {
   --surface-inset: #252e2b;
   --surface-list-row: #2c3340;
   --surface-list-row-hover: #343d4d;
+  --surface-list-row-foreground: #f8fafc;
+  --surface-list-row-muted-foreground: #cbd5e1;
+  --surface-list-row-hover-foreground: #f8fafc;
+  --surface-list-row-hover-muted-foreground: #cbd5e1;
+  --surface-list-row-border: #000000;
+  --surface-list-row-hover-border: #000000;
+  --app-text-primary: #f8fafc;
+  --app-text-secondary: #cbd5e1;
+  --app-text-muted: #94a3b8;
+  --app-border-control: #000000;
+  --app-border-divider: #000000;
+  --app-focus-ring: #a7f3d0;
   color-scheme: dark;
 }
 
@@ -40,6 +52,18 @@ html {
   --color-surface-inset: var(--surface-inset);
   --color-surface-list-row: var(--surface-list-row);
   --color-surface-list-row-hover: var(--surface-list-row-hover);
+  --color-surface-list-row-foreground: var(--surface-list-row-foreground);
+  --color-surface-list-row-muted-foreground: var(--surface-list-row-muted-foreground);
+  --color-surface-list-row-hover-foreground: var(--surface-list-row-hover-foreground);
+  --color-surface-list-row-hover-muted-foreground: var(--surface-list-row-hover-muted-foreground);
+  --color-surface-list-row-border: var(--surface-list-row-border);
+  --color-surface-list-row-hover-border: var(--surface-list-row-hover-border);
+  --color-app-text-primary: var(--app-text-primary);
+  --color-app-text-secondary: var(--app-text-secondary);
+  --color-app-text-muted: var(--app-text-muted);
+  --color-app-border-control: var(--app-border-control);
+  --color-app-border-divider: var(--app-border-divider);
+  --color-app-focus-ring: var(--app-focus-ring);
   --font-sans: Arial, Helvetica, sans-serif;
   --font-mono: Consolas, "Courier New", monospace;
 }
@@ -51,6 +75,130 @@ body {
   overflow-wrap: anywhere;
   /* Evita caret parpadeante en texto no editable (botones / caret browsing). */
   caret-color: transparent;
+}
+
+/*
+  El producto usa un tema oscuro de forma permanente. Estos dos tonos eran
+  demasiado bajos para texto normal sobre las superficies operativas; se
+  conservan sus nombres de utilidad para no romper páginas antiguas y se
+  centraliza el valor legible.
+*/
+.text-slate-500,
+.text-slate-600,
+[class*="text-slate-500/"],
+[class*="text-slate-600/"] {
+  color: var(--app-text-muted);
+}
+
+.surface-list-row {
+  border-color: #000000;
+  color: var(--surface-list-row-foreground);
+}
+
+.surface-list-row:hover {
+  border-color: #000000;
+  color: var(--surface-list-row-hover-foreground);
+}
+
+/*
+  Los textos neutros de una fila siguen la paleta elegida, incluso cuando el
+  fondo personalizado es claro. Se excluyen controles con fondo propio para
+  que sus etiquetas no hereden el color de la fila.
+*/
+.surface-list-row
+  :where(
+    [class~="text-white"],
+    [class~="text-slate-100"],
+    [class~="text-slate-200"],
+    [class*="text-[#f8fafc]"]
+  ):not([class*="bg-"]) {
+  color: var(--surface-list-row-foreground);
+}
+
+.surface-list-row
+  :where(
+    [class~="text-slate-300"],
+    [class~="text-slate-400"],
+    [class~="text-slate-500"],
+    [class~="text-slate-600"]
+  ):not([class*="bg-"]) {
+  color: var(--surface-list-row-muted-foreground);
+}
+
+.surface-list-row:hover
+  :where(
+    [class~="text-white"],
+    [class~="text-slate-100"],
+    [class~="text-slate-200"],
+    [class*="text-[#f8fafc]"]
+  ):not([class*="bg-"]) {
+  color: var(--surface-list-row-hover-foreground);
+}
+
+.surface-list-row:hover
+  :where(
+    [class~="text-slate-300"],
+    [class~="text-slate-400"],
+    [class~="text-slate-500"],
+    [class~="text-slate-600"]
+  ):not([class*="bg-"]) {
+  color: var(--surface-list-row-hover-muted-foreground);
+}
+
+/*
+  Estados de negocio dentro de una fila pueden usar tonos ámbar, verde,
+  cian, etc. En un fondo personalizado claro esos tonos dejan de ser texto
+  AA. La fila conserva la señal del estado mediante etiquetas, iconos y
+  fondos; el texto hereda aquí el foreground calculado.
+*/
+.surface-list-row
+  :where(
+    [class*="text-emerald-"],
+    [class*="text-amber-"],
+    [class*="text-sky-"],
+    [class*="text-cyan-"],
+    [class*="text-teal-"],
+    [class*="text-blue-"],
+    [class*="text-indigo-"],
+    [class*="text-violet-"],
+    [class*="text-purple-"],
+    [class*="text-fuchsia-"],
+    [class*="text-pink-"],
+    [class*="text-rose-"],
+    [class*="text-red-"],
+    [class*="text-orange-"],
+    [class*="text-yellow-"],
+    [class*="text-lime-"],
+    [class*="text-green-"],
+    [class*="text-white"],
+    [class*="text-black"]
+  ):not([class*="bg-"]) {
+  color: var(--surface-list-row-foreground);
+}
+
+.surface-list-row:hover
+  :where(
+    [class*="text-emerald-"],
+    [class*="text-amber-"],
+    [class*="text-sky-"],
+    [class*="text-cyan-"],
+    [class*="text-teal-"],
+    [class*="text-blue-"],
+    [class*="text-indigo-"],
+    [class*="text-violet-"],
+    [class*="text-purple-"],
+    [class*="text-fuchsia-"],
+    [class*="text-pink-"],
+    [class*="text-rose-"],
+    [class*="text-red-"],
+    [class*="text-orange-"],
+    [class*="text-yellow-"],
+    [class*="text-lime-"],
+    [class*="text-green-"],
+    [class*="text-white"],
+    [class*="text-black"]
+  ):not([class*="bg-"]) {
+  color: var(--surface-list-row-hover-foreground);
 }
 
 /*
@@ -78,6 +226,16 @@ select,
 [contenteditable=""],
 [contenteditable="true"] {
   caret-color: currentColor;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+textarea:focus-visible,
+select:focus-visible,
+[tabindex]:focus-visible {
+  outline: 2px solid var(--app-focus-ring) !important;
+  outline-offset: 2px;
 }
 
 .mobile-tab {
@@ -212,6 +370,18 @@ input:not(.client-form-field):not(.inset-field) {
 input.inset-field {
   background: transparent;
   color: #f8fafc;
+}
+
+/* Los campos compuestos se perciben como un solo control: el foco vive en el
+   shell redondeado, no como un segundo rectangulo alrededor del input. */
+.inset-shell:focus-within {
+  border-color: var(--app-focus-ring) !important;
+  box-shadow: 0 0 0 1px var(--app-focus-ring);
+}
+
+.inset-shell .inset-field:focus-visible {
+  outline: none !important;
+  outline-offset: 0;
 }
 
 input.client-form-field {
@@ -384,7 +554,7 @@ select {
 
 input::placeholder,
 textarea::placeholder {
-  color: #64748b;
+  color: var(--app-text-muted);
   font-weight: 600;
   opacity: 1;
 }

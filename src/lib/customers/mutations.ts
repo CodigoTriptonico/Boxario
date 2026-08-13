@@ -9,6 +9,12 @@ type GeoAddressInput = {
   addressVerified?: boolean;
   lat?: number | null;
   lng?: number | null;
+  exactEntranceLat?: number | null;
+  exactEntranceLng?: number | null;
+  exactEntranceNote?: string;
+  exactEntrancePanoId?: string;
+  exactEntranceHeading?: number | null;
+  exactEntrancePitch?: number | null;
 };
 
 type PersonContactInput = {
@@ -80,10 +86,10 @@ export type PersonNormalizationResult<T> =
   | { ok: false; error: string };
 
 export const CUSTOMER_MUTATION_SELECT =
-  "id, referred_by_customer_id, first_name, last_name, phones, email, emails, street, house_number, neighborhood, city, state, postal_code, country, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng";
+  "id, referred_by_customer_id, first_name, last_name, phones, email, emails, street, house_number, neighborhood, city, state, postal_code, country, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng, exact_entrance_lat, exact_entrance_lng, exact_entrance_confirmed_at, exact_entrance_note, exact_entrance_pano_id, exact_entrance_heading, exact_entrance_pitch, created_at";
 
 export const RECIPIENT_MUTATION_SELECT =
-  "id, first_name, last_name, phone, email, emails, country, street, house_number, neighborhood, city, state, postal_code, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng";
+  "id, first_name, last_name, phone, email, emails, country, street, house_number, neighborhood, city, state, postal_code, address_reference, card_style, place_id, formatted_address, address_verified, lat, lng, exact_entrance_lat, exact_entrance_lng, exact_entrance_confirmed_at, exact_entrance_note, exact_entrance_pano_id, exact_entrance_heading, exact_entrance_pitch, created_at";
 
 function geoAddressPatch(input: GeoAddressInput) {
   const hasGeo =
@@ -91,6 +97,15 @@ function geoAddressPatch(input: GeoAddressInput) {
     Number.isFinite(input.lat) &&
     typeof input.lng === "number" &&
     Number.isFinite(input.lng);
+  const hasExactEntrance =
+    typeof input.exactEntranceLat === "number" &&
+    Number.isFinite(input.exactEntranceLat) &&
+    input.exactEntranceLat >= -90 &&
+    input.exactEntranceLat <= 90 &&
+    typeof input.exactEntranceLng === "number" &&
+    Number.isFinite(input.exactEntranceLng) &&
+    input.exactEntranceLng >= -180 &&
+    input.exactEntranceLng <= 180;
 
   return {
     place_id: input.placeId?.trim() || null,
@@ -99,6 +114,19 @@ function geoAddressPatch(input: GeoAddressInput) {
     lat: hasGeo ? input.lat : null,
     lng: hasGeo ? input.lng : null,
     geo_updated_at: hasGeo ? new Date().toISOString() : null,
+    exact_entrance_lat: hasExactEntrance ? input.exactEntranceLat : null,
+    exact_entrance_lng: hasExactEntrance ? input.exactEntranceLng : null,
+    exact_entrance_confirmed_at: hasExactEntrance ? new Date().toISOString() : null,
+    exact_entrance_note: hasExactEntrance ? input.exactEntranceNote?.trim() || "" : "",
+    exact_entrance_pano_id: hasExactEntrance ? input.exactEntrancePanoId?.trim() || null : null,
+    exact_entrance_heading:
+      hasExactEntrance && Number.isFinite(input.exactEntranceHeading)
+        ? input.exactEntranceHeading
+        : null,
+    exact_entrance_pitch:
+      hasExactEntrance && Number.isFinite(input.exactEntrancePitch)
+        ? input.exactEntrancePitch
+        : null,
   };
 }
 

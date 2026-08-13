@@ -1,7 +1,17 @@
 "use server";
 
-import { randomUUID } from "node:crypto";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
+import {
+  agencyAlreadyAssignedUserMessage,
+  agencyCompleteVisitIdempotencyKey,
+  agencyIdempotencyConflictUserMessage,
+  AGENCY_IDEMPOTENCY_CONFLICT,
+  AGENCY_REQUEST_ALREADY_ASSIGNED,
+  mapAgencyOperationError,
+  parseAgencyAssignRpcResult,
+  parseAgencyCreateRpcResult,
+  validateClientAgencyIdempotencyKey,
+} from "@/lib/agency-idempotency";
 import { sessionHasPermission } from "@/lib/auth/permissions";
 import { requireAppSession as loadAppSession } from "@/lib/auth/session";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
@@ -242,7 +252,9 @@ export async function createAgencyBoxRequestAction(input: {
   lines: Array<{ serviceCode: AgencyServiceCode; quantity: number; productKey: string; boxSize: string; inventoryItemId?: string; warehouseId?: string; customerId?: string; destinationCode?: string; address?: Record<string, unknown> }>;
   requestedDate?: string;
   note?: string;
-}): Promise<ActionResult<{ requestId: string }>> {
+  /** Stable client intention id; required. Never mint inside this action. */
+  idempotencyKey: string;
+}): Promise<ActionResult<{ requestId: string; replayed: boolean }>> {
   try {
     const session = await requireAppSession();
     if (!sessionHasPermission(session, "agency.requests.create")) throw new Error("FORBIDDEN");
@@ -250,16 +262,20 @@ export async function createAgencyBoxRequestAction(input: {
     if (!db) throw new Error("Supabase no configurado");
     const lines = input.lines.filter((line) => Number.isSafeInteger(line.quantity) && line.quantity > 0);
     if (!lines.length) return fail("Agrega al menos una caja con cantidad válida");
+    const key = validateClientAgencyIdempotencyKey(input.idempotencyKey);
+    if (!key.ok) return fail(key.error);
     const { data, error } = await db.rpc("create_agency_service_request", {
       lines: lines.map((line) => ({ serviceCode: line.serviceCode, quantity: line.quantity, productKey: line.productKey.trim(), boxSize: line.boxSize.trim(), inventoryItemId: line.inventoryItemId || "", warehouseId: line.warehouseId || "", customerId: line.customerId || "", destinationCode: line.destinationCode || "", address: line.address || {} })),
       requested_date: input.requestedDate || null,
       note: input.note || "",
-      idempotency_key: randomUUID(),
+      idempotency_key: key.value,
     });
-    if (error || !data?.requestId) throw new Error(error?.message || "No se pudo crear la solicitud");
-    return ok({ requestId: data.requestId as string });
+    if (error) throw new Error(mapAgencyOperationError(error.message));
+    const parsed = parseAgencyCreateRpcResult(data);
+    if (!parsed) throw new Error("No se pudo crear la solicitud");
+    return ok({ requestId: parsed.requestId, replayed: parsed.replayed });
   } catch (error) {
-    return fail(actionErrorMessage(error));
+    return fail(mapAgencyOperationError(actionErrorMessage(error)));
   }
 }
 
@@ -288,22 +304,48 @@ export async function listLogisticsAgencyRequestsAction(): Promise<ActionResult<
   }
 }
 
-export async function assignAgencyRequestToRouteAction(input: { requestId: string; routeId: string; scheduledFor?: string }): Promise<ActionResult<{ visitId: string }>> {
+export async function assignAgencyRequestToRouteAction(input: {
+  requestId: string;
+  routeId: string;
+  scheduledFor?: string;
+  /** Stable client assignment intention id; required. Never mint inside this action. */
+  idempotencyKey: string;
+}): Promise<ActionResult<{ visitId: string; replayed: boolean }>> {
   try {
     const session = await requireAppSession();
     if (!sessionHasPermission(session, "agency.requests.assign")) throw new Error("FORBIDDEN");
     const db = await createScopedSupabase(session);
     if (!db) throw new Error("Supabase no configurado");
+    const key = validateClientAgencyIdempotencyKey(input.idempotencyKey);
+    if (!key.ok) return fail(key.error);
     const { data, error } = await db.rpc("assign_agency_request_to_route", {
       target_request_id: input.requestId,
       target_route_id: input.routeId,
       scheduled_for_value: input.scheduledFor || null,
-      idempotency_key: randomUUID(),
+      idempotency_key: key.value,
     });
-    if (error || !data?.visitId) throw new Error(error?.message || "No se pudo asignar la visita");
-    return ok({ visitId: data.visitId as string });
+    if (error) {
+      const mapped = mapAgencyOperationError(error.message);
+      if (mapped === AGENCY_IDEMPOTENCY_CONFLICT) {
+        return fail(agencyIdempotencyConflictUserMessage());
+      }
+      if (mapped === AGENCY_REQUEST_ALREADY_ASSIGNED) {
+        return fail(agencyAlreadyAssignedUserMessage());
+      }
+      throw new Error(mapped);
+    }
+    const parsed = parseAgencyAssignRpcResult(data);
+    if (!parsed) throw new Error("No se pudo asignar la visita");
+    return ok({ visitId: parsed.visitId, replayed: parsed.replayed });
   } catch (error) {
-    return fail(actionErrorMessage(error));
+    const mapped = mapAgencyOperationError(actionErrorMessage(error));
+    if (mapped === AGENCY_IDEMPOTENCY_CONFLICT) {
+      return fail(agencyIdempotencyConflictUserMessage());
+    }
+    if (mapped === AGENCY_REQUEST_ALREADY_ASSIGNED) {
+      return fail(agencyAlreadyAssignedUserMessage());
+    }
+    return fail(mapped);
   }
 }
 
@@ -362,18 +404,23 @@ export async function listConductorAgencyVisitsAction(driverId: string): Promise
   }
 }
 
-export async function completeConductorAgencyVisitAction(input: { visitId: string; lines: Array<{ visitLineId: string; confirmedQuantity: number; differenceReason?: string; evidence?: Record<string, unknown> }> }): Promise<ActionResult<{ paymentId: string | null }>> {
+export async function completeConductorAgencyVisitAction(input: {
+  visitId: string;
+  lines: Array<{ visitLineId: string; confirmedQuantity: number; differenceReason?: string; evidence?: Record<string, unknown> }>;
+  idempotencyKey?: string;
+}): Promise<ActionResult<{ paymentId: string | null }>> {
   try {
     const session = await requireAppSession();
     if (session.roleSlug !== "conductor") throw new Error("FORBIDDEN");
     const db = await createScopedSupabase(session);
     if (!db) throw new Error("Supabase no configurado");
+    const idempotencyKey = input.idempotencyKey?.trim() || agencyCompleteVisitIdempotencyKey(input.visitId);
     const { data, error } = await db.rpc("complete_agency_visit_by_driver", {
       target_visit_id: input.visitId,
       line_confirmations: input.lines.map((line) => ({ ...line, evidence: line.evidence || { source: "driver_confirmation" } })),
       confirmation_reason: "Confirmada por conductor",
       payment: null,
-      idempotency_key: randomUUID(),
+      idempotency_key: idempotencyKey,
     });
     if (error) throw new Error(error.message);
     return ok({ paymentId: (data?.paymentId as string | null | undefined) || null });

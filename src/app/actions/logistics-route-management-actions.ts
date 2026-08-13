@@ -9,7 +9,6 @@ import {
   ok,
   type ActionResult,
 } from "@/lib/actions/errors";
-import { recordActivityHistory } from "@/lib/activity-history";
 import { assertLogisticsRouteTransition } from "@/lib/logistics-state-machine";
 import { type LogisticsRouteRow } from "@/lib/logistics-routing";
 import { logOperation } from "@/lib/observability/operation-log";
@@ -44,8 +43,8 @@ export async function assignLogisticsRouteDriverAction(input: {
     }
 
     let route = await loadRouteById(supabase, session, input.routeId);
-    if (route.status !== "draft" && route.status !== "planned") {
-      return fail("Solo puedes cambiar el conductor mientras la ruta no ha iniciado");
+    if (route.status !== "planned") {
+      return fail("Cierra la ruta antes de asignar el conductor");
     }
 
     const assignedTo = input.assignedTo || null;
@@ -98,8 +97,8 @@ export async function assignLogisticsRouteVehicleAction(input: {
     }
 
     const route = await loadRouteById(supabase, session, input.routeId);
-    if (route.status !== "draft" && route.status !== "planned") {
-      return fail("Solo puedes cambiar el vehiculo mientras la ruta no ha iniciado");
+    if (route.status !== "planned") {
+      return fail("Cierra la ruta antes de asignar el vehiculo");
     }
 
     const { error } = await supabase
@@ -172,43 +171,10 @@ export async function cancelLogisticsRouteAction(
       return fail("Solo puedes cancelar rutas en borrador o enviadas");
     }
 
-    await syncRouteDriver(supabase, session, route, null);
-
-    const nowIso = new Date().toISOString();
-    const { error: releaseStopsError } = await supabase
-      .from("logistics_route_stops")
-      .update({
-        released_at: nowIso,
-        release_reason: "route_cancelled",
-        updated_at: nowIso,
-      })
-      .eq("route_id", route.id)
-      .is("released_at", null)
-      .eq("organization_id", session.organizationId);
-
-    if (releaseStopsError) {
-      logOperation({
-        operation: "logistics.route_cancel",
-        organizationId,
-        actorUserId,
-        resourceType: "logistics_route",
-        resourceId,
-        durationMs: Date.now() - startedAt,
-        result: "error",
-        errorCode: "INTERNAL",
-      });
-      return fail(releaseStopsError.message);
-    }
-
-    const { error } = await supabase
-      .from("logistics_routes")
-      .update({
-        status: "cancelled",
-        assigned_to: null,
-        updated_at: nowIso,
-      })
-      .eq("id", route.id)
-      .eq("organization_id", session.organizationId);
+    const { data, error } = await supabase.rpc("cancel_logistics_route_atomic", {
+      p_route_id: route.id,
+      p_client_operation_id: null,
+    });
 
     if (error) {
       logOperation({
@@ -224,13 +190,20 @@ export async function cancelLogisticsRouteAction(
       return fail(error.message);
     }
 
-    await recordActivityHistory(supabase, session, {
-      action: "logistics.route_cancelled",
-      entityType: "logistics_route",
-      entityId: route.id,
-      title: `Ruta cancelada: ${route.name}`,
-      description: `${route.routeDate} · ${route.stops.length} paradas liberadas`,
-    });
+    const payload = (data || {}) as { replayed?: boolean; status?: string };
+    if (payload.status && payload.status !== "cancelled" && !payload.replayed) {
+      logOperation({
+        operation: "logistics.route_cancel",
+        organizationId,
+        actorUserId,
+        resourceType: "logistics_route",
+        resourceId,
+        durationMs: Date.now() - startedAt,
+        result: "error",
+        errorCode: "CONFLICT",
+      });
+      return fail("No se pudo cancelar la ruta");
+    }
 
     logOperation({
       operation: "logistics.route_cancel",

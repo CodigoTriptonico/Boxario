@@ -27,6 +27,8 @@ const routeConfig: PricingRouteConfig = {
   emptyBoxDeliveryFee: "$15",
   fullBoxPickupFee: "$10",
   minimumDeposit: "$25",
+  pickupIncludedDays: 30,
+  latePickupFee: "$18",
   logisticsFeeMode: "per_trip",
   scheduleSuggestions: {
     delivery: { exact: [], until: [], from: [] },
@@ -88,6 +90,8 @@ describe("saleLogisticsFeesFromRouteConfig", () => {
     const fees = saleLogisticsFeesFromRouteConfig(routeConfig);
 
     assert.equal(fees.minimumDeposit, "$25");
+    assert.equal(fees.pickupIncludedDays, 30);
+    assert.equal(fees.latePickupFee, "$18");
     assert.equal(fees.logisticsFeeMode, "per_trip");
   });
 });

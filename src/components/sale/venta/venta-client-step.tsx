@@ -47,6 +47,8 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
     selectedSender,
     senderCatalogCountRef,
     senderQuery,
+    senderSortMode,
+    setSenderSortMode,
     setActiveStep,
     setCardStylePicker,
     setClientAddressSearch,
@@ -138,12 +140,31 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
             meta={{
               editingCustomerId,
               duplicateClient: duplicateClient ?? null,
+              initialExactEntrance: (() => {
+                const sender =
+                  selectedSender?.id === editingCustomerId
+                    ? selectedSender
+                    : filteredSenders.find((item) => item.id === editingCustomerId);
+                return sender?.exactEntranceLat != null && sender.exactEntranceLng != null
+                  ? {
+                      lat: sender.exactEntranceLat,
+                      lng: sender.exactEntranceLng,
+                      note: sender.exactEntranceNote,
+                      panoId: sender.exactEntrancePanoId || undefined,
+                      heading: sender.exactEntranceHeading,
+                      pitch: sender.exactEntrancePitch,
+                    }
+                  : null;
+              })(),
             }}
           />
         ) : (
           <div
-            className={`flex min-h-0 flex-1 flex-col overflow-hidden${customersLoading ? " pointer-events-none opacity-60 transition-opacity" : ""
-              }`}
+            className={`flex min-h-0 flex-1 flex-col overflow-hidden${
+              customersLoading && filteredSenders.length === 0
+                ? " saturate-[0.8] transition-[filter]"
+                : ""
+            }`}
             aria-busy={customersLoading}
           >
             <SaleSenderList
@@ -157,6 +178,8 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
               }
               searchActive={Boolean(senderQuery.trim())}
               viewLayout={viewLayout}
+              sortMode={senderSortMode}
+              onSortModeChange={setSenderSortMode}
               onQueryChange={setSenderQuery}
               onNewClient={() => {
                 resetNewClientForm();

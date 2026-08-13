@@ -105,9 +105,7 @@ export type ShipmentRow = {
   publicTrackingExpiresAt?: string;
 };
 
-export type CreateShipmentResult = ShipmentRow & {
-  stockWarning?: string;
-};
+export type CreateShipmentResult = ShipmentRow;
 
 export type RouteMemberRow = {
   id: string;

@@ -138,6 +138,7 @@ export async function createCustomerAction(
       .insert({
         organization_id: session.organizationId,
         ...patch,
+        exact_entrance_confirmed_by: patch.exact_entrance_confirmed_at ? session.userId : null,
         referred_by_customer_id: input.referredByCustomerId || null,
       })
       .select(CUSTOMER_MUTATION_SELECT)
@@ -192,6 +193,7 @@ export async function updateCustomerAction(
       .from("customers")
       .update({
         ...patch,
+        exact_entrance_confirmed_by: patch.exact_entrance_confirmed_at ? session.userId : null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.customerId)
@@ -219,6 +221,13 @@ export async function updateCustomerAction(
         address_verified,
         lat,
         lng,
+        exact_entrance_lat,
+        exact_entrance_lng,
+        exact_entrance_confirmed_at,
+        exact_entrance_note,
+        exact_entrance_pano_id,
+        exact_entrance_heading,
+        exact_entrance_pitch,
         customer_recipients (
           id,
           first_name,
@@ -239,7 +248,14 @@ export async function updateCustomerAction(
           formatted_address,
           address_verified,
           lat,
-          lng
+          lng,
+          exact_entrance_lat,
+          exact_entrance_lng,
+          exact_entrance_confirmed_at,
+          exact_entrance_note,
+          exact_entrance_pano_id,
+          exact_entrance_heading,
+          exact_entrance_pitch
         )
       `,
       )
@@ -356,6 +372,7 @@ export async function createRecipientAction(
         organization_id: session.organizationId,
         customer_id: input.customerId,
         ...patch,
+        exact_entrance_confirmed_by: patch.exact_entrance_confirmed_at ? session.userId : null,
       })
       .select(RECIPIENT_MUTATION_SELECT)
       .single();
@@ -396,6 +413,7 @@ export async function updateRecipientAction(
       .from("customer_recipients")
       .update({
         ...patch,
+        exact_entrance_confirmed_by: patch.exact_entrance_confirmed_at ? session.userId : null,
         updated_at: new Date().toISOString(),
       })
       .eq("id", input.recipientId)

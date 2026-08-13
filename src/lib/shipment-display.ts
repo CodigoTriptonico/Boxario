@@ -15,6 +15,9 @@ export {
 } from "@/lib/shipment-display/constants";
 export {
   ENVIOS_STATUS_FILTER_OPTIONS,
+  enviosActiveLegLogisticsTone,
+  enviosActiveLegLogisticsToneClass,
+  enviosStatusFilterDisplayLabel,
   filterShipmentsForEnviosMode,
   isActiveShipment,
   isCompletedShipment,
@@ -31,8 +34,11 @@ export {
   sortShipmentsByArrivalOrder,
   sortShipmentsByInvoicePriority,
   syncShipmentStatusPatch,
+  type EnviosActiveLegLogisticsTone,
   type EnviosClientMode,
   type EnviosStatusFilterBucket,
+  type EnviosStatusFilterOption,
+  type EnviosStatusFilterValue,
 } from "@/lib/shipment-display/status";
 export { shipmentLogisticsSteps } from "@/lib/shipment-display/progress";
 export {

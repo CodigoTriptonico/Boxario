@@ -263,12 +263,15 @@ export function NotificationsCenter({
     }
 
     const rect = trigger.getBoundingClientRect();
-    const width = isSidebar
+    const viewportWidth = document.documentElement.clientWidth;
+    const availableWidth = Math.max(0, viewportWidth - PANEL_GAP * 2);
+    const preferredWidth = isSidebar
       ? Math.min(PANEL_MAX_WIDTH, Math.max(PANEL_MIN_WIDTH, rect.width))
       : PANEL_MAX_WIDTH;
+    const width = Math.min(preferredWidth, availableWidth);
 
     let left = isSidebar ? rect.left : rect.right - width;
-    left = Math.max(PANEL_GAP, Math.min(left, window.innerWidth - width - PANEL_GAP));
+    left = Math.max(PANEL_GAP, Math.min(left, viewportWidth - width - PANEL_GAP));
 
     const top = rect.bottom + PANEL_GAP;
     const maxHeight = Math.max(240, window.innerHeight - top - PANEL_GAP);
@@ -496,7 +499,7 @@ export function NotificationsCenter({
                         Stock
                       </span>
                     </div>
-                    <p className="mt-1 line-clamp-2 text-xs font-semibold text-amber-200/90">
+                    <p className="mt-1 line-clamp-2 text-xs font-semibold text-amber-200">
                       {reminder.body || "La venta quedó pendiente de inventario."}
                     </p>
                   </Link>
@@ -556,8 +559,8 @@ export function NotificationsCenter({
             hasPending
               ? "text-emerald-300 notification-icon-glow"
               : isSidebar
-                ? "text-slate-400 group-hover:text-emerald-300/90"
-                : "group-hover:text-emerald-300/90"
+                ? "text-slate-400 group-hover:text-emerald-300"
+                : "group-hover:text-emerald-300"
           }`}
           aria-hidden
         />

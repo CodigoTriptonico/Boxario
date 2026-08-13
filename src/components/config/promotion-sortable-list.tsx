@@ -175,7 +175,7 @@ export function PromotionSortableList({
               onDragOver={(event) => handleDragOver(event, promotion.id)}
               onDrop={(event) => handleDrop(event, promotion.id)}
               className={`grid cursor-context-menu gap-3 border-b border-black/70 p-3 last:border-b-0 sm:grid-cols-[auto_1fr_auto] sm:items-center ${
-                isDragging ? "opacity-50" : ""
+                isDragging ? "cursor-grabbing shadow-lg" : ""
               } ${isOver ? "bg-emerald-950/20" : ""}`}
               {...promotionContextMenuProps(promotion.id)}
             >

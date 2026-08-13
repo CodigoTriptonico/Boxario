@@ -1,8 +1,12 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { CircleAlert, Route, Truck } from "lucide-react";
-import type { LogisticsWeekdaySchedule } from "@/app/actions/logistics-routes";
+import { Truck } from "lucide-react";
+import {
+  resolveCompatibleGeographicRoutesAction,
+  type CompatibleGeographicRoute,
+  type LogisticsWeekdaySchedule,
+} from "@/app/actions/logistics-routes";
 import { DateInput } from "@/components/date-input";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import { LogisticsWeekdayPicker } from "@/components/logistica/logistics-weekday-picker";
@@ -10,22 +14,23 @@ import { ScheduleTimeField } from "@/components/sale/schedule-time-field";
 import {
   buildLogisticsScheduleStepContent,
   buildLogisticsScheduleSummaryChips,
+  canConfirmLogisticsSchedule,
   canContinueFromScheduleDate,
   canContinueFromScheduleDay,
   computeLogisticsSchedulePrimaryButtons,
 } from "@/components/logistica/task-schedule/logistics-task-schedule-confirm-helpers";
+import { logisticsWeekdayKeys } from "@/lib/logistics-route-catalog";
 import {
-  logisticsWeekdayKeys,
-  type LogisticsWeekdayKey,
-} from "@/lib/logistics-route-catalog";
-import {
+  DAY_AS_ROUTE_TEMPLATE_ID,
   enabledWeekdayIndexes,
   isDayAsRouteTemplateId,
+  namedLogisticsRouteTemplates,
   nextWeekdayScheduleHint,
   resolveDayRouteTemplateId,
   selectWeekdayDate,
 } from "@/lib/logistics-day-route";
 import { resolveScheduleConfirmDriverId } from "@/lib/logistics-schedule-confirm-driver";
+import { resolveLogisticsDefaultDriverId } from "@/lib/logistics-default-driver";
 import {
   dateMatchesLogisticsWeekday,
   getLogisticsWeekdayIndex,
@@ -34,7 +39,6 @@ import {
 } from "@/lib/logistics-route-week";
 import { minScheduleDateInput } from "@/lib/schedule-date";
 import {
-  formatTime12Hour,
   scheduleTimeComplete,
 } from "@/lib/sale/schedule-time";
 import {
@@ -51,9 +55,6 @@ import {
   initialWizardStep,
   scheduleDraft,
   templateLabel,
-  type Driver,
-  type RouteTemplate,
-  type SelectionOrder,
   type WizardStep,
 } from "@/components/logistica/task-schedule/shared";
 import { ScheduleConfirmView } from "@/components/logistica/task-schedule/schedule-confirm-view";
@@ -61,6 +62,9 @@ import {
   LogisticsTaskSchedulePendingDayAction,
   LogisticsTaskSchedulePendingRouteAction,
 } from "@/components/logistica/task-schedule/logistics-task-schedule-pending-actions";
+import { LogisticsTaskScheduleRouteField } from "@/components/logistica/task-schedule/logistics-task-schedule-route-field";
+import { LogisticsRouteCoveragePreviewDialog } from "@/components/logistica/task-schedule/logistics-route-coverage-preview-dialog";
+import type { LogisticsTaskScheduleConfirmPanelProps } from "@/components/logistica/task-schedule/logistics-task-schedule-confirm-panel-types";
 
 const EMPTY_SCHEDULE_SUGGESTIONS: ScheduleTimeSuggestions = {
   exact: [],
@@ -75,7 +79,9 @@ export function LogisticsTaskScheduleConfirmPanel({
   taskTypeLabel,
   scheduledAt,
   initialRouteTemplateId = null,
-  templates,
+  templates: allTemplates,
+  customerId = "",
+  requestedBoxes = 1,
   scheduleSuggestionsByWeekday,
   enabledDays = [],
   defaultDriverByWeekday,
@@ -97,44 +103,14 @@ export function LogisticsTaskScheduleConfirmPanel({
   onConfirmPendingDay,
   onConfirmPendingRoute,
   onConfirmPreferredRoute,
-}: {
-  open: boolean;
-  shipmentCode: string;
-  customerName: string;
-  taskTypeLabel: string;
-  scheduledAt: string | null;
-  initialRouteTemplateId?: string | null;
-  templates: RouteTemplate[];
-  scheduleSuggestionsByWeekday?: Array<ScheduleTimeSuggestions | null>;
-  /** Catalog-enabled weekdays. When a day has 0 templates, the day itself is the route. */
-  enabledDays?: LogisticsWeekdayKey[];
-  defaultDriverByWeekday: Array<string | null>;
-  weekdayScheduleByWeekday?: Array<LogisticsWeekdaySchedule | null>;
-  routeMembers: Driver[];
-  saving?: boolean;
-  title?: string;
-  confirmLabel?: string;
-  selectionOrder?: SelectionOrder;
-  /** Sellers assign day+route; logistics owns the driver. */
-  showDriverPicker?: boolean;
-  allowPendingDay?: boolean;
-  pendingDayLabel?: string;
-  allowPendingRoute?: boolean;
-  pendingRouteLabel?: string;
-  pendingRouteDate?: string | null;
-  requireExplicitRouteSelection?: boolean;
-  onCancel: () => void;
-  onConfirm: (input: {
-    scheduledAt: string;
-    driverId: string;
-    routeTemplateId: string;
-  }) => void | Promise<void>;
-  onConfirmPendingDay?: () => void | Promise<void>;
-  onConfirmPendingRoute?: (input: { routeDate: string }) => void | Promise<void>;
-  /** Known weekly route without a concrete delivery date. */
-  onConfirmPreferredRoute?: (input: { routeTemplateId: string }) => void | Promise<void>;
-}) {
+}: LogisticsTaskScheduleConfirmPanelProps) {
+  const templates = allTemplates;
   const routeFirst = selectionOrder === "route-first";
+  const namedTemplates = useMemo(
+    () => namedLogisticsRouteTemplates(templates),
+    [templates],
+  );
+  const routeChoiceTemplates = routeFirst ? templates : namedTemplates;
   const availableWeekdays = useMemo(
     () => enabledWeekdayIndexes(enabledDays),
     [enabledDays],
@@ -146,10 +122,10 @@ export function LogisticsTaskScheduleConfirmPanel({
       : initialScheduleDraft;
   const initialWeekday = getLogisticsWeekdayIndex(initialDraft.date);
   const initialTemplate =
-    templates.find((template) => template.id === initialRouteTemplateId) ||
-    templates.find((template) => Number(template.weekday) === initialWeekday) ||
-    templates.find((template) => availableWeekdays.includes(Number(template.weekday))) ||
-    templates[0] ||
+    routeChoiceTemplates.find((template) => template.id === initialRouteTemplateId) ||
+    routeChoiceTemplates.find((template) => Number(template.weekday) === initialWeekday) ||
+    routeChoiceTemplates.find((template) => availableWeekdays.includes(Number(template.weekday))) ||
+    routeChoiceTemplates[0] ||
     null;
   const [draft, setDraft] = useState(() => {
     if (routeFirst) {
@@ -173,7 +149,7 @@ export function LogisticsTaskScheduleConfirmPanel({
     };
   });
   const [routeTemplateId, setRouteTemplateId] = useState(() => {
-    if (initialRouteTemplateId && templates.some((template) => template.id === initialRouteTemplateId)) {
+    if (initialRouteTemplateId && routeChoiceTemplates.some((template) => template.id === initialRouteTemplateId)) {
       return initialRouteTemplateId;
     }
 
@@ -185,19 +161,34 @@ export function LogisticsTaskScheduleConfirmPanel({
       ? initialDraft.date
       : fallbackDate;
     const startWeekday = getLogisticsWeekdayIndex(startDate);
-    const resolvedTemplateId = resolveDayRouteTemplateId({ weekday: startWeekday, templates });
+    const resolvedTemplateId = resolveDayRouteTemplateId({
+      weekday: startWeekday,
+      templates: routeChoiceTemplates,
+    });
     return requireExplicitRouteSelection && !isDayAsRouteTemplateId(resolvedTemplateId)
       ? ""
       : resolvedTemplateId;
   });
   const [pendingDayRouteMode, setPendingDayRouteMode] = useState(false);
+  const [routeCoverageMatches, setRouteCoverageMatches] = useState<Map<string, boolean> | null>(null);
+  const [coverageRoutes, setCoverageRoutes] = useState<CompatibleGeographicRoute[]>([]);
+  const [coverageCustomerLocation, setCoverageCustomerLocation] = useState<{
+    lat: number;
+    lng: number;
+    label: string;
+  } | null>(null);
+  const [coverageMapOpen, setCoverageMapOpen] = useState(false);
+  const compatibilityLookupEnabled = Boolean(
+    open && customerId && /^\d{4}-\d{2}-\d{2}$/.test(draft.date) && scheduleTimeComplete(draft.time),
+  );
+  const activeRouteCoverageMatches = compatibilityLookupEnabled ? routeCoverageMatches : null;
   const [step, setStep] = useState<WizardStep>(() => initialWizardStep(routeFirst));
   const [weekdayChosen, setWeekdayChosen] = useState<number | null>(() =>
     scheduledAt && availableWeekdays.includes(initialWeekday) ? initialWeekday : null,
   );
   const selectedTemplate = useMemo(
-    () => templates.find((template) => template.id === routeTemplateId) || null,
-    [routeTemplateId, templates],
+    () => routeChoiceTemplates.find((template) => template.id === routeTemplateId) || null,
+    [routeChoiceTemplates, routeTemplateId],
   );
   const showAllRoutes = routeFirst || pendingDayRouteMode;
   const weekday = showAllRoutes
@@ -208,20 +199,41 @@ export function LogisticsTaskScheduleConfirmPanel({
       ? weekdayChosen
       : getLogisticsWeekdayIndex(draft.date);
   const hasSelectedWeekday = routeFirst || weekdayChosen !== null;
-  const [driverId, setDriverId] = useState(defaultDriverByWeekday[weekday] || "");
+  const selectedDefaultDriverId = resolveLogisticsDefaultDriverId({
+    weekday,
+    routeTemplateId,
+    templates: routeChoiceTemplates,
+    defaultDriverByWeekday,
+  });
+  const [driverId, setDriverId] = useState(selectedDefaultDriverId);
   const resolvedDriverId = resolveScheduleConfirmDriverId({
     showDriverPicker,
     selectedDriverId: driverId,
-    defaultDriverId: defaultDriverByWeekday[weekday],
+    defaultDriverId: selectedDefaultDriverId,
     conductors: routeMembers,
   });
 
   const dayTemplates = useMemo(
     () =>
       showAllRoutes
-        ? templates
-        : templates.filter((template) => Number(template.weekday) === weekday),
-    [showAllRoutes, templates, weekday],
+        ? routeChoiceTemplates.filter(
+            (template) =>
+              !routeScheduleHasAvailabilityMismatch(draft.time, template) &&
+              (!activeRouteCoverageMatches || activeRouteCoverageMatches.has(template.id)),
+          )
+        : routeChoiceTemplates.filter(
+            (template) =>
+              Number(template.weekday) === weekday &&
+              !routeScheduleHasAvailabilityMismatch(draft.time, template) &&
+              (!activeRouteCoverageMatches || activeRouteCoverageMatches.has(template.id)),
+          ),
+    [activeRouteCoverageMatches, draft.time, routeChoiceTemplates, showAllRoutes, weekday],
+  );
+  const matchingTemplateCount = activeRouteCoverageMatches
+    ? dayTemplates.filter((template) => activeRouteCoverageMatches.get(template.id) === true).length
+    : null;
+  const allNamedTemplatesForDay = namedLogisticsRouteTemplates(allTemplates).filter(
+    (template) => Number(template.weekday) === weekday,
   );
   const weekdaySchedule = weekdayScheduleByWeekday[weekday];
   const dayScheduleSuggestions = hasSelectedWeekday
@@ -261,7 +273,7 @@ export function LogisticsTaskScheduleConfirmPanel({
   );
   const dayAsRoute =
     !showAllRoutes &&
-    dayTemplates.length === 0 &&
+    allNamedTemplatesForDay.length === 0 &&
     availableWeekdays.includes(weekday);
   const requiresNamedRouteChoice = pendingDayRouteMode || dayTemplates.length > 0;
   const wizardSteps: WizardStep[] = routeFirst
@@ -275,23 +287,23 @@ export function LogisticsTaskScheduleConfirmPanel({
         value: template.id,
         label: showAllRoutes ? templateLabel(template) : template.name,
         searchText: `${logisticsWeekdayKeys[template.weekday] || ""} ${template.name}`,
-        trailing: template.startTime && template.estimatedEndTime ? (
+        trailing: template.startTime ? (
           <span
             className={
-              routeScheduleHasAvailabilityMismatch(draft.time, template)
+              activeRouteCoverageMatches?.get(template.id) === false
                 ? "text-amber-300"
                 : "text-emerald-300"
             }
           >
-            {routeScheduleHasAvailabilityMismatch(draft.time, template)
-              ? "Revisar horario"
-              : "Compatible"}
+            {activeRouteCoverageMatches?.get(template.id) === false
+              ? "Verificar cobertura"
+              : "Cobertura compatible"}
           </span>
         ) : (
           <span className="text-slate-500">Sin horario</span>
         ),
       })),
-    [dayTemplates, draft.time, showAllRoutes],
+    [activeRouteCoverageMatches, dayTemplates, showAllRoutes],
   );
   const driverOptions = useMemo(
     () => [
@@ -312,6 +324,42 @@ export function LogisticsTaskScheduleConfirmPanel({
   const stepIndex = Math.max(0, wizardSteps.indexOf(step as never));
   const stepCount = wizardSteps.length;
   const canGoBack = stepIndex > 0 || pendingDayRouteMode;
+
+  useEffect(() => {
+    if (!compatibilityLookupEnabled) return;
+    let active = true;
+    void resolveCompatibleGeographicRoutesAction({
+      customerId: String(customerId),
+      scheduledAt: `${draft.date}T${draft.time}`,
+      boxCount: requestedBoxes,
+    }).then((result) => {
+      if (!active) return;
+      const routes = result.ok ? result.data.routes : [];
+      const selectableRoutes = routes
+        .filter((route) => routeChoiceTemplates.some((template) => template.id === route.routeScheduleId));
+      const coverageBySchedule = new Map(
+        selectableRoutes.map((route) => [route.routeScheduleId, route.coverageMatches]),
+      );
+      const matchingRouteIds = selectableRoutes
+        .filter((route) => route.coverageMatches)
+        .map((route) => route.routeScheduleId)
+      setRouteCoverageMatches(result.ok ? coverageBySchedule : null);
+      setCoverageRoutes(result.ok ? selectableRoutes : []);
+      setCoverageCustomerLocation(result.ok ? result.data.customerLocation : null);
+      if (result.ok) {
+        setRouteTemplateId((current) =>
+          coverageBySchedule.has(current)
+            ? current
+            : matchingRouteIds.length === 1
+              ? matchingRouteIds[0]
+              : routeChoiceTemplates.length === 0
+                ? DAY_AS_ROUTE_TEMPLATE_ID
+                : "",
+        );
+      }
+    });
+    return () => { active = false; };
+  }, [compatibilityLookupEnabled, customerId, draft.date, draft.time, requestedBoxes, routeChoiceTemplates]);
 
   useEffect(() => {
     if (!open) {
@@ -385,7 +433,7 @@ export function LogisticsTaskScheduleConfirmPanel({
 
   function selectRouteTemplate(nextTemplateId: string) {
     setRouteTemplateId(nextTemplateId);
-    const template = templates.find((entry) => entry.id === nextTemplateId);
+    const template = routeChoiceTemplates.find((entry) => entry.id === nextTemplateId);
     if (!template) {
       return;
     }
@@ -396,7 +444,12 @@ export function LogisticsTaskScheduleConfirmPanel({
     }
 
     const nextWeekday = Number(template.weekday);
-    setDriverId(defaultDriverByWeekday[nextWeekday] || "");
+    setDriverId(resolveLogisticsDefaultDriverId({
+      weekday: nextWeekday,
+      routeTemplateId: nextTemplateId,
+      templates: routeChoiceTemplates,
+      defaultDriverByWeekday,
+    }));
     if (routeFirst) {
       setDraft((current) => ({
         ...current,
@@ -413,7 +466,7 @@ export function LogisticsTaskScheduleConfirmPanel({
   function routeTemplateForWeekday(nextWeekday: number, currentTemplateId?: string) {
     const resolvedTemplateId = resolveDayRouteTemplateId({
       weekday: nextWeekday,
-      templates,
+      templates: routeChoiceTemplates,
       currentTemplateId,
     });
 
@@ -430,18 +483,30 @@ export function LogisticsTaskScheduleConfirmPanel({
     }
 
     const nextWeekday = getLogisticsWeekdayIndex(date);
+    const nextRouteTemplateId = routeTemplateForWeekday(nextWeekday, routeTemplateId);
     setWeekdayChosen(nextWeekday);
     setDraft((current) => ({ ...current, date }));
-    setDriverId(defaultDriverByWeekday[nextWeekday] || "");
-    setRouteTemplateId((current) => routeTemplateForWeekday(nextWeekday, current));
+    setDriverId(resolveLogisticsDefaultDriverId({
+      weekday: nextWeekday,
+      routeTemplateId: nextRouteTemplateId,
+      templates: routeChoiceTemplates,
+      defaultDriverByWeekday,
+    }));
+    setRouteTemplateId(nextRouteTemplateId);
   }
 
   function selectWeekday(nextWeekday: number) {
     const date = selectWeekdayDate(nextWeekday, minScheduleDateInput());
+    const nextRouteTemplateId = routeTemplateForWeekday(nextWeekday, routeTemplateId);
     setWeekdayChosen(nextWeekday);
     setDraft((current) => ({ ...current, date }));
-    setDriverId(defaultDriverByWeekday[nextWeekday] || "");
-    setRouteTemplateId((current) => routeTemplateForWeekday(nextWeekday, current));
+    setDriverId(resolveLogisticsDefaultDriverId({
+      weekday: nextWeekday,
+      routeTemplateId: nextRouteTemplateId,
+      templates: routeChoiceTemplates,
+      defaultDriverByWeekday,
+    }));
+    setRouteTemplateId(nextRouteTemplateId);
   }
 
   if (!open) return null;
@@ -450,14 +515,18 @@ export function LogisticsTaskScheduleConfirmPanel({
   const hasCompleteTime = scheduleTimeComplete(draft.time);
   const dateMatchesRoute =
     !selectedTemplate || dateMatchesLogisticsWeekday(draft.date, selectedTemplate.weekday);
-  // Day + route are enough; driver can be assigned later after filtering by route.
-  const canConfirm = Boolean(
-    hasCompleteTime &&
-      (dayAsRoute
-        ? isDayAsRouteTemplateId(routeTemplateId)
-        : routeTemplateId && dayTemplates.length) &&
-      dateMatchesRoute,
+  const routeSelectionValid = Boolean(
+    dayAsRoute
+      ? isDayAsRouteTemplateId(routeTemplateId)
+      : routeTemplateId && dayTemplates.length,
   );
+  // Day + route are enough; driver can be assigned later after filtering by route.
+  const canConfirm = canConfirmLogisticsSchedule({
+    hasSelectedWeekday,
+    hasCompleteTime,
+    routeSelectionValid,
+    dateMatchesRoute,
+  });
   const canLeavePendingRoute = pendingDayRouteMode
     ? Boolean(onConfirmPendingDay)
     : Boolean(
@@ -585,81 +654,34 @@ export function LogisticsTaskScheduleConfirmPanel({
     </div>
   );
 
-  const routeStepField = dayAsRoute ? null : (
-    <div className="grid gap-1">
-      <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase text-slate-500">
-        <Route className="h-3.5 w-3.5" />{" "}
-        {pendingDayRouteMode ? "Ruta sin fecha" : showAllRoutes ? "Ruta" : "Ruta del día"}
-      </span>
-      <InlineSearchPicker
-        value={routeTemplateId}
-        onChange={selectRouteTemplate}
-        options={templateOptions}
-        placeholder={
-          pendingDayRouteMode
-            ? "Selecciona una ruta (sin fecha)"
-            : showAllRoutes
-              ? "Selecciona una ruta"
-              : dayTemplates.length
-                ? `Rutas de ${weekdayLabel}`
-                : "No hay rutas ese día"
-        }
-        searchPlaceholder="Buscar ruta..."
-        emptyLabel={
-          showAllRoutes ? "No hay rutas semanales" : `No hay rutas para ${weekdayLabel || "ese día"}`
-        }
-        ariaLabel="Ruta semanal"
-        className="w-full"
-        minWidthClass="w-full"
-      />
-      {selectedTemplate ? (
-        selectedTemplate.startTime && selectedTemplate.estimatedEndTime ? (
-          <div className="rounded-lg border border-black/70 bg-surface-inset px-3 py-2">
-            <p className="text-[10px] font-black uppercase text-slate-500">Horario de la ruta</p>
-            <p className="mt-1 text-sm font-black text-emerald-100">
-              Inicio {formatTime12Hour(selectedTemplate.startTime)} · fin estimado {formatTime12Hour(selectedTemplate.estimatedEndTime)}
-            </p>
-          </div>
-        ) : (
-          <p className="rounded-lg border border-black/70 bg-surface-inset px-3 py-2 text-[11px] font-bold text-slate-400">
-            Horario de la ruta pendiente de configurar por Logística.
-          </p>
-        )
-      ) : null}
-      {selectedTemplate && routeScheduleHasAvailabilityMismatch(draft.time, selectedTemplate) ? (
-        <div className="flex items-start gap-2 rounded-lg border border-amber-700/70 bg-amber-950/30 px-3 py-2.5" role="alert">
-          <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-amber-300" aria-hidden />
-          <p className="text-[11px] font-bold leading-4 text-amber-200">
-            La disponibilidad del cliente podría no coincidir con el horario de la ruta. Verifica con Logística antes de confirmar.
-          </p>
-        </div>
-      ) : null}
-      {pendingDayRouteMode ? (
-        <span className="text-[11px] font-bold text-slate-500">
-          Elige la ruta ahora. Logística define el día y la hora.
-        </span>
-      ) : !showAllRoutes && weekdayLabel ? (
-        <span className="text-[11px] font-bold text-slate-500">
-          Solo aparecen rutas de {weekdayLabel}.
-        </span>
-      ) : null}
-      {showAllRoutes && !pendingDayRouteMode && selectedTemplate ? (
-        <span className="text-[11px] font-bold text-slate-500">
-          Solo se pueden elegir fechas de {logisticsWeekdayKeys[selectedTemplate.weekday] || "ese día"}.
-        </span>
-      ) : null}
-    </div>
+  const routeStepField = (
+    <LogisticsTaskScheduleRouteField
+      dayAsRoute={dayAsRoute}
+      pendingDayRouteMode={pendingDayRouteMode}
+      showAllRoutes={showAllRoutes}
+      routeTemplateId={routeTemplateId}
+      onRouteTemplateChange={selectRouteTemplate}
+      templateOptions={templateOptions}
+      dayTemplateCount={dayTemplates.length}
+      matchingTemplateCount={matchingTemplateCount}
+      namedTemplateCount={allNamedTemplatesForDay.length}
+      weekdayLabel={weekdayLabel}
+      selectedTemplate={selectedTemplate}
+      selectedCoverageMatches={
+        selectedTemplate ? activeRouteCoverageMatches?.get(selectedTemplate.id) : undefined
+      }
+      canOpenCoverageMap={coverageRoutes.length > 0}
+      onOpenCoverageMap={() => setCoverageMapOpen(true)}
+      draftTime={draft.time}
+    />
   );
 
   const timeField = !hasSelectedWeekday ? null : showTimeField ? (
-    <div className="grid gap-1">
-      <span className="text-[10px] font-black uppercase text-slate-500">Hora</span>
-      <ScheduleTimeField
-        value={draft.time}
-        suggestions={contextualScheduleSuggestions}
-        onChange={(time) => setDraft((current) => ({ ...current, time }))}
-      />
-    </div>
+    <ScheduleTimeField
+      value={draft.time}
+      suggestions={contextualScheduleSuggestions}
+      onChange={(time) => setDraft((current) => ({ ...current, time }))}
+    />
   ) : (
     <p className="text-sm font-bold text-amber-200">
       Falta elegir una ruta antes de confirmar.
@@ -680,9 +702,9 @@ export function LogisticsTaskScheduleConfirmPanel({
         emptyLabel="Sin conductores"
         ariaLabel="Conductor confirmado"
       />
-      {defaultDriverByWeekday[weekday] ? (
+      {selectedDefaultDriverId ? (
         <span className="text-[11px] font-bold text-slate-500">
-          Se seleccionó el conductor predeterminado de este día; puedes cambiarlo o dejarlo vacío.
+          Se seleccionó el conductor predeterminado de esta ruta; puedes cambiarlo o dejarlo vacío.
         </span>
       ) : (
         <span className="text-[11px] font-bold text-slate-500">
@@ -754,7 +776,7 @@ export function LogisticsTaskScheduleConfirmPanel({
   });
 
   async function confirmSchedule() {
-    if (!hasCompleteTime || !routeTemplateId) {
+    if (!canConfirm) {
       return;
     }
 
@@ -766,7 +788,8 @@ export function LogisticsTaskScheduleConfirmPanel({
   }
 
   return (
-    <ScheduleConfirmView
+    <>
+      <ScheduleConfirmView
       canConfirm={canConfirm}
       canGoBack={canGoBack}
       confirmLabel={confirmLabel}
@@ -791,7 +814,15 @@ export function LogisticsTaskScheduleConfirmPanel({
       summaryChips={summaryChips}
       taskTypeLabel={taskTypeLabel}
       title={title}
-      wizardSteps={wizardSteps}
-    />
+        wizardSteps={wizardSteps}
+      />
+      <LogisticsRouteCoveragePreviewDialog
+        open={coverageMapOpen}
+        onClose={() => setCoverageMapOpen(false)}
+        routes={coverageRoutes}
+        selectedRouteId={routeTemplateId}
+        customerLocation={coverageCustomerLocation}
+      />
+    </>
   );
 }

@@ -128,6 +128,20 @@ export function buildLogisticsScheduleSummaryChips(params: BuildScheduleSummaryC
   return summaryChips;
 }
 
+export function canConfirmLogisticsSchedule(params: {
+  hasSelectedWeekday: boolean;
+  hasCompleteTime: boolean;
+  routeSelectionValid: boolean;
+  dateMatchesRoute: boolean;
+}) {
+  return Boolean(
+    params.hasSelectedWeekday &&
+      params.hasCompleteTime &&
+      params.routeSelectionValid &&
+      params.dateMatchesRoute,
+  );
+}
+
 type ComputeSchedulePrimaryButtonsParams = {
   pendingDayRouteMode: boolean;
   isFinalStep: boolean;

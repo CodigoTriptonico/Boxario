@@ -1,4 +1,5 @@
 import { logisticsWeekdayKeys } from "@/lib/logistics-route-catalog";
+import { normalizeGenericLogisticsRouteName } from "@/lib/logistics-day-route";
 import { minScheduleDateInput } from "@/lib/schedule-date";
 import { isoToPlanScheduleAt } from "@/lib/shipment-schedule-history";
 
@@ -6,8 +7,17 @@ export type RouteTemplate = {
   id: string;
   weekday: number;
   name: string;
+  isSystemGeneral?: boolean;
   startTime?: string | null;
   estimatedEndTime?: string | null;
+  defaultDriverId?: string | null;
+  coverageMode?: "day_only" | "places";
+  coveredPostalCodes?: string[];
+  maxStops?: number | null;
+  maxBoxes?: number | null;
+  reservedStops?: number;
+  reservedBoxes?: number;
+  color?: string;
 };
 
 export type Driver = { id: string; label: string; roleSlug: string };
@@ -39,7 +49,7 @@ export function scheduleDraft(scheduledAt: string | null) {
 
 export function templateLabel(template: RouteTemplate) {
   const day = logisticsWeekdayKeys[template.weekday] || `Día ${template.weekday}`;
-  return `${day} · ${template.name}`;
+  return `${day} · ${normalizeGenericLogisticsRouteName(template.name, template.weekday)}`;
 }
 
 export function initialWizardStep(routeFirst: boolean): WizardStep {

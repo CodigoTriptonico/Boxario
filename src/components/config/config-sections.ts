@@ -1,4 +1,4 @@
-import { Building2, Clock, DollarSign, Palette, Truck, type LucideIcon } from "lucide-react";
+import { Building2, Clock, ShoppingBag, Palette, Truck, type LucideIcon } from "lucide-react";
 import { CONFIG_SECTION_LABELS } from "@/lib/config-section-labels";
 
 export type ConfigSection =
@@ -29,7 +29,7 @@ const configSectionCards = [
     id: "prices" as ConfigSection,
     title: CONFIG_SECTION_LABELS.prices.title,
     text: CONFIG_SECTION_LABELS.prices.text,
-    icon: DollarSign,
+    icon: ShoppingBag,
   },
   {
     id: "distributors" as ConfigSection,

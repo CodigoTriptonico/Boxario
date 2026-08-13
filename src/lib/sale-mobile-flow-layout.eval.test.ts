@@ -6,7 +6,7 @@ const ventaSource = readVentaClientSource();
 const stepBarSource = readVentaPartsSource();
 
 describe("venta mobile flow layout eval", () => {
-  it("pins Siguiente under the catalog and keeps a scrollable stepper without clipping step popovers", () => {
+  it("pins Siguiente under the catalog and keeps all mobile steps visible without clipping step popovers", () => {
     assert.match(
       ventaSource,
       /min-h-0 flex-1 overflow-y-auto pr-1[\s\S]*?flex shrink-0 justify-center border-t border-black\/80 pt-4[\s\S]*?onClick=\{continueFromCart\}/,
@@ -22,8 +22,9 @@ describe("venta mobile flow layout eval", () => {
     );
     assert.match(
       stepBarSource,
-      /<ol className="flex min-w-max items-start gap-0 lg:min-w-0 lg:w-full lg:gap-0">/,
+      /<ol className="grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0">/,
     );
+    assert.match(stepBarSource, /overflow-x-hidden lg:snap-x lg:snap-mandatory lg:overflow-x-auto/);
     assert.doesNotMatch(stepBarSource, /SaleMobileStepSummary|activeMobileStep/);
     assert.match(ventaSource, /<SaleHeaderCartTrigger/);
     assert.match(ventaSource, /setShellConfig\(\{ headerAction: saleHeaderCartAction \}\)/);

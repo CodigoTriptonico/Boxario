@@ -60,9 +60,13 @@ export async function savePricingConfigAction(
         const countryName = rpcError.message.split(":").slice(1).join(":").trim();
         return fail(
           countryName
-            ? `No puedes quitar ${countryName}: tiene destinatarios vinculados.`
+            ? `${countryName} no puede eliminarse porque tiene configuraciones relacionadas.`
             : "No puedes quitar un país con destinatarios vinculados.",
         );
+      }
+
+      if (/duplicate key|unique .*pricing_countries|already exists/i.test(rpcError.message)) {
+        return fail("Ese país ya está registrado.");
       }
 
       return fail(rpcError.message);

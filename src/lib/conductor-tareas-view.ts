@@ -19,7 +19,7 @@ export function isConductorRole(roleSlug: string) {
 }
 
 export function conductorTasksNavLabel(roleSlug: string) {
-  return isConductorRole(roleSlug) ? "Mis tareas" : "Tareas conductor";
+  return isConductorRole(roleSlug) ? "Mi ruta" : "Ruta conductor";
 }
 
 export function buildConductorPreviewPickerOptions(drivers: ReadonlyArray<ConductorDriverOption>) {

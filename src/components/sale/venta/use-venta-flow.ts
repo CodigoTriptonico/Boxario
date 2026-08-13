@@ -351,27 +351,34 @@ export function useVentaFlow(context: VentaFlowContext) {
     }
     setCustomersError("");
 
-    const result = await listCustomersWithRecipientsAction({
-      query: trimmedQuery || undefined,
-    });
+    try {
+      const result = await listCustomersWithRecipientsAction({
+        query: trimmedQuery || undefined,
+      });
 
-    if (showLoading) {
-      setCustomersLoading(false);
-    }
-    if (!result.ok) {
-      setCustomersError(result.error);
-      return;
-    }
-
-    const mapped = result.data.map(customerRowToSender);
-    setSenderList(mapped);
-    setSelectedSender((current) => {
-      if (!current) {
-        return current;
+      if (!result.ok) {
+        setCustomersError(result.error);
+        return;
       }
 
-      return mapped.find((sender) => sender.id === current.id) ?? current;
-    });
+      const mapped = result.data.map(customerRowToSender);
+      setSenderList(mapped);
+      setSelectedSender((current) => {
+        if (!current) {
+          return current;
+        }
+
+        return mapped.find((sender) => sender.id === current.id) ?? current;
+      });
+    } catch (error) {
+      setCustomersError(
+        error instanceof Error ? error.message : "No se pudieron cargar los remitentes.",
+      );
+    } finally {
+      if (showLoading) {
+        setCustomersLoading(false);
+      }
+    }
   }, [
     setCustomersError,
     setCustomersLoading,

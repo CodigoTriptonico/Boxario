@@ -51,12 +51,12 @@ describe("invoice visible on physical boxes eval", () => {
     assert.match(atomicSaleMigration, /invoice_created_by, invoice_paid_by/i);
   });
 
-  it("keeps logistics aware of pending, confirmed and missing invoices", () => {
+  it("keeps physical invoice evidence out of the logistics approval queue", () => {
     assert.match(shipmentsSource, /shipment_packages \(/);
     assert.match(shipmentsSource, /invoiceBoxEvidence/);
-    assert.match(logisticsSource, /Invoice por confirmar/);
-    assert.match(logisticsSource, /Invoice confirmado/);
-    assert.match(logisticsSource, /Invoice no visible/);
+    assert.doesNotMatch(logisticsSource, /Invoice por confirmar/);
+    assert.doesNotMatch(logisticsSource, /Invoice confirmado/);
+    assert.doesNotMatch(logisticsSource, /Invoice no visible/);
   });
 
   it("persists the delivery, pickup and incident states per physical package", () => {

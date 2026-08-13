@@ -161,6 +161,8 @@ export function useVentaSelection(context: VentaSelectionContext) {
     };
     const fallbackCatalog: LogisticsRouteCatalog = {
       enabledDays: [],
+      routeDefinitions: [],
+      schedules: [],
       templates: [],
       defaultDriverByWeekday: Array<string | null>(7).fill(null),
       weekdayScheduleByWeekday: Array(7).fill(null),
@@ -343,7 +345,7 @@ export function useVentaSelection(context: VentaSelectionContext) {
     groupHasSelection = false,
   ) {
     if (contextMenu?.type === type) {
-      return contextMenu.targetKey === targetKey ? contextActiveClass : "opacity-35";
+      return contextMenu.targetKey === targetKey ? contextActiveClass : "";
     }
 
     if (selected) {
@@ -367,7 +369,7 @@ export function useVentaSelection(context: VentaSelectionContext) {
     if (contextMenu?.type === type) {
       const activeClass =
         layout === "rows" ? salePersonRowContextActiveClass : contextActiveClass;
-      return contextMenu.targetKey === targetKey ? activeClass : "opacity-35";
+      return contextMenu.targetKey === targetKey ? activeClass : "";
     }
 
     if (selected) {

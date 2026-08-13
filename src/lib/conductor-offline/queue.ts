@@ -5,9 +5,9 @@ import {
   conductorOfflineRequiresAttention,
   conductorOfflineScopeKey,
   conductorOfflineTaskKey,
-  isRetryableConductorSyncStatus,
   summarizeConductorOfflineOperations,
 } from "@/lib/conductor-offline/queue-core";
+import { resolveConductorOfflineRetryable } from "@/lib/conductor-result-errors";
 import type {
   ConductorOfflineDraft,
   ConductorOfflineOperation,
@@ -311,7 +311,10 @@ async function flushScope(scope: ConductorOfflineScope) {
         continue;
       }
 
-      const retryable = payload?.retryable === true || isRetryableConductorSyncStatus(response.status);
+      const retryable = resolveConductorOfflineRetryable({
+        payloadRetryable: payload?.retryable,
+        httpStatus: response.status,
+      });
       await updateOperation(operation.id, (current) => ({
         ...current,
         status: retryable && !conductorOfflineRequiresAttention(current.attempts)
@@ -321,7 +324,7 @@ async function flushScope(scope: ConductorOfflineScope) {
         nextAttemptAt: retryable && !conductorOfflineRequiresAttention(current.attempts)
           ? conductorOfflineNextAttemptAt(current.attempts)
           : null,
-        lastError: String(payload?.error || `Error ${response.status}`),
+        lastError: String(payload?.error || payload?.message || `Error ${response.status}`),
       }));
     } catch (error) {
       await updateOperation(operation.id, (current) => ({

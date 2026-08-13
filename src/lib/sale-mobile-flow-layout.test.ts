@@ -40,16 +40,18 @@ describe("venta mobile flow layout", () => {
   it("keeps five mobile steps visible without a duplicate active-step summary", () => {
     assert.match(
       stepBarSource,
-      /flex min-w-max items-start gap-0 lg:min-w-0 lg:w-full/,
+      /grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0/,
     );
     assert.match(
       stepBarSource,
-      /lg:snap-x lg:snap-mandatory lg:overflow-x-auto/,
+      /overflow-x-hidden lg:snap-x lg:snap-mandatory lg:overflow-x-auto/,
     );
     assert.doesNotMatch(stepBarSource, /SaleMobileStepSummary/);
     assert.doesNotMatch(stepBarSource, /aria-label=\{`Detalle de \$\{step\.label\}`\}/);
-    assert.match(stepBarSource, /w-\[13\.5rem\] lg:flex-\[1\.45\]/);
-    assert.match(stepBarSource, /w-\[8\.5rem\] lg:flex-1/);
+    assert.match(stepBarSource, /relative flex min-w-0 flex-col lg:w-auto lg:snap-start/);
+    assert.match(stepBarSource, /lg:flex-\[1\.45\]/);
+    assert.match(stepBarSource, /lg:flex-1/);
+    assert.doesNotMatch(stepBarSource, /w-\[(?:13\.5|8\.5)rem\]/);
   });
 
   it("keeps the cart out of Caja content and registers it as a header action", () => {

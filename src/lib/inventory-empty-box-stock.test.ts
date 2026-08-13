@@ -4,7 +4,6 @@ import {
   availableEmptyBoxStock,
   matchEmptyBoxQuoteLinesToStock,
   readEmptyBoxQuoteLinesFromPlan,
-  shouldReserveEmptyBoxStockOnSale,
   withEmptyBoxStockReservedPlan,
 } from "./inventory-empty-box-stock";
 
@@ -17,23 +16,6 @@ describe("inventory-empty-box-stock", () => {
     assert.equal(lines.length, 1);
     assert.equal(lines[0]?.label, "12x12x12");
     assert.equal(lines[0]?.quantity, 2);
-  });
-
-  it("requires reservation when sale has boxes and stock is not deducted", () => {
-    assert.equal(
-      shouldReserveEmptyBoxStockOnSale({
-        boxLines: [{ label: "12x12x12", quantity: 1 }],
-        emptyBox: { mode: "Programar entrega de caja vacia" },
-      }),
-      true,
-    );
-    assert.equal(
-      shouldReserveEmptyBoxStockOnSale({
-        boxLines: [{ label: "12x12x12", quantity: 1 }],
-        emptyBox: { stockDeductedAt: "2026-01-01T00:00:00.000Z" },
-      }),
-      false,
-    );
   });
 
   it("matches quote lines to stock rows using available stock", () => {
@@ -71,6 +53,25 @@ describe("inventory-empty-box-stock", () => {
         ),
       /Stock insuficiente/,
     );
+  });
+
+  it("can defer the final availability check to the atomic sale command", () => {
+    const matches = matchEmptyBoxQuoteLinesToStock(
+      [{ label: "18x18x18", quantity: 4 }],
+      [
+        {
+          id: "stock-1",
+          item_id: "item-1",
+          stock: 5,
+          reserved: 3,
+          inventory_items: { id: "item-1", name: "Caja grande", kind: "18x18x18" },
+        },
+      ],
+      { validateAvailability: false },
+    );
+
+    assert.equal(matches[0]?.quantity, 4);
+    assert.equal(matches[0]?.available, 2);
   });
 
   it("stores reservation metadata on the logistics plan", () => {

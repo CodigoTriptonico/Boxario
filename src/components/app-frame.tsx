@@ -1,5 +1,6 @@
 "use client";
 
+import { PageContentPlaceholder } from "@/components/page-loading";
 import { createContext, Suspense, useCallback, useContext, useMemo, useState } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { AppShell } from "@/components/app-shell";
@@ -96,7 +97,6 @@ export function AppFrame({
     <NotificationProvider>
       <UiSurfacePreferencesProvider>
       <ShellConfigContext.Provider value={mergeShellConfig}>
-      <Suspense fallback={null}>
         <OnboardingCoachProvider organizationId={session?.organizationId ?? null}>
           <AppShell
             session={session}
@@ -117,11 +117,14 @@ export function AppFrame({
             contentEdgeToEdge={config.contentEdgeToEdge}
             surfaceContextId={surfaceContextId}
           >
-            {children}
+            <Suspense fallback={<PageContentPlaceholder />}>
+              {children}
+            </Suspense>
           </AppShell>
-          <OnboardingCoachOverlay />
+          <Suspense fallback={null}>
+            <OnboardingCoachOverlay />
+          </Suspense>
         </OnboardingCoachProvider>
-      </Suspense>
     </ShellConfigContext.Provider>
       </UiSurfacePreferencesProvider>
     </NotificationProvider>

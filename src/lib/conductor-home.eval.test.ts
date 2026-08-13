@@ -28,11 +28,11 @@ describe("conductor home eval", () => {
   it("shows operational pickup and delivery counts on conductor home", () => {
     assert.match(conductorHomeSource, /Cajas por dejar/);
     assert.match(conductorHomeSource, /por subir al camión/);
-    assert.match(conductorHomeSource, /inventario-camion\?subir=1/);
+    assert.match(conductorHomeSource, /conductor\/tareas\?view=carga/);
     assert.match(conductorHomeSource, /en el camión · Carga lista/);
     assert.match(conductorHomeSource, /Cajas por recoger/);
     assert.doesNotMatch(conductorHomeSource, /Domicilios/);
-    assert.match(conductorHomeSource, /Ver mis tareas/);
+    assert.match(conductorHomeSource, /Abrir mi ruta/);
     assert.doesNotMatch(conductorHomeSource, /Tareas totales/);
     assert.doesNotMatch(conductorHomeSource, /Entregas vacías/);
     assert.doesNotMatch(conductorHomeSource, /Recogidas llenas/);

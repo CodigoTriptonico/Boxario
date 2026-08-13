@@ -1,9 +1,16 @@
 "use client";
 
 import { Camera, CheckCircle2, Loader2, X, XCircle } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { loadAxisSettingsAction } from "@/app/actions/axis-settings";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { formatMoneyValue } from "@/lib/logistics-fees";
-import { PAYMENT_METHOD_OPTIONS, type PaymentMethod } from "@/lib/payment-methods";
+import {
+  DEFAULT_PAYMENT_METHOD_SETTINGS,
+  paymentMethodOptionsFor,
+  type PaymentMethod,
+  type PaymentMethodSettings,
+} from "@/lib/payment-methods";
 import type { ConductorPaymentChoice } from "@/lib/conductor-driver-payment";
 import { CONDUCTOR_TASK_FAILURE_REASONS } from "@/lib/conductor-truck-inventory";
 import type { ConductorDriverTask } from "@/lib/conductor-tasks";
@@ -62,6 +69,32 @@ export function ConductorTaskResultDialog({
   onPaymentMethodChange,
   onSubmit,
 }: ConductorTaskResultDialogProps) {
+  const [paymentSettings, setPaymentSettings] = useState<PaymentMethodSettings>(
+    DEFAULT_PAYMENT_METHOD_SETTINGS,
+  );
+
+  useEffect(() => {
+    let active = true;
+    void loadAxisSettingsAction().then((result) => {
+      if (!active || !result.ok) return;
+      setPaymentSettings(result.data.sales);
+      if (!result.data.sales.driverPaymentMethods.includes(paymentMethod)) {
+        onPaymentMethodChange(
+          result.data.sales.driverPaymentMethods[0] || result.data.sales.defaultPaymentMethod,
+        );
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [onPaymentMethodChange, paymentMethod]);
+
+  const driverPaymentOptions = useMemo(
+    () => paymentMethodOptionsFor(paymentSettings.driverPaymentMethods),
+    [paymentSettings.driverPaymentMethods],
+  );
+  const paymentReferenceRequired = paymentSettings.referenceRequiredMethods.includes(paymentMethod);
+
   return (
     <div className="fixed inset-0 z-[160] flex items-center justify-center bg-black/70 p-3 sm:p-4">
       <button
@@ -181,6 +214,11 @@ export function ConductorTaskResultDialog({
                   No recibí dinero
                 </button>
               </div>
+              {paymentChoice === "none" ? (
+                <p className="text-xs font-black text-amber-200">
+                  El saldo seguira pendiente. Escribe abajo por que no recibiste dinero.
+                </p>
+              ) : null}
               {paymentChoice === "custom" ? (
                 <label className="grid gap-1.5 text-xs font-black text-slate-400">
                   Monto recibido
@@ -203,7 +241,7 @@ export function ConductorTaskResultDialog({
                     disabled={saving}
                     onChange={(event) => onPaymentMethodChange(event.target.value as PaymentMethod)}
                   >
-                    {PAYMENT_METHOD_OPTIONS.map((option) => (
+                    {driverPaymentOptions.map((option) => (
                       <option key={option.value} value={option.value}>
                         {option.label}
                       </option>
@@ -215,7 +253,11 @@ export function ConductorTaskResultDialog({
           ) : null}
 
           <label className="grid gap-1.5 text-xs font-black text-slate-400">
-            Nota
+            {paymentChoice === "none"
+              ? "Motivo de cobro pendiente"
+              : paymentReferenceRequired && paymentChoice
+              ? "Nota / referencia obligatoria"
+              : "Nota"}
             <textarea
               className="min-h-24 rounded-lg border border-black bg-surface-inset px-3 py-2 text-sm font-bold leading-snug text-[#f8fafc] outline-none placeholder:text-slate-500 disabled:opacity-50"
               value={note}
@@ -238,7 +280,7 @@ export function ConductorTaskResultDialog({
             <button
               type="button"
               className={`${primaryButtonClass} h-11 text-sm disabled:cursor-not-allowed disabled:opacity-40`}
-              disabled={saving || (dialogNeedsPhoto && !evidence) || (dialog.result === "completed" && !invoiceVisible) || (needsPaymentChoice && !paymentChoice)}
+              disabled={saving || (dialogNeedsPhoto && !evidence) || (dialog.result === "completed" && !invoiceVisible) || (needsPaymentChoice && !paymentChoice) || (paymentChoice === "none" && note.trim().length < 3) || (paymentReferenceRequired && paymentChoice !== "none" && !note.trim())}
               onClick={onSubmit}
             >
               {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : null}

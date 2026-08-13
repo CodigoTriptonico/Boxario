@@ -2,7 +2,9 @@
 
 import { useEffect, useRef } from "react";
 import type { VentaBootstrapData } from "@/app/actions/sale-bootstrap";
+import { listCustomerLogisticsChargeHistoryAction } from "@/app/actions/sale-customer-history";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { emptyCustomerLogisticsChargeHistory } from "@/lib/logistics-charge-history";
 import { type AddressFormKind, type AddressSuggestResponse, type AddressSuggestion, applyAddressSuggestResult } from "@/components/sale/venta-parts";
 import { formatValidatedAddress } from "@/components/sale/venta/shared";
 import type { VentaCore } from "@/components/sale/venta/use-venta-core";
@@ -38,18 +40,21 @@ export function useVentaEffects(
     newRecipientPostalCode,
     newRecipientState,
     newRecipientStreet,
+    quickSaleSender,
     recipientAddressQuery,
     recipientAddressValidation,
     recipientsHydratingRef,
     reloadCustomers,
     reloadHistory,
     resetNewRecipientForm,
+    selectedSender,
     senderQuery,
     setActiveStep,
     setClientAddressSearch,
     setClientAddressSearching,
     setClientAddressSuggestions,
     setClientAddressValidation,
+    setCustomerLogisticsChargeHistory,
     setMode,
     setNewClientCity,
     setNewClientHouse,
@@ -136,6 +141,30 @@ export function useVentaEffects(
       void reloadHistory();
     });
   }, [historyLoading, historyRows.length, mode, reloadHistory]);
+
+  useEffect(() => {
+    const customerId = String(quickSaleSender?.id || selectedSender?.id || "").trim();
+    if (!customerId || customerId.startsWith("local-") || !isSupabaseConfigured()) {
+      setCustomerLogisticsChargeHistory(emptyCustomerLogisticsChargeHistory());
+      return;
+    }
+
+    let cancelled = false;
+    void listCustomerLogisticsChargeHistoryAction({ customerId }).then((result) => {
+      if (cancelled) {
+        return;
+      }
+      if (!result.ok) {
+        setCustomerLogisticsChargeHistory(emptyCustomerLogisticsChargeHistory());
+        return;
+      }
+      setCustomerLogisticsChargeHistory(result.data);
+    });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [quickSaleSender?.id, selectedSender?.id, setCustomerLogisticsChargeHistory]);
 
   function startRecipientCreation() {
     if (needsRecipientCountrySetup) {

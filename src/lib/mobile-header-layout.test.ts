@@ -18,9 +18,12 @@ test("the mobile account control is a 40px icon trigger while the desktop label 
 
 test("conductor information disclosures stay inside a phone viewport", () => {
   const conductorTasks = readConductorTareasClientSource(root);
+  const disclosure = source("src/components/compact-info-disclosure.tsx");
 
-  assert.match(conductorTasks, /fixed inset-x-4 top-1\/2[\s\S]*-translate-y-1\/2/);
-  assert.match(conductorTasks, /sm:absolute sm:inset-x-auto sm:top-full[\s\S]*sm:max-w-\[calc\(100vw-2rem\)\]/);
+  assert.match(conductorTasks, /CompactInfoDisclosure/);
+  assert.match(disclosure, /createPortal\(/);
+  assert.match(disclosure, /document\.documentElement\.clientWidth/);
+  assert.match(disclosure, /width: position\?\.width \?\? "min\(20rem, calc\(100vw - 1\.5rem\)\)"/);
 });
 
 test("the employee clock entry form uses the available mobile grid track", () => {

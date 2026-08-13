@@ -1,8 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useState, useTransition } from "react";
+import { useCallback, useEffect, useRef, useState, useTransition } from "react";
 import { Building2, CheckCircle2, Loader2, MapPin } from "lucide-react";
 import { completeConductorAgencyVisitAction, listConductorAgencyVisitsAction, type AgencyDriverVisit } from "@/app/actions/agency-operations";
+import { agencyCompleteVisitIdempotencyKey } from "@/lib/agency-idempotency";
 import { agencyVisitCanClose } from "@/lib/agency-route-operations";
 import { useNotify } from "@/hooks/use-notify";
 import { CompactInfoDisclosure, Panel, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
@@ -15,6 +16,8 @@ export function AgencyVisitsPanel({ driverId }: { driverId: string }) {
   const [openId, setOpenId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const [confirmation, setConfirmation] = useState<VisitConfirmation>({});
+  const busyRef = useRef(false);
+  const completeKeyByVisitRef = useRef<Record<string, string>>({});
 
   const reload = useCallback(async () => {
     const result = await listConductorAgencyVisitsAction(driverId);
@@ -33,14 +36,28 @@ export function AgencyVisitsPanel({ driverId }: { driverId: string }) {
   }
 
   function closeVisit(visit: AgencyDriverVisit) {
+    if (busyRef.current || pending) return;
     const lines = visit.lines.map((line) => { const value = lineConfirmation(line); return { visitLineId: line.id, confirmedQuantity: Number(value.quantity), differenceReason: value.reason, evidence: { source: "driver_confirmation", serviceCode: line.serviceCode } }; });
     if (lines.some((line, index) => !agencyVisitCanClose({ requested: visit.lines[index].requestedQuantity, confirmed: line.confirmedQuantity, differenceReason: line.differenceReason }))) {
       notify.error("Indica la cantidad real y el motivo cuando exista una diferencia."); return;
     }
+    const idempotencyKey =
+      completeKeyByVisitRef.current[visit.id] || agencyCompleteVisitIdempotencyKey(visit.id);
+    completeKeyByVisitRef.current[visit.id] = idempotencyKey;
+    busyRef.current = true;
     startTransition(async () => {
-      const result = await completeConductorAgencyVisitAction({ visitId: visit.id, lines });
-      if (!result.ok) return notify.error(result.error);
-      notify.success("Visita operativa confirmada."); setOpenId(null); setConfirmation({}); await reload();
+      try {
+        const result = await completeConductorAgencyVisitAction({
+          visitId: visit.id,
+          lines,
+          idempotencyKey,
+        });
+        if (!result.ok) return notify.error(result.error);
+        delete completeKeyByVisitRef.current[visit.id];
+        notify.success("Visita operativa confirmada."); setOpenId(null); setConfirmation({}); await reload();
+      } finally {
+        busyRef.current = false;
+      }
     });
   }
 

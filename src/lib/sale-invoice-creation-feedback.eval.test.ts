@@ -12,10 +12,6 @@ const dialogSource = readFileSync(
   "utf8",
 );
 const shipmentsSource = readShipmentActionsSource(root);
-const notificationsSource = readFileSync(
-  join(root, "src/components/notifications/notifications-center.tsx"),
-  "utf8",
-);
 const quickCheckoutSource = readFileSync(
   join(root, "src/components/sale/sale-quick-checkout-modal.tsx"),
   "utf8",
@@ -33,17 +29,13 @@ describe("invoice creation feedback eval", () => {
     assert.match(dialogSource, /errorMessage \? \(/);
   });
 
-  it("creates the sale and warns when stock cannot be reserved", () => {
-    assert.match(shipmentsSource, /mode: "skip"/);
-    assert.match(shipmentsSource, /stockWarning/);
-    assert.match(shipmentsSource, /source: "inventory_pending"/);
-    assert.match(shipmentsSource, /shipment\.inventory_pending/);
-    assert.match(ventaSource, /shipmentResult\.data\.stockWarning/);
-    assert.match(ventaSource, /notify\.info\(/);
-    assert.match(ventaSource, /Revisa Notificaciones/);
-    assert.doesNotMatch(ventaSource, /Advertencia de inventario/);
-    assert.match(notificationsSource, /Pendiente de inventario/);
-    assert.match(notificationsSource, /inventory_pending/);
+  it("blocks invoice creation when stock cannot be reserved", () => {
+    assert.doesNotMatch(shipmentsSource, /mode: "skip"/);
+    assert.doesNotMatch(shipmentsSource, /source: "inventory_pending"/);
+    assert.doesNotMatch(shipmentsSource, /shipment\.inventory_pending/);
+    assert.match(shipmentsSource, /validateAvailability: false/);
+    assert.match(shipmentsSource, /SALE_COMMAND_INVENTORY_INSUFFICIENT/);
+    assert.doesNotMatch(ventaSource, /shipmentResult\.data\.stockWarning/);
     assert.match(quickCheckoutSource, /stockMessage && !completed/);
   });
 });

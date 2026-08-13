@@ -3,6 +3,10 @@ import { categoriesToConfig, type DbCategory } from "@/lib/inventory-backend";
 import type { CategoryConfig } from "@/lib/inventory-tree";
 import { listCatalogProducts } from "@/lib/pricing-catalog";
 import { defaultInvoiceBillingConfig } from "@/lib/invoice-billing";
+import {
+  DEFAULT_PAYMENT_METHOD_SETTINGS,
+  normalizePaymentMethodSettings,
+} from "@/lib/payment-methods";
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import { promotionFromDbRow } from "@/lib/combo-rules";
 import type { AppSession } from "@/lib/auth/types";
@@ -31,7 +35,10 @@ export const emptyRouteConfig: PricingRouteConfig = {
   emptyBoxDeliveryFee: defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
   fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
   minimumDeposit: defaultInvoiceBillingConfig.minimumDeposit,
+  pickupIncludedDays: defaultInvoiceBillingConfig.pickupIncludedDays || 30,
+  latePickupFee: defaultInvoiceBillingConfig.latePickupFee || "$0",
   logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,
+  ...DEFAULT_PAYMENT_METHOD_SETTINGS,
   scheduleSuggestions: normalizeScheduleSuggestionConfig(undefined),
 };
 
@@ -186,7 +193,7 @@ export async function loadPricingConfigForSession(
     supabase
       .from("organization_route_settings")
       .select(
-        "delivery_days, pickup_days, delivery_ranges, pickup_ranges, pending_allowed, route_lead_time, linked_route_schedules, empty_box_delivery_fee, full_box_pickup_fee, minimum_deposit, logistics_fee_mode, schedule_suggestions",
+        "delivery_days, pickup_days, delivery_ranges, pickup_ranges, pending_allowed, route_lead_time, linked_route_schedules, empty_box_delivery_fee, full_box_pickup_fee, minimum_deposit, pickup_included_days, late_pickup_fee, logistics_fee_mode, schedule_suggestions, accepted_payment_methods, driver_payment_methods, default_payment_method, payment_reference_required_methods",
       )
       .eq("organization_id", orgId)
       .maybeSingle(),
@@ -310,7 +317,15 @@ export async function loadPricingConfigForSession(
           fullBoxPickupFee:
             routeRow.full_box_pickup_fee || defaultInvoiceBillingConfig.fullBoxPickupFee,
           minimumDeposit: routeRow.minimum_deposit || defaultInvoiceBillingConfig.minimumDeposit,
+          pickupIncludedDays: Math.max(Number(routeRow.pickup_included_days) || 30, 1),
+          latePickupFee: routeRow.late_pickup_fee || "$0",
           logisticsFeeMode: "per_trip",
+          ...normalizePaymentMethodSettings({
+            acceptedPaymentMethods: routeRow.accepted_payment_methods,
+            driverPaymentMethods: routeRow.driver_payment_methods,
+            defaultPaymentMethod: routeRow.default_payment_method,
+            referenceRequiredMethods: routeRow.payment_reference_required_methods,
+          }),
           scheduleSuggestions: normalizeScheduleSuggestionConfig(undefined),
         }
       : emptyRouteConfig,

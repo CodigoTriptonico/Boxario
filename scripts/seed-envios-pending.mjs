@@ -1,14 +1,17 @@
 /**
- * Demo local: 20 invoices pendientes en envíos (10 por dejar, 10 por recoger).
- * Uso: node scripts/seed-envios-pending.mjs
+ * Demo local: invoices pendientes en envíos (por dejar / por recoger).
+ * Uso:
+ *   node scripts/seed-envios-pending.mjs
+ *   COUNT_PER_BUCKET=1 node scripts/seed-envios-pending.mjs
  */
 import fs from "node:fs";
+import os from "node:os";
 import path from "node:path";
 import { connectPg } from "./lib/db-connection.mjs";
+import { resolveScgsOrgId } from "./lib/scgs-demo-recipients.mjs";
 
-const SCGS_ORG_ID = process.env.SCGS_ORG_ID || "2029bf0c-e766-4840-9d90-f4b252cc3fe9";
-const OUT_DIR = "/tmp/boxario-envios-pending";
-const COUNT_PER_BUCKET = 10;
+const OUT_DIR = path.join(os.tmpdir(), "boxario-envios-pending");
+const COUNT_PER_BUCKET = Math.max(1, Number(process.env.COUNT_PER_BUCKET || 10) || 10);
 const BOX_LABELS = ["14x14x14", "16x16x16", "18x18x18"];
 
 function isoFromNow(hours) {
@@ -153,15 +156,15 @@ function fullBoxPickupPlan(boxLabel, warehouseId, deliveredAt) {
       promotion: null,
     },
     fullBox: {
-      mode: "",
+      mode: "Programar recoleccion caja llena",
       label: "full_box",
-      deferred: true,
+      deferred: false,
       scheduleAt: null,
-      scheduleMode: null,
-      driverTaskType: null,
-      driverTaskNeeded: false,
+      scheduleMode: "pending",
+      driverTaskType: "pickup_full_box",
+      driverTaskNeeded: true,
     },
-    summary: "Caja vacia: Caja vacia entregada en mostrador | Caja llena: Recolección pendiente",
+    summary: "Caja vacia: Caja vacia entregada en mostrador | Caja llena: Programar recoleccion caja llena - pendiente",
     boxCount: 1,
     boxLines: [
       {
@@ -185,11 +188,11 @@ function fullBoxPickupPlan(boxLabel, warehouseId, deliveredAt) {
       stockDeductedAt: deliveredAt,
       driverTaskNeeded: false,
     },
-    driverTaskCount: 0,
+    driverTaskCount: 1,
   };
 }
 
-async function ensureOrgContext(client) {
+async function ensureOrgContext(client, orgId) {
   const owner = await client.query(
     `
       select p.id
@@ -200,7 +203,7 @@ async function ensureOrgContext(client) {
       order by case when r.slug = 'administrador' then 0 else 1 end, p.created_at asc
       limit 1
     `,
-    [SCGS_ORG_ID],
+    [orgId],
   );
   if (!owner.rowCount) {
     throw new Error("No hay usuario activo para crear invoices demo.");
@@ -214,16 +217,17 @@ async function ensureOrgContext(client) {
       order by is_default desc, created_at asc
       limit 1
     `,
-    [SCGS_ORG_ID],
+    [orgId],
   );
 
   return {
+    orgId,
     ownerId: owner.rows[0].id,
     warehouseId: warehouse.rows[0]?.id ?? null,
   };
 }
 
-async function loadCustomerRecipients(client) {
+async function loadCustomerRecipients(client, orgId) {
   const { rows } = await client.query(
     `
       select
@@ -248,7 +252,7 @@ async function loadCustomerRecipients(client) {
       where c.organization_id = $1
       order by c.created_at, r.created_at
     `,
-    [SCGS_ORG_ID],
+    [orgId],
   );
 
   if (rows.length < COUNT_PER_BUCKET * 2) {
@@ -258,17 +262,25 @@ async function loadCustomerRecipients(client) {
   return rows;
 }
 
-async function nextInvoiceNumber(client) {
-  const { rows } = await client.query(
-    "select public.next_organization_invoice_number($1) as last_number",
-    [SCGS_ORG_ID],
-  );
-
-  return `INV-${String(rows[0].last_number).padStart(6, "0")}`;
+async function nextInvoiceNumber(client, orgId, ownerId) {
+  await client.query("set local role authenticated");
+  await client.query("select set_config('request.jwt.claims', $1, true)", [
+    JSON.stringify({ sub: ownerId, role: "authenticated" }),
+  ]);
+  try {
+    const { rows } = await client.query(
+      "select public.next_organization_invoice_number($1) as last_number",
+      [orgId],
+    );
+    return `INV-${String(rows[0].last_number).padStart(6, "0")}`;
+  } finally {
+    await client.query("select set_config('request.jwt.claims', '', true)");
+    await client.query("reset role");
+  }
 }
 
 async function insertShipment(client, context, row, bucket, index) {
-  const code = await nextInvoiceNumber(client);
+  const code = await nextInvoiceNumber(client, context.orgId, context.ownerId);
   const boxLabel = BOX_LABELS[index % BOX_LABELS.length];
   const customerName = `${row.first_name} ${row.last_name}`;
   const snapshot = recipientSnapshot(row);
@@ -297,7 +309,7 @@ async function insertShipment(client, context, row, bucket, index) {
       )
     `,
     [
-      SCGS_ORG_ID,
+      context.orgId,
       code,
       row.customer_id,
       row.recipient_id,
@@ -322,7 +334,7 @@ async function insertShipment(client, context, row, bucket, index) {
   };
 }
 
-async function snapshotPending(client) {
+async function snapshotPending(client, orgId) {
   const { rows } = await client.query(
     `
       select code, customer_name, status
@@ -331,7 +343,7 @@ async function snapshotPending(client) {
         and status in ('Pendiente entrega caja vacía', 'Pendiente recolección caja llena')
       order by created_at, code
     `,
-    [SCGS_ORG_ID],
+    [orgId],
   );
 
   return rows;
@@ -344,9 +356,10 @@ async function main() {
 
   const { client, label } = await connectPg();
   try {
-    const context = await ensureOrgContext(client);
-    const recipients = await loadCustomerRecipients(client);
-    const before = await snapshotPending(client);
+    const org = await resolveScgsOrgId(client);
+    const context = await ensureOrgContext(client, org.id);
+    const recipients = await loadCustomerRecipients(client, org.id);
+    const before = await snapshotPending(client, org.id);
     writeCsv(path.join(OUT_DIR, "before.csv"), before.map((row) => ({
       ...row,
       bucket: row.status === "Pendiente entrega caja vacía" ? "por_dejar" : "por_recoger",
@@ -373,7 +386,7 @@ async function main() {
       );
     }
 
-    const after = await snapshotPending(client);
+    const after = await snapshotPending(client, org.id);
     writeCsv(path.join(OUT_DIR, "after.csv"), after.map((row) => ({
       ...row,
       bucket: row.status === "Pendiente entrega caja vacía" ? "por_dejar" : "por_recoger",
@@ -383,20 +396,14 @@ async function main() {
 
     const porDejar = after.filter((row) => row.status === "Pendiente entrega caja vacía").length;
     const porRecoger = after.filter((row) => row.status === "Pendiente recolección caja llena").length;
-    const report = [
-      "metric,value",
-      `database,${label}`,
-      `created_this_run,${created.length}`,
-      `pending_por_dejar,${porDejar}`,
-      `pending_por_recoger,${porRecoger}`,
-      `pending_total,${after.length}`,
-    ].join("\n");
-    fs.writeFileSync(path.join(OUT_DIR, "report.csv"), `${report}\n`, "utf8");
     fs.appendFileSync(progressPath, `[${new Date().toISOString()}] seed envios pending: terminado\n`, "utf8");
 
     console.log(`OK: ${created.length} invoices creados (${COUNT_PER_BUCKET} por dejar, ${COUNT_PER_BUCKET} por recoger)`);
+    for (const row of created) {
+      console.log(`- ${row.code} · ${row.customer_name} · ${row.bucket}`);
+    }
     console.log(`Pendientes totales: ${after.length} (${porDejar} por dejar, ${porRecoger} por recoger)`);
-    console.log(`Reporte: ${path.join(OUT_DIR, "report.csv")}`);
+    console.log(`DB: ${label} · Org: ${org.name}`);
   } catch (error) {
     await client.query("rollback").catch(() => {});
     throw error;

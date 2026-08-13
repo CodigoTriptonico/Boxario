@@ -12,6 +12,7 @@ import {
   shipmentBoxLinesDetailLabel,
 } from "@/lib/shipment-display";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
+import { normalizeGenericLogisticsRouteName } from "@/lib/logistics-day-route";
 
 type CustomerRouteSupabase = NonNullable<
   Awaited<ReturnType<typeof createScopedSupabase>>
@@ -48,6 +49,12 @@ export function mapRequestRow(
   const phones = Array.isArray(row.customer?.phones)
     ? row.customer.phones
     : [];
+  const routeWeekday = Number(
+    row.schedule?.weekday ?? row.template?.weekday ?? row.route_weekday ?? -1,
+  );
+  const routeTemplateName = String(
+    row.definition?.name || row.template?.name || row.route_name || "",
+  ).trim() || "Ruta";
 
   return {
     id: row.id,
@@ -68,10 +75,13 @@ export function mapRequestRow(
       String(row.shipment?.code || "").trim() || "—",
     taskId: row.task_id,
     taskType: String(row.task?.task_type || "").trim(),
-    routeTemplateId: row.route_template_id,
-    routeTemplateName:
-      String(row.template?.name || "").trim() || "Ruta",
-    routeWeekday: Number(row.template?.weekday ?? -1),
+    routeTemplateId: row.route_template_id || null,
+    routeDefinitionId: row.route_definition_id || null,
+    routeScheduleId: row.route_schedule_id || null,
+    routeTemplateName: normalizeGenericLogisticsRouteName(routeTemplateName, routeWeekday),
+    routeWeekday,
+    routeDate: row.route_date,
+    routeId: row.route_id || null,
     scheduledAt:
       logisticsScheduleExpressionFromWindow({
         scheduledAt:
@@ -87,6 +97,11 @@ export function mapRequestRow(
         "Conductor"
       : "Sin conductor todavía",
     zoneKey: row.zone_key,
+    postalCode: row.postal_code || "",
+    addressFingerprint: row.address_fingerprint || "",
+    coverageStatus: row.coverage_status === "outside" ? "outside" : "matched",
+    lat: address?.lat ?? null,
+    lng: address?.lng ?? null,
     boxLines,
     boxSummary:
       shipmentBoxLinesDetailLabel(boxLines) ||

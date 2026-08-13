@@ -8,6 +8,7 @@ import {
   findCountryByNormalizedName,
 } from "@/lib/country-options";
 import type { PricingCountryConfig } from "@/lib/pricing/types";
+import type { PricingFlushPendingSave } from "@/hooks/use-pricing-backend";
 import type { useNotify } from "@/hooks/use-notify";
 import type { CountryContextMenu, CountryProductContextMenu } from "@/components/config/config-pricing-helpers";
 
@@ -19,7 +20,7 @@ type ConfigCountryPricingEffectsParams = {
   pricingError: string | null;
   countries: PricingCountryConfig[];
   setCountries: React.Dispatch<React.SetStateAction<PricingCountryConfig[]>>;
-  flushPendingSave: () => void | Promise<void>;
+  flushPendingSave: PricingFlushPendingSave;
   activeCountry: string | null;
   selectedCountry: string | null;
   setSelectedCountry: React.Dispatch<React.SetStateAction<string | null>>;
@@ -285,11 +286,22 @@ export function useConfigCountryPricingEffects(params: ConfigCountryPricingEffec
       setCountryProductContextMenu(null);
     };
 
+    const closeMenusOnEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      setCountryContextMenu(null);
+      setCountryProductContextMenu(null);
+    };
+
     window.addEventListener("pointerdown", closeMenusOnPointerDown);
+    window.addEventListener("keydown", closeMenusOnEscape);
     window.addEventListener("scroll", closeMenusOnScroll, true);
 
     return () => {
       window.removeEventListener("pointerdown", closeMenusOnPointerDown);
+      window.removeEventListener("keydown", closeMenusOnEscape);
       window.removeEventListener("scroll", closeMenusOnScroll, true);
     };
   }, [

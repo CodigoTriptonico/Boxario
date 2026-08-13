@@ -13,12 +13,11 @@ import { readPositiveIntegerQty } from "@/lib/security/qty";
 import {
   conductorActionAuditMetadata,
   cleanText,
+  conductorTruckInventoryMoveAtomic,
   findInventoryLine,
-  insertTruckEvent,
   loadTruckInventoryView,
   loadTruckStock,
   mapTruckEvent,
-  recordConductorWarehouseMovement,
   requireConductorMutationContext,
   requireTruckVehicleId,
   resolveConductorActionDriverId,
@@ -32,6 +31,7 @@ import {
 export async function getConductorTruckInventoryAction(
   driverId?: string | null,
   routeId?: string | null,
+  scopeDate?: string,
 ): Promise<ActionResult<ConductorTruckInventoryView>> {
   try {
     const session = await requireAppSession();
@@ -41,7 +41,7 @@ export async function getConductorTruckInventoryAction(
     }
 
     const effectiveDriverId = resolveConductorActionDriverId(session, driverId);
-    return ok(await loadTruckInventoryView(session, effectiveDriverId, routeId));
+    return ok(await loadTruckInventoryView(session, effectiveDriverId, routeId, scopeDate));
   } catch (error) {
     return fail(actionErrorMessage(error));
   }
@@ -248,7 +248,7 @@ export async function loadConductorTruckLineAction(input: {
   qty?: number;
 }): Promise<ActionResult<ConductorTruckInventoryView>> {
   try {
-    const { admin, session } = await requireConductorMutationContext();
+    const { admin, supabase, session } = await requireConductorMutationContext();
     const driverId = resolveConductorActionDriverId(session, input.driverId);
 
     const view = await loadTruckInventoryView(session, driverId, input.routeId);
@@ -267,21 +267,14 @@ export async function loadConductorTruckLineAction(input: {
       return fail(validationError);
     }
 
-    await recordConductorWarehouseMovement(admin, session, {
+    await conductorTruckInventoryMoveAtomic(supabase, {
+      driverId,
+      sourceVehicleId: vehicleId,
       line,
-      type: "salida",
       qty,
       note: `Carga camion - ${line.label}`,
-      driverId,
-    });
-    await insertTruckEvent(admin, session, {
-      driverId,
-      vehicleId,
-      line,
-      eventType: "load",
-      qty,
       routeId: view.selectedRouteId,
-      note: `Carga camion - ${line.label}`,
+      mode: "load",
     });
 
     await recordActivityHistory(admin, session, {
@@ -317,7 +310,7 @@ export async function loadConductorTruckExtraAction(input: {
   qty: number;
 }): Promise<ActionResult<ConductorTruckInventoryView>> {
   try {
-    const { admin, session } = await requireConductorMutationContext();
+    const { admin, supabase, session } = await requireConductorMutationContext();
     const driverId = resolveConductorActionDriverId(session, input.driverId);
 
     const view = await loadTruckInventoryView(session, driverId, input.routeId);
@@ -339,21 +332,14 @@ export async function loadConductorTruckExtraAction(input: {
     const line = truckLineFromStockItem(item);
     const note = `Caja extra al camion - ${line.label}`;
 
-    await recordConductorWarehouseMovement(admin, session, {
+    await conductorTruckInventoryMoveAtomic(supabase, {
+      driverId,
+      sourceVehicleId: vehicleId,
       line,
-      type: "salida",
       qty,
       note,
-      driverId,
-    });
-    await insertTruckEvent(admin, session, {
-      driverId,
-      vehicleId,
-      line,
-      eventType: "load",
-      qty,
       routeId: view.selectedRouteId,
-      note,
+      mode: "load",
     });
 
     await recordActivityHistory(admin, session, {
@@ -393,7 +379,7 @@ export async function returnConductorTruckLineAction(input: {
   targetVehicleId?: string | null;
 }): Promise<ActionResult<ConductorTruckInventoryView>> {
   try {
-    const { admin, session } = await requireConductorMutationContext();
+    const { admin, supabase, session } = await requireConductorMutationContext();
     const driverId = resolveConductorActionDriverId(session, input.driverId);
 
     const reasonError = validateConductorTruckReturnInput({
@@ -457,40 +443,25 @@ export async function returnConductorTruckLineAction(input: {
       .join(" · ");
 
     if (isConductorTruckVehicleChangeReason(reason)) {
-      await insertTruckEvent(admin, session, {
+      await conductorTruckInventoryMoveAtomic(supabase, {
         driverId,
-        vehicleId: sourceVehicleId,
+        sourceVehicleId,
         line,
-        eventType: "return",
         qty,
-        routeId: view.selectedRouteId,
         note: eventNote,
-      });
-      await insertTruckEvent(admin, session, {
-        driverId,
-        vehicleId: targetVehicleId,
-        line,
-        eventType: "load",
-        qty,
         routeId: view.selectedRouteId,
-        note: eventNote,
+        mode: "transfer_vehicle",
+        targetVehicleId,
       });
     } else {
-      await recordConductorWarehouseMovement(admin, session, {
+      await conductorTruckInventoryMoveAtomic(supabase, {
+        driverId,
+        sourceVehicleId,
         line,
-        type: "devolucion",
         qty,
         note: eventNote,
-        driverId,
-      });
-      await insertTruckEvent(admin, session, {
-        driverId,
-        vehicleId: sourceVehicleId,
-        line,
-        eventType: "return",
-        qty,
         routeId: view.selectedRouteId,
-        note: eventNote,
+        mode: "return_warehouse",
       });
     }
 

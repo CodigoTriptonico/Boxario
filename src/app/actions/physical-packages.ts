@@ -162,18 +162,22 @@ const PACKAGE_SELECT = `
 
 export async function listWarehousePackagesAction(
   statuses: PhysicalPackageStatus[],
+  options?: { limit?: number; offset?: number },
 ): Promise<ActionResult<PhysicalPackage[]>> {
   try {
     const session = await requireAppSession();
     if (!canOperateWarehouse(session)) throw new Error("FORBIDDEN");
     const supabase = await createScopedSupabase(session);
     if (!supabase) return fail("Supabase no configurado");
+    const limit = Math.min(Math.max(options?.limit ?? 200, 1), 500);
+    const offset = Math.max(options?.offset ?? 0, 0);
     const { data, error } = await supabase
       .from("shipment_packages")
       .select(PACKAGE_SELECT)
       .eq("organization_id", session.organizationId)
       .in("status", statuses)
-      .order("created_at");
+      .order("created_at")
+      .range(offset, offset + limit - 1);
     if (error) return fail(error.message);
     return ok((data || []).map(mapPackage));
   } catch (error) {
@@ -397,18 +401,30 @@ export type WarehousePallet = {
   packages: WarehousePalletPackage[];
 };
 
-export async function listWarehousePalletsAction(): Promise<ActionResult<WarehousePallet[]>> {
+export async function listWarehousePalletsAction(options?: {
+  limit?: number;
+  offset?: number;
+  status?: "open" | "closed" | "all";
+}): Promise<ActionResult<WarehousePallet[]>> {
   try {
     const session = await requireAppSession();
     const supabase = await createScopedSupabase(session);
     if (!supabase) return fail("Supabase no configurado");
-    const { data, error } = await supabase
+    const limit = Math.min(Math.max(options?.limit ?? 100, 1), 300);
+    const offset = Math.max(options?.offset ?? 0, 0);
+    const status = options?.status || "all";
+    let query = supabase
       .from("warehouse_pallets")
       .select(
         "id, code, country, status, shipment_packages(id, code, intake_recorded_at, palletized_at)",
       )
       .eq("organization_id", session.organizationId)
-      .order("created_at", { ascending: false });
+      .order("created_at", { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (status === "open" || status === "closed") {
+      query = query.eq("status", status);
+    }
+    const { data, error } = await query;
     if (error) return fail(error.message);
     return ok(
       (data || []).map((row: Record<string, unknown>) => {

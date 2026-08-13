@@ -10,6 +10,7 @@ import {
   RotateCcw,
   XCircle,
 } from "lucide-react";
+import { CompactInfoDisclosure as SharedCompactInfoDisclosure } from "@/components/compact-info-disclosure";
 import { ShipmentBoxLinesTrigger } from "@/components/shipment-box-lines-trigger";
 import {
   listCardShellClass,
@@ -30,6 +31,18 @@ import { estimateRouteStopEtaMinutes, formatEtaMinutes } from "@/lib/logistics-e
 import { buildLogisticaShipmentDeepLink } from "@/lib/logistics-view";
 import { formatScheduleAtDisplay } from "@/lib/sale/schedule-time";
 import type { ReactNode } from "react";
+
+function streetViewReferenceUrl(task: ConductorDriverTask) {
+  if (!task.exactEntrancePanoId) return null;
+  const query = new URLSearchParams({
+    api: "1",
+    map_action: "pano",
+    pano: task.exactEntrancePanoId,
+  });
+  if (task.exactEntranceHeading != null) query.set("heading", String(task.exactEntranceHeading));
+  if (task.exactEntrancePitch != null) query.set("pitch", String(task.exactEntrancePitch));
+  return `https://www.google.com/maps/@?${query.toString()}`;
+}
 
 export type ConductorTaskItemProps = {
   task: ConductorDriverTask;
@@ -89,25 +102,9 @@ export function CompactInfoDisclosure({
   tone?: "sky" | "slate";
 }) {
   return (
-    <details className="group relative shrink-0">
-      <summary
-        aria-label={ariaLabel}
-        className={`flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full border text-xs font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 [&::-webkit-details-marker]:hidden ${
-          tone === "sky"
-            ? "border-sky-500/60 text-sky-200 hover:border-sky-300 hover:bg-sky-900/60 hover:text-white focus-visible:outline-sky-300"
-            : "border-slate-600 text-slate-300 hover:border-slate-400 hover:bg-surface-inset hover:text-white focus-visible:outline-slate-300"
-        }`}
-      >
-        !
-      </summary>
-      <div
-        className={`fixed inset-x-4 top-1/2 z-30 max-w-none -translate-y-1/2 rounded-lg border border-black bg-surface-panel px-3 py-2.5 text-sm font-bold leading-snug text-slate-200 shadow-xl sm:absolute sm:inset-x-auto sm:top-full sm:mt-2 sm:w-72 sm:max-w-[calc(100vw-2rem)] sm:translate-y-0 ${
-          align === "right" ? "sm:right-0" : "sm:left-0"
-        }`}
-      >
-        {children}
-      </div>
-    </details>
+    <SharedCompactInfoDisclosure ariaLabel={ariaLabel} align={align} tone={tone} compact>
+      {children}
+    </SharedCompactInfoDisclosure>
   );
 }
 
@@ -159,11 +156,11 @@ function ConductorTaskSenderSummary({
     return (
       <div className="min-w-0">
         <p className="text-[11px] font-black uppercase tracking-wide text-slate-500">Remitente</p>
-        <p className="truncate text-sm font-black text-slate-100">{task.senderName}</p>
+        <p className="break-words text-sm font-black text-slate-100 sm:truncate">{task.senderName}</p>
         {task.senderPhone ? (
-          <p className="mt-0.5 inline-flex max-w-full items-center justify-center gap-1 truncate text-[11px] font-black text-slate-400">
+          <p className="mt-0.5 inline-flex max-w-full flex-wrap items-center justify-center gap-1 text-[11px] font-black text-slate-400 sm:flex-nowrap sm:truncate">
             <Phone className="h-3 w-3 shrink-0" />
-            <span className="truncate">{task.senderPhone}</span>
+            <span className="break-words sm:truncate">{task.senderPhone}</span>
           </p>
         ) : null}
       </div>
@@ -173,11 +170,11 @@ function ConductorTaskSenderSummary({
   return (
     <div className="flex min-w-0 flex-wrap items-baseline gap-x-2 gap-y-0.5">
       <span className="text-[11px] font-black uppercase text-slate-500">Remitente</span>
-      <span className="truncate text-sm font-bold text-slate-100">{task.senderName}</span>
+      <span className="break-words text-sm font-bold text-slate-100 sm:truncate">{task.senderName}</span>
       {task.senderPhone ? (
-        <span className="inline-flex max-w-full items-center gap-1 truncate text-[11px] font-bold text-slate-400">
+        <span className="inline-flex max-w-full flex-wrap items-center gap-1 text-[11px] font-bold text-slate-400 sm:flex-nowrap sm:truncate">
           <Phone className="h-3 w-3 shrink-0" />
-          <span className="truncate">{task.senderPhone}</span>
+          <span className="break-words sm:truncate">{task.senderPhone}</span>
         </span>
       ) : null}
     </div>
@@ -222,7 +219,7 @@ export function ConductorTaskCard({
         <div className="absolute right-2 top-2">
           <ConductorTaskRecipientPeek task={task} className="relative" />
         </div>
-        <p className="truncate text-center text-base font-black text-[#f8fafc]">{task.shipmentCode}</p>
+        <p className="break-all text-center text-base font-black text-[#f8fafc] sm:truncate">{task.shipmentCode}</p>
         <div className="mt-1 text-center">
           <ConductorTaskSenderSummary task={task} layout="card" />
         </div>
@@ -268,6 +265,15 @@ export function ConductorTaskCard({
                 >
                   Apple Maps
                 </a>
+              </div>
+            ) : null}
+            {task.exactEntranceConfirmed ? (
+              <div className="rounded-md border border-emerald-400/35 bg-emerald-950/25 px-2.5 py-2 text-xs font-bold text-emerald-100">
+                <p className="font-black">Entrada exacta confirmada</p>
+                {task.exactEntranceNote ? <p className="mt-1 text-slate-200">{task.exactEntranceNote}</p> : null}
+                {streetViewReferenceUrl(task) ? (
+                  <a href={streetViewReferenceUrl(task)!} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-sky-200 underline underline-offset-2">Ver referencia a nivel de calle</a>
+                ) : null}
               </div>
             ) : null}
           </div>
@@ -412,6 +418,12 @@ export function ConductorTaskRow({
       </div>
 
       <div className="flex flex-wrap items-center gap-1.5 sm:justify-end">
+        {task.exactEntranceConfirmed ? (
+          <span className="rounded-md border border-emerald-400/35 bg-emerald-950/25 px-2 py-1 text-[10px] font-black text-emerald-200" title={task.exactEntranceNote || "Entrada exacta confirmada"}>Entrada exacta</span>
+        ) : null}
+        {streetViewReferenceUrl(task) ? (
+          <a href={streetViewReferenceUrl(task)!} target="_blank" rel="noreferrer" className={`${secondaryButtonClass} h-9 px-3 text-xs`}>Vista calle</a>
+        ) : null}
         {mapsUrl ? (
           <a
             href={mapsUrl.google}

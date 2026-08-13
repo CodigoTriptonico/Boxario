@@ -3,22 +3,25 @@
 import { requireAppSession } from "@/lib/auth/session";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
+import { recordActivityHistory } from "@/lib/activity-history";
 import { getLogisticsWeekdayIndex } from "@/lib/logistics-route-week";
+import { logisticsScheduleWindowPatch } from "@/lib/logistics-schedule-window";
 import { scheduledAtToLocalDateInput } from "@/lib/schedule-date";
 import { hasRouteGeo, statusAfterRouteUnassign, type LogisticsRouteRow } from "@/lib/logistics-routing";
-import { routeAllowsNormalStopEdits } from "@/lib/logistics-state-machine";
+import {
+  routeAllowsNormalStopEdits,
+  routeAllowsPreDepartureStopReorder,
+} from "@/lib/logistics-state-machine";
 
 import {
   ROUTE_SELECT,
-  assertConductorProfile,
   canManageRoutes,
-  defaultDriverForRouteDate,
   insertStops,
   loadRouteById,
   loadTaskInputs,
   loadTaskRows,
   mapRoute,
-  syncRouteDriver,
+  routeTaskConstraintError,
   type LogisticsRouteDbRow,
 } from "@/app/actions/logistics-routes-shared";
 
@@ -48,7 +51,7 @@ export async function addLogisticsRouteStopAction(input: {
 
     const route = await loadRouteById(supabase, session, input.routeId);
     if (!routeAllowsNormalStopEdits(route.status)) {
-      return fail("Solo puedes agregar tareas antes de iniciar la ruta");
+      return fail("Solo puedes agregar tareas mientras la ruta esta en preparacion");
     }
 
     const candidates = await loadTaskInputs(supabase, session, {
@@ -72,15 +75,12 @@ export async function addLogisticsRouteStopAction(input: {
     if (taskDate !== route.routeDate) {
       return fail("La fecha de la tarea no coincide con la fecha de la ruta");
     }
+    const constraintError = await routeTaskConstraintError(supabase, session, route, task);
+    if (constraintError) return fail(constraintError);
 
     const nextOrder = Math.max(0, ...route.stops.map((stop) => stop.order)) + 1;
     await insertStops(supabase, session, route.id, [task], nextOrder);
-    let updated = await loadRouteById(supabase, session, route.id);
-
-    if (route.assignedTo) {
-      await syncRouteDriver(supabase, session, updated, route.assignedTo);
-      updated = await loadRouteById(supabase, session, route.id);
-    }
+    const updated = await loadRouteById(supabase, session, route.id);
 
     return ok(updated);
   } catch (error) {
@@ -154,7 +154,7 @@ export async function assignLogisticsTaskToRouteFromPickerAction(input: {
 
     const { data: template, error: templateError } = await supabase
       .from("logistics_route_templates")
-      .select("id, weekday, name")
+      .select("id, weekday, name, zone_key, max_boxes, covered_postal_codes")
       .eq("id", cleanTemplateId)
       .eq("organization_id", session.organizationId)
       .single();
@@ -166,25 +166,26 @@ export async function assignLogisticsTaskToRouteFromPickerAction(input: {
     if (Number(template.weekday) !== getLogisticsWeekdayIndex(anchorDate)) {
       return fail("La fecha de la tarea no coincide con el dia de la ruta semanal");
     }
-
-    const routeDate = anchorDate;
-
-    const { data: taskRow } = await supabase
-      .from("shipment_logistics_tasks")
-      .select("assigned_to")
-      .eq("id", cleanTaskId)
-      .eq("organization_id", session.organizationId)
-      .maybeSingle();
-
-    const driverId =
-      (taskRow as { assigned_to?: string | null } | null)?.assigned_to ||
-      (await defaultDriverForRouteDate(supabase, session, routeDate));
-
-    if (!driverId) {
-      return fail("Asigna un conductor a la tarea o define el conductor por defecto del día en Rutas");
+    const postalCode = task.address.postalCode.trim().toUpperCase();
+    if (
+      template.covered_postal_codes.length &&
+      (!postalCode || !template.covered_postal_codes.includes(postalCode))
+    ) {
+      return fail("El codigo postal de la tarea no pertenece a esta subruta");
+    }
+    if (template.max_boxes) {
+      const { count, error: countError } = await supabase
+        .from("shipment_packages")
+        .select("id", { count: "exact", head: true })
+        .eq("organization_id", session.organizationId)
+        .eq("shipment_id", task.shipmentId);
+      if (countError) return fail(countError.message);
+      if ((count || 0) > template.max_boxes) {
+        return fail(`La tarea supera la capacidad de ${template.max_boxes} cajas de la ruta`);
+      }
     }
 
-    await assertConductorProfile(supabase, session, driverId);
+    const routeDate = anchorDate;
 
     const { data: existing } = await supabase
       .from("logistics_routes")
@@ -192,7 +193,7 @@ export async function assignLogisticsTaskToRouteFromPickerAction(input: {
       .eq("organization_id", session.organizationId)
       .eq("route_template_id", cleanTemplateId)
       .eq("route_date", routeDate)
-      .in("status", ["draft", "planned"])
+      .eq("status", "draft")
       .maybeSingle();
 
     let route = existing ? mapRoute(existing as unknown as LogisticsRouteDbRow) : null;
@@ -206,8 +207,8 @@ export async function assignLogisticsTaskToRouteFromPickerAction(input: {
           route_date: routeDate,
           name: template.name,
           status: "draft",
-          assigned_to: driverId,
-          zone_key: "",
+          assigned_to: null,
+          zone_key: template.zone_key || "",
           created_by: session.userId,
         })
         .select(ROUTE_SELECT)
@@ -218,18 +219,14 @@ export async function assignLogisticsTaskToRouteFromPickerAction(input: {
       }
 
       route = mapRoute(data as unknown as LogisticsRouteDbRow);
-    } else if (route.assignedTo && route.assignedTo !== driverId) {
-      return fail("Esta ruta ya tiene otro conductor asignado");
-    }
-
-    if (!route.assignedTo) {
-      await syncRouteDriver(supabase, session, route, driverId);
-      route = await loadRouteById(supabase, session, route.id);
     }
 
     if (!routeAllowsNormalStopEdits(route.status)) {
-      return fail("Solo puedes agregar tareas antes de iniciar la ruta");
+      return fail("Solo puedes agregar tareas mientras la ruta esta en preparacion");
     }
+
+    const constraintError = await routeTaskConstraintError(supabase, session, route, task);
+    if (constraintError) return fail(constraintError);
 
     if (!route.stops.some((stop) => stop.taskId === task.taskId)) {
       const nextOrder = Math.max(0, ...route.stops.map((stop) => stop.order)) + 1;
@@ -241,18 +238,12 @@ export async function assignLogisticsTaskToRouteFromPickerAction(input: {
     await supabase
       .from("shipment_logistics_tasks")
       .update({
-        assigned_to: driverId,
-        assigned_at: nowIso,
-        status: "assigned",
+        assigned_to: null,
+        assigned_at: null,
+        status: "scheduled",
         updated_at: nowIso,
       })
       .eq("id", cleanTaskId)
-      .eq("organization_id", session.organizationId);
-
-    await supabase
-      .from("shipments")
-      .update({ assigned_to: driverId })
-      .eq("id", task.shipmentId)
       .eq("organization_id", session.organizationId);
 
     return ok(route);
@@ -278,8 +269,8 @@ export async function removeLogisticsRouteStopAction(input: {
     }
 
     const route = await loadRouteById(supabase, session, input.routeId);
-    if (route.status !== "draft" && route.status !== "planned") {
-      return fail("Solo puedes quitar tareas antes de iniciar la ruta");
+    if (route.status !== "draft") {
+      return fail("Solo puedes quitar tareas mientras la ruta esta en preparacion");
     }
 
     const stop = route.stops.find((entry) => entry.id === input.stopId);
@@ -327,6 +318,116 @@ export async function removeLogisticsRouteStopAction(input: {
   }
 }
 
+export async function removeLogisticsRouteStopWithDispositionAction(input: {
+  routeId: string;
+  stopId: string;
+  disposition: "deferred" | "rejected";
+  reason: string;
+}): Promise<ActionResult<LogisticsRouteRow>> {
+  try {
+    const session = await requireAppSession();
+    if (!canManageRoutes(session)) throw new Error("FORBIDDEN");
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) return fail("Supabase no configurado");
+
+    const reason = String(input.reason || "").trim().slice(0, 500);
+    if (reason.length < 3) return fail("Escribe el motivo de la decisión");
+
+    const route = await loadRouteById(supabase, session, input.routeId);
+    if (route.status !== "draft") {
+      return fail("Solo puedes sacar paradas de una ruta en preparación");
+    }
+
+    const stop = route.stops.find((entry) => entry.id === input.stopId);
+    if (!stop) return fail("Parada no encontrada");
+
+    const [task] = await loadTaskRows(supabase, session, [stop.taskId]);
+    if (!task) return fail("Tarea de la parada no encontrada");
+
+    const { data: request, error: requestError } = await supabase
+      .from("customer_route_assignment_requests")
+      .select("id, shipment_id, task_id, status")
+      .eq("organization_id", session.organizationId)
+      .eq("task_id", stop.taskId)
+      .eq("route_id", route.id)
+      .in("status", ["pending", "approved"])
+      .maybeSingle();
+
+    if (requestError) return fail(requestError.message);
+
+    const nowIso = new Date().toISOString();
+    const { error: stopError } = await supabase
+      .from("logistics_route_stops")
+      .update({
+        released_at: nowIso,
+        release_reason: `${input.disposition}: ${reason}`,
+        updated_at: nowIso,
+      })
+      .eq("id", stop.id)
+      .eq("route_id", route.id)
+      .eq("organization_id", session.organizationId);
+
+    if (stopError) return fail(stopError.message);
+
+    const { error: taskError } = await supabase
+      .from("shipment_logistics_tasks")
+      .update({
+        ...logisticsScheduleWindowPatch(null),
+        schedule_confirmation_status: "pending",
+        status: "pending",
+        assigned_to: null,
+        assigned_at: null,
+        updated_at: nowIso,
+      })
+      .eq("id", task.id)
+      .eq("organization_id", session.organizationId);
+
+    if (taskError) return fail(taskError.message);
+
+    if (request) {
+      const { error: requestUpdateError } = await supabase
+        .from("customer_route_assignment_requests")
+        .update({
+          status: input.disposition,
+          route_id: null,
+          reviewed_by: session.userId,
+          reviewed_at: nowIso,
+          review_note: reason,
+          updated_at: nowIso,
+        })
+        .eq("id", request.id)
+        .eq("organization_id", session.organizationId);
+
+      if (requestUpdateError) return fail(requestUpdateError.message);
+    }
+
+    const action = input.disposition === "rejected"
+      ? "customer.route_assignment.rejected"
+      : "customer.route_assignment.deferred";
+    await recordActivityHistory(supabase, session, {
+      action,
+      entityType: "shipment",
+      entityId: request?.shipment_id || task.shipment_id,
+      title: input.disposition === "rejected"
+        ? "Solicitud de ruta rechazada"
+        : "Solicitud devuelta a pendiente",
+      description: reason,
+      metadata: {
+        routeId: route.id,
+        stopId: stop.id,
+        taskId: task.id,
+        requestId: request?.id || null,
+        disposition: input.disposition,
+      },
+    });
+
+    return ok(await loadRouteById(supabase, session, route.id));
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
 export async function reorderLogisticsRouteStopsAction(input: {
   routeId: string;
   stopIds: string[];
@@ -344,25 +445,52 @@ export async function reorderLogisticsRouteStopsAction(input: {
     }
 
     const route = await loadRouteById(supabase, session, input.routeId);
-    if (route.status !== "draft" && route.status !== "planned") {
+    if (!routeAllowsPreDepartureStopReorder(route.status)) {
       return fail("Solo puedes ordenar paradas antes de iniciar la ruta");
     }
-    const currentIds = new Set(route.stops.map((stop) => stop.id));
+    const previousStopIds = route.stops.map((stop) => stop.id);
+    const currentIds = new Set(previousStopIds);
 
     if (input.stopIds.length !== route.stops.length || input.stopIds.some((id) => !currentIds.has(id))) {
       return fail("Orden invalido");
     }
 
-    for (const [index, stopId] of input.stopIds.entries()) {
-      await supabase
-        .from("logistics_route_stops")
-        .update({ stop_order: index + 1, updated_at: new Date().toISOString() })
-        .eq("id", stopId)
-        .eq("route_id", route.id)
-        .eq("organization_id", session.organizationId);
+    if (input.stopIds.every((stopId, index) => stopId === previousStopIds[index])) {
+      return ok(route);
     }
 
-    return ok(await loadRouteById(supabase, session, route.id));
+    const { error: reorderError } = await supabase
+      .rpc("reorder_logistics_route_stops_atomic", {
+        p_route_id: route.id,
+        p_stop_ids: input.stopIds,
+      });
+
+    if (reorderError) {
+      console.error("[reorderLogisticsRouteStopsAction] atomic reorder failed", {
+        code: reorderError.code,
+        message: reorderError.message,
+        details: reorderError.details,
+        hint: reorderError.hint,
+        routeId: route.id,
+      });
+      if (reorderError.message.includes("ROUTE_STOPS_CHANGED") || reorderError.message.includes("ROUTE_REORDER_CONFLICT")) {
+        return fail("Las paradas cambiaron mientras ordenabas. Recarga la ruta e intenta de nuevo");
+      }
+      if (reorderError.message.includes("ROUTE_REORDER_STATE_CHANGED")) {
+        return fail("La ruta ya inicio y no permite este cambio de orden");
+      }
+      if (reorderError.message.includes("ROUTE_NOT_FOUND")) {
+        return fail("La ruta ya no esta disponible");
+      }
+      if (reorderError.message.includes("FORBIDDEN")) {
+        return fail("No tienes permiso para cambiar el orden de esta ruta");
+      }
+      return fail("No pudimos guardar el nuevo orden. Recarga la ruta e intenta de nuevo");
+    }
+
+    const updated = await loadRouteById(supabase, session, route.id);
+
+    return ok(updated);
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

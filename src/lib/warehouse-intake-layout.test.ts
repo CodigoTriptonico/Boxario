@@ -13,9 +13,12 @@ test("intake workspace does not constrain the operational screen width", () => {
 });
 
 test("intake keeps truck selection in a compact picker and the scanner in the work surface", () => {
+  const disclosure = readFileSync("src/components/compact-info-disclosure.tsx", "utf8");
+
   assert.match(intake, /function IntakeInfoDisclosure/);
   assert.match(intake, /ariaLabel="Ver por qué no hay camiones"/);
-  assert.match(intake, /fixed inset-x-4 top-1\/2/);
+  assert.match(intake, /<CompactInfoDisclosure ariaLabel=\{ariaLabel\} compact>/);
+  assert.match(disclosure, /document\.documentElement\.clientWidth/);
   assert.match(intake, /const \[truckPickerOpen, setTruckPickerOpen\] = useState\(false\)/);
   assert.match(intake, /const \[pendingScanCode, setPendingScanCode\] = useState\(""\)/);
   assert.match(intake, /function beginInitialScan\(\)/);

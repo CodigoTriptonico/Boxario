@@ -18,7 +18,10 @@ describe("platform companies theme", () => {
   });
 
   it("gives company detail a compact identity toolbar", () => {
-    assert.match(source, /contentClassName="p-0"\s+hideHeader/);
+    assert.match(
+      source,
+      /contentClassName="p-0"\s+clipContent=\{false\}\s+hideHeader/,
+    );
     assert.match(source, /flex min-h-11 items-center gap-2 border-b border-black/);
     assert.doesNotMatch(source, /Administración de empresa/);
     assert.match(source, /Usuarios, bodegas y operación de esta empresa/);

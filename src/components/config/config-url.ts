@@ -1,7 +1,26 @@
 import { isOrganizationManagementTab } from "@/components/config/organization-management-panel";
 import { configSections, type ConfigSection } from "@/components/config/config-sections";
 
-export type CostosPanel = "paises" | "operativos";
+export type CostosPanel = "paises" | "deposito" | "rutas";
+
+const COSTOS_PANELS = new Set<CostosPanel>(["paises", "deposito", "rutas"]);
+
+export function parseCostosPanel(raw: string | null | undefined): CostosPanel {
+  if (raw === "operativos") {
+    return "paises";
+  }
+
+  // Compatibilidad: la pestaña Horarios pasó a Rutas.
+  if (raw === "horarios") {
+    return "rutas";
+  }
+
+  if (raw && COSTOS_PANELS.has(raw as CostosPanel)) {
+    return raw as CostosPanel;
+  }
+
+  return "paises";
+}
 
 export function parseConfigUrl(params: URLSearchParams) {
   const view = params.get("view");
@@ -10,7 +29,6 @@ export function parseConfigUrl(params: URLSearchParams) {
   const managementTab = isOrganizationManagementTab(requestedTab)
     ? requestedTab
     : legacyManagementTab || "company";
-  const costosPanel: CostosPanel = params.get("panel") === "operativos" ? "operativos" : "paises";
 
   return {
     section: legacyManagementTab
@@ -19,6 +37,6 @@ export function parseConfigUrl(params: URLSearchParams) {
         ? (view as ConfigSection)
         : ("menu" as ConfigSection),
     managementTab,
-    costosPanel,
+    costosPanel: parseCostosPanel(params.get("panel")),
   };
 }

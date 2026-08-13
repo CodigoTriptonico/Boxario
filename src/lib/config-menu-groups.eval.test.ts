@@ -11,7 +11,7 @@ describe("config menu groups eval", () => {
   it("describes groups by the work they cover", () => {
     const operation = CONFIG_MENU_GROUPS.find((group) => group.id === "operation");
     const administration = CONFIG_MENU_GROUPS.find((group) => group.id === "administration");
-    assert.match(operation?.description || "", /Precios por país|cargos/i);
+    assert.match(operation?.description || "", /Precios, depósito y rutas semanales/i);
     assert.match(administration?.description || "", /Organización/);
     assert.doesNotMatch(operation?.description || "", /logística/i);
   });

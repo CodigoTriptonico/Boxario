@@ -5,6 +5,7 @@ import {
   isPaymentMethod,
   PAYMENT_METHOD_OPTIONS,
   paymentMethodLabel,
+  normalizePaymentMethodSettings,
 } from "@/lib/payment-methods";
 
 describe("payment methods", () => {
@@ -30,5 +31,22 @@ describe("payment methods", () => {
     assert.equal(isPaymentMethod("zelle"), true);
     assert.equal(isPaymentMethod("crypto"), false);
     assert.equal(paymentMethodLabel("card"), "Tarjeta");
+  });
+
+  it("normalizes office and driver payment policies", () => {
+    assert.deepEqual(
+      normalizePaymentMethodSettings({
+        acceptedPaymentMethods: ["cash", "zelle"],
+        driverPaymentMethods: ["zelle", "card"],
+        defaultPaymentMethod: "card",
+        referenceRequiredMethods: ["zelle", "check"],
+      }),
+      {
+        acceptedPaymentMethods: ["cash", "zelle"],
+        driverPaymentMethods: ["zelle"],
+        defaultPaymentMethod: "cash",
+        referenceRequiredMethods: ["zelle"],
+      },
+    );
   });
 });

@@ -24,6 +24,10 @@ import {
   type LogisticsAdditionalCharge,
 } from "@/lib/invoice-billing";
 import {
+  emptyCustomerLogisticsChargeHistory,
+  type CustomerLogisticsChargeHistory,
+} from "@/lib/logistics-charge-history";
+import {
   PLATFORM_BRAND_TITLE,
   resolveOrganizationBranding,
 } from "@/lib/organizations/branding";
@@ -136,6 +140,8 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     useState<LogisticsAdditionalCharge>(disabledLogisticsAdditionalCharge);
   const [quickEmptyBoxAdditionalCharge, setQuickEmptyBoxAdditionalCharge] =
     useState<LogisticsAdditionalCharge>(disabledLogisticsAdditionalCharge);
+  const [customerLogisticsChargeHistory, setCustomerLogisticsChargeHistory] =
+    useState<CustomerLogisticsChargeHistory>(emptyCustomerLogisticsChargeHistory);
   const scheduleSuggestions =
     initialData?.scheduleSuggestions ?? {
       delivery: {
@@ -318,7 +324,9 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
   const [activeCopyGroup, setActiveCopyGroup] = useState<string | null>(null);
   const [creatingOpenInvoice, setCreatingOpenInvoice] = useState(false);
   const [creatingQuickInvoice, setCreatingQuickInvoice] = useState(false);
-  const [invoiceSequence, setInvoiceSequence] = useState(1);
+  const [invoiceSequence, setInvoiceSequence] = useState(
+    initialData?.nextInvoiceSequence ?? 1,
+  );
   const countries = useMemo(
     () => Object.keys(countryBoxes).sort((left, right) => left.localeCompare(right, "es")),
     [countryBoxes],
@@ -367,14 +375,8 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     ) &&
     emptyBoxRouteReady &&
     fullBoxRouteReady &&
-    logisticsAdditionalChargeIsValid(
-      emptyBoxAdditionalCharge,
-      logisticsFees.emptyBoxDeliveryFee,
-    ) &&
-    logisticsAdditionalChargeIsValid(
-      fullBoxAdditionalCharge,
-      logisticsFees.fullBoxPickupFee,
-    );
+    logisticsAdditionalChargeIsValid(emptyBoxAdditionalCharge) &&
+    logisticsAdditionalChargeIsValid(fullBoxAdditionalCharge);
   const logisticsContinueHint = saleLogisticsContinueHint(
     emptyBoxMode,
     emptyBoxScheduleMode,
@@ -564,7 +566,9 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     setCustomersSaving, historyRows, setHistoryRows, historyLoading, setHistoryLoading,
     historyError, setHistoryError, countryBoxes, setCountryBoxes, boxStockByKey, countryPromotions,
     logisticsFees, emptyBoxAdditionalCharge, setEmptyBoxAdditionalCharge, fullBoxAdditionalCharge, setFullBoxAdditionalCharge,
-    quickEmptyBoxAdditionalCharge, setQuickEmptyBoxAdditionalCharge, scheduleSuggestions, organizationBranding, payNowDraft,
+    quickEmptyBoxAdditionalCharge, setQuickEmptyBoxAdditionalCharge,
+    customerLogisticsChargeHistory, setCustomerLogisticsChargeHistory,
+    scheduleSuggestions, organizationBranding, payNowDraft,
     setPayNowDraft, payNowDraftTouched, setPayNowDraftTouched, quickPayNowDraft, setQuickPayNowDraft,
     quickPayNowDraftTouched, setQuickPayNowDraftTouched, invoicePaymentMethod, setInvoicePaymentMethod, invoicePaymentNote,
     setInvoicePaymentNote, quickPaymentMethod, setQuickPaymentMethod, quickPaymentNote, setQuickPaymentNote,

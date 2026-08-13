@@ -229,8 +229,16 @@ export async function updateInventoryItemMetadataAction(input: {
   itemName?: string;
   name?: string;
   sku?: string;
+  barcode?: string;
+  description?: string;
   unit?: string;
   minStock?: number;
+  maxStock?: number | null;
+  inventoryClass?: "consumable" | "sellable" | "reusable" | "asset";
+  preferredSupplier?: string;
+  requiresSerialTracking?: boolean;
+  requiresLotTracking?: boolean;
+  requiresExpiryTracking?: boolean;
   isCommercial?: boolean;
   isActive?: boolean;
 }): Promise<ActionResult<{ itemId: string }>> {
@@ -292,6 +300,14 @@ export async function updateInventoryItemMetadataAction(input: {
       itemPatch.sku = input.sku.trim() || null;
     }
 
+    if (input.barcode !== undefined) {
+      itemPatch.barcode = input.barcode.trim() || null;
+    }
+
+    if (input.description !== undefined) {
+      itemPatch.description = input.description.trim();
+    }
+
     if (input.unit !== undefined) {
       const unit = normalizeInventoryUnit(input.unit);
       if (!unit) {
@@ -302,6 +318,26 @@ export async function updateInventoryItemMetadataAction(input: {
 
     if (input.isCommercial !== undefined) {
       itemPatch.is_commercial = input.isCommercial;
+    }
+
+    if (input.inventoryClass !== undefined) {
+      itemPatch.inventory_class = input.inventoryClass;
+    }
+
+    if (input.preferredSupplier !== undefined) {
+      itemPatch.preferred_supplier = input.preferredSupplier.trim();
+    }
+
+    if (input.requiresSerialTracking !== undefined) {
+      itemPatch.requires_serial_tracking = input.requiresSerialTracking;
+    }
+
+    if (input.requiresLotTracking !== undefined) {
+      itemPatch.requires_lot_tracking = input.requiresLotTracking;
+    }
+
+    if (input.requiresExpiryTracking !== undefined) {
+      itemPatch.requires_expiry_tracking = input.requiresExpiryTracking;
     }
 
     if (input.isActive !== undefined) {
@@ -321,14 +357,23 @@ export async function updateInventoryItemMetadataAction(input: {
     }
 
     if (
-      input.minStock !== undefined &&
+      (input.minStock !== undefined || input.maxStock !== undefined) &&
       input.warehouseId
     ) {
+      const stockPatch: { min_stock?: number; max_stock?: number | null } = {};
+
+      if (input.minStock !== undefined) {
+        stockPatch.min_stock = Math.max(0, input.minStock);
+      }
+
+      if (input.maxStock !== undefined) {
+        stockPatch.max_stock =
+          input.maxStock == null ? null : Math.max(0, input.maxStock);
+      }
+
       const { error } = await supabase
         .from("inventory_stock")
-        .update({
-          min_stock: Math.max(0, input.minStock),
-        })
+        .update(stockPatch)
         .eq("item_id", itemId)
         .eq("warehouse_id", input.warehouseId)
         .eq("organization_id", session.organizationId);

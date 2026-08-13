@@ -6,6 +6,7 @@ export type ExpedienteSectionPermissions = {
   canViewLogistics: boolean;
   canViewAudit: boolean;
   canViewPackages: boolean;
+  canEditShipment: boolean;
 };
 
 export function resolveExpedienteSectionPermissions(
@@ -30,5 +31,6 @@ export function resolveExpedienteSectionPermissions(
       sessionHasPermission(session, "warehouses.manage") ||
       sessionHasPermission(session, "routes.view") ||
       sessionHasPermission(session, "routes.update_status"),
+    canEditShipment: sessionHasPermission(session, "sales.manage"),
   };
 }

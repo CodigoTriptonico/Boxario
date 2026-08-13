@@ -479,7 +479,7 @@ export function useLogisticsRouteActions({
     }
 
     await reloadAll();
-    notify.success("Ruta publicada para el conductor");
+    notify.success("Ruta cerrada. Ya puedes asignar conductor y vehiculo.");
   }
 
   return {

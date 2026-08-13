@@ -11,7 +11,9 @@ import {
   logisticsWeekdayFullLabels,
   logisticsEnabledWeekdayFilterOptions,
   defaultLogisticsWeekdayFilter,
+  namedLogisticsRouteTemplates,
   nextWeekdayScheduleHint,
+  normalizeGenericLogisticsRouteName,
   resolveDayRouteTemplateId,
   selectWeekdayDate,
 } from "./logistics-day-route.ts";
@@ -26,6 +28,11 @@ describe("logistics-day-route", () => {
   it("builds the generic day-as-route name used when a day has 0 named templates", () => {
     assert.equal(genericLogisticsRouteName(4), "Ruta del viernes");
     assert.equal(genericLogisticsRouteName(5), "Ruta del sabado");
+  });
+
+  it("normalizes legacy general route names regardless of catalog capitalization", () => {
+    assert.equal(normalizeGenericLogisticsRouteName("Ruta general de Lun", 0), "Ruta del lunes");
+    assert.equal(normalizeGenericLogisticsRouteName("Ruta general del Jue", 3), "Ruta del jueves");
   });
 
   it("resolves named templates when present and day-as-route when empty", () => {
@@ -52,6 +59,15 @@ describe("logistics-day-route", () => {
     );
     assert.equal(isDayAsRouteTemplateId(DAY_AS_ROUTE_TEMPLATE_ID), true);
     assert.equal(isDayAsRouteTemplateId("hollywood"), false);
+  });
+
+  it("does not count the system general route as a named subroute", () => {
+    const templates = [
+      { id: "general-sun", weekday: 6, name: "Ruta del domingo", isSystemGeneral: true },
+      { id: "named-sun", weekday: 6, name: "Santa Clarita", isSystemGeneral: false },
+    ];
+
+    assert.deepEqual(namedLogisticsRouteTemplates(templates), [templates[1]]);
   });
 
   it("labels available days and day-as-route hints for the UI", () => {

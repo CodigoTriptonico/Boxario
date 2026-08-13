@@ -2,17 +2,11 @@
 
 import {
   Building2,
-  DollarSign,
   Truck,
 } from "lucide-react";
+import { SaleAdditionalChargeEditor } from "@/components/sale/sale-additional-charge-editor";
 import type { LogisticsAdditionalCharge } from "@/lib/invoice-billing";
-import {
-  logisticsAdditionalChargeRequiresReason,
-} from "@/lib/invoice-billing";
-import {
-  moneyInputDisplayValue,
-  normalizeMoneyInput,
-} from "@/lib/logistics-fees";
+import type { CustomerLogisticsChargeLegHistory } from "@/lib/logistics-charge-history";
 import {
   deliveryModeCardClass,
   deliveryModeIconClass,
@@ -42,76 +36,11 @@ type SaleLogisticsStepProps = {
   onDeferFullBoxPickup: () => void;
   emptyBoxCharge: LogisticsAdditionalCharge;
   fullBoxCharge: LogisticsAdditionalCharge;
-  emptyBoxChargeSuggestion: string;
-  fullBoxChargeSuggestion: string;
+  emptyBoxChargeHistory?: CustomerLogisticsChargeLegHistory;
+  fullBoxChargeHistory?: CustomerLogisticsChargeLegHistory;
   onEmptyBoxChargeChange: (charge: LogisticsAdditionalCharge) => void;
   onFullBoxChargeChange: (charge: LogisticsAdditionalCharge) => void;
 };
-
-function AdditionalChargeEditor({
-  label,
-  suggestion,
-  value,
-  onChange,
-}: {
-  label: string;
-  suggestion: string;
-  value: LogisticsAdditionalCharge;
-  onChange: (value: LogisticsAdditionalCharge) => void;
-}) {
-  const reasonRequired = logisticsAdditionalChargeRequiresReason(value, suggestion);
-  return (
-    <section className="rounded-xl border border-black bg-surface-card p-3">
-      <label className="flex items-center justify-between gap-3">
-        <span className="flex min-w-0 items-center gap-2">
-          <DollarSign className="h-4 w-4 shrink-0 text-amber-300" />
-          <span>
-            <span className="block text-sm font-black text-white">Cargo adicional · {label}</span>
-            <span className="block text-[11px] font-semibold text-slate-400">Sugerido {suggestion}; el servicio normal está incluido.</span>
-          </span>
-        </span>
-        <input
-          type="checkbox"
-          checked={value.enabled}
-          onChange={(event) =>
-            onChange({
-              ...value,
-              enabled: event.target.checked,
-              amount: event.target.checked ? suggestion : "$0",
-              reason: "",
-            })
-          }
-          className="h-5 w-5 accent-emerald-400"
-        />
-      </label>
-      {value.enabled ? (
-        <div className="mt-3 grid gap-2 sm:grid-cols-2">
-          <label className="flex h-10 items-center rounded-lg border border-black bg-surface-inset px-3">
-            <span className="mr-1 text-slate-400">$</span>
-            <input
-              inputMode="decimal"
-              value={moneyInputDisplayValue(value.amount)}
-              onChange={(event) => onChange({ ...value, amount: normalizeMoneyInput(event.target.value) })}
-              className="min-w-0 flex-1 bg-transparent text-sm font-black text-white outline-none"
-              aria-label={`Importe adicional por ${label}`}
-            />
-          </label>
-          {reasonRequired ? (
-            <input
-              value={value.reason}
-              onChange={(event) => onChange({ ...value, reason: event.target.value })}
-              placeholder="Razón del ajuste (obligatoria)"
-              maxLength={500}
-              className="h-10 rounded-lg border border-amber-700/70 bg-surface-inset px-3 text-sm font-bold text-white outline-none placeholder:text-amber-200/60"
-            />
-          ) : (
-            <p className="self-center text-xs font-semibold text-emerald-300">Se usará la sugerencia de Logística.</p>
-          )}
-        </div>
-      ) : null}
-    </section>
-  );
-}
 
 function StepBadge({
   step,
@@ -211,7 +140,7 @@ function MovementCard({
                 </span>
                 <span
                   className={`mt-1 block text-xs font-bold leading-snug ${
-                    officeSelected ? "text-emerald-100/80" : "text-slate-300"
+                  officeSelected ? "text-emerald-100" : "text-slate-300"
                   }`}
                 >
                   {officeDetail}
@@ -243,7 +172,7 @@ function MovementCard({
                 </span>
                 <span
                   className={`mt-1 block text-xs font-bold leading-snug ${
-                    driverSelected ? "text-emerald-100/80" : "text-slate-300"
+                  driverSelected ? "text-emerald-100" : "text-slate-300"
                   }`}
                 >
                   {driverDetail}
@@ -268,7 +197,7 @@ function MovementCard({
         {hasSelection && !compactOfficeSelection ? (
           <div className="mt-auto border-t border-black/70 pt-3">
             <p className="text-[11px] font-black uppercase text-slate-500">Quedó así</p>
-            <p className="mt-1 text-sm font-black leading-snug text-emerald-100/90">{summary}</p>
+            <p className="mt-1 text-sm font-black leading-snug text-emerald-100">{summary}</p>
           </div>
         ) : null}
       </div>
@@ -292,8 +221,8 @@ export function SaleLogisticsStep({
   onDeferFullBoxPickup,
   emptyBoxCharge,
   fullBoxCharge,
-  emptyBoxChargeSuggestion,
-  fullBoxChargeSuggestion,
+  emptyBoxChargeHistory,
+  fullBoxChargeHistory,
   onEmptyBoxChargeChange,
   onFullBoxChargeChange,
 }: SaleLogisticsStepProps) {
@@ -328,10 +257,10 @@ export function SaleLogisticsStep({
           showOfficeHandingOption
         />
         {emptyBoxMode === EMPTY_BOX_DRIVER_MODE ? (
-          <AdditionalChargeEditor
+          <SaleAdditionalChargeEditor
             label="entrega"
-            suggestion={emptyBoxChargeSuggestion}
             value={emptyBoxCharge}
+            history={emptyBoxChargeHistory}
             onChange={onEmptyBoxChargeChange}
           />
         ) : null}
@@ -379,10 +308,10 @@ export function SaleLogisticsStep({
               onSelectMode={onSelectFullBoxMode}
             />
             {fullBoxMode === FULL_BOX_DRIVER_MODE ? (
-              <AdditionalChargeEditor
+              <SaleAdditionalChargeEditor
                 label="recolección"
-                suggestion={fullBoxChargeSuggestion}
                 value={fullBoxCharge}
+                history={fullBoxChargeHistory}
                 onChange={onFullBoxChargeChange}
               />
             ) : null}

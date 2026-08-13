@@ -4,9 +4,14 @@ import {
   type LogisticsRouteStopAddress,
 } from "@/lib/logistics-routing";
 
-export type CustomerRouteAssignmentRequestStatus = "pending" | "approved" | "rejected";
+export type CustomerRouteAssignmentRequestStatus =
+  | "pending_approval"
+  | "template_confirmed"
+  | "deferred"
+  | "rejected"
+  | "routed";
 
-export type CustomerRouteAssignmentOutcome = "assigned" | "pending_approval";
+export type CustomerRouteAssignmentOutcome = "template_confirmed" | "pending_approval";
 
 export type CustomerRouteZoneInput = {
   city: string;
@@ -87,7 +92,7 @@ export function resolveCustomerRouteAssignmentOutcome(input: {
   routeTemplateId: string;
   currentZoneKey: string;
 }): CustomerRouteAssignmentOutcome {
-  return shouldAutoAcceptCustomerRouteAssignment(input) ? "assigned" : "pending_approval";
+  return shouldAutoAcceptCustomerRouteAssignment(input) ? "template_confirmed" : "pending_approval";
 }
 
 export function zoneChangeShouldRevokeVerification(input: {

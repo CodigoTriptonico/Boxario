@@ -23,6 +23,7 @@ export type DbStockRow = Pick<
   DbInventoryStock,
   | "id"
   | "item_id"
+  | "max_stock"
   | "warehouse_id"
   | "stock"
   | "reserved"
@@ -40,6 +41,17 @@ export type DbStockRow = Pick<
     location: string | null;
     unit: string | null;
     photo_url: string | null;
+    sku: string | null;
+    barcode: string | null;
+    description: string;
+    inventory_class: string;
+    preferred_supplier: string;
+    requires_serial_tracking: boolean;
+    requires_lot_tracking: boolean;
+    requires_expiry_tracking: boolean;
+    is_commercial: boolean;
+    is_active: boolean;
+    archived_at: string | null;
     category_id: string;
     inventory_categories: { name: string };
   };
@@ -353,8 +365,20 @@ export function stockRowsToItems(rows: DbStockRow[]): InventoryStockItem[] {
       assigned: Number(row.assigned ?? 0),
       unavailable: Number(row.unavailable ?? 0),
       minStock: Number(row.min_stock),
+      maxStock: row.max_stock == null ? null : Number(row.max_stock),
       avgCost: Number(row.avg_cost ?? 0),
       photoUrl: item.photo_url || undefined,
+      sku: item.sku || undefined,
+      barcode: item.barcode || undefined,
+      description: item.description || undefined,
+      inventoryClass: item.inventory_class as InventoryStockItem["inventoryClass"],
+      preferredSupplier: item.preferred_supplier || undefined,
+      requiresSerialTracking: item.requires_serial_tracking,
+      requiresLotTracking: item.requires_lot_tracking,
+      requiresExpiryTracking: item.requires_expiry_tracking,
+      isCommercial: item.is_commercial,
+      isActive: item.is_active,
+      archivedAt: item.archived_at || undefined,
     };
   });
 }

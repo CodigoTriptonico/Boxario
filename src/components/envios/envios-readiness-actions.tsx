@@ -95,7 +95,7 @@ export function EnviosReadinessActions({
       ) : null}
       {canManageSalesSettings && !isConductor ? (
         <Link
-          href="/seguimiento?view=configuracion"
+          href="/configuracion?view=prices"
           className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300 hover:text-white"
           title="Configuración de ventas"
           aria-label="Configuración de ventas"

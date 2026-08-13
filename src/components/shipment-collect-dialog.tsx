@@ -1,7 +1,8 @@
 "use client";
 
 import { Calculator, ChevronLeft } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { loadAxisSettingsAction } from "@/app/actions/axis-settings";
 import { SalePaymentMethodField } from "@/components/sale/sale-payment-method-field";
 import {
   inputClass,
@@ -10,6 +11,11 @@ import {
 } from "@/components/ui-blocks";
 import { formatMoneyValue, moneyInputDisplayValue, normalizeMoneyInput } from "@/lib/logistics-fees";
 import type { SalePaymentSelection } from "@/lib/sale-payment-choice";
+import {
+  DEFAULT_PAYMENT_METHOD_SETTINGS,
+  isPaymentMethod,
+  type PaymentMethodSettings,
+} from "@/lib/payment-methods";
 import {
   shipmentCollectCopy,
   type ShipmentCollectMode,
@@ -28,6 +34,8 @@ type ShipmentCollectDialogProps = {
   paymentMethod: SalePaymentSelection;
   paymentNote?: string;
   confirming?: boolean;
+  /** Shown when a previous send may have committed and must be reconciled. */
+  reconcileNotice?: string;
   onModeChange: (mode: ShipmentCollectMode) => void;
   onPartialAmountChange: (value: string) => void;
   onPaymentMethodChange: (method: SalePaymentSelection) => void;
@@ -49,6 +57,7 @@ export function ShipmentCollectDialog({
   paymentMethod,
   paymentNote = "",
   confirming = false,
+  reconcileNotice = "",
   onModeChange,
   onPartialAmountChange,
   onPaymentMethodChange,
@@ -56,6 +65,28 @@ export function ShipmentCollectDialog({
   onCancel,
   onConfirm,
 }: ShipmentCollectDialogProps) {
+  const [paymentSettings, setPaymentSettings] = useState<PaymentMethodSettings>(
+    DEFAULT_PAYMENT_METHOD_SETTINGS,
+  );
+
+  useEffect(() => {
+    if (!open) return;
+    let active = true;
+    void loadAxisSettingsAction().then((result) => {
+      if (!active || !result.ok) return;
+      setPaymentSettings(result.data.sales);
+      if (
+        isPaymentMethod(paymentMethod) &&
+        !result.data.sales.acceptedPaymentMethods.includes(paymentMethod)
+      ) {
+        onPaymentMethodChange(result.data.sales.defaultPaymentMethod);
+      }
+    });
+    return () => {
+      active = false;
+    };
+  }, [open, onPaymentMethodChange, paymentMethod]);
+
   if (!open) {
     return null;
   }
@@ -92,6 +123,11 @@ export function ShipmentCollectDialog({
             <p className="mt-1 text-sm font-bold text-slate-400">
               {invoiceCode} · {customerName}
             </p>
+            {reconcileNotice ? (
+              <p className="mt-2 text-xs font-bold text-amber-200" role="status">
+                {reconcileNotice}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -222,6 +258,7 @@ export function ShipmentCollectDialog({
               note={paymentNote}
               hideDepositStatus
               disabled={confirming}
+              paymentSettings={paymentSettings}
               onChange={onPaymentMethodChange}
               onNoteChange={onPaymentNoteChange}
             />
@@ -239,7 +276,7 @@ export function ShipmentCollectDialog({
               <button
                 type="button"
                 onClick={onConfirm}
-                disabled={confirming || (mode === "partial" && !canConfirmPartial)}
+                disabled={confirming || (mode === "partial" && !canConfirmPartial) || (isPaymentMethod(paymentMethod) && paymentSettings.referenceRequiredMethods.includes(paymentMethod) && !paymentNote.trim())}
                 className={`${primaryButtonClass} h-11 text-sm font-black disabled:opacity-40`}
               >
                 {confirming ? copy.confirmingLabel : copy.confirmLabel}

@@ -5,6 +5,7 @@ import { listLogisticsRouteCatalogAction, listLogisticsRoutesAction } from "@/ap
 import { listPendingCustomerRouteAssignmentTaskIdsAction, requestCustomerRouteAssignmentAction } from "@/app/actions/customer-route-assignments";
 import {
   markFullBoxReceivedAtOfficeAction,
+  revertFullBoxOfficeReceptionAction,
   updateShipmentLogisticsPlanAction,
   updateShipmentStatusAction,
 } from "@/app/actions/shipments";
@@ -95,12 +96,13 @@ export function useEnviosLogistics({
       ? editorState.emptyBoxScheduleAt
       : editorState.fullBoxScheduleAt;
     const hasExistingProgramming = Boolean(assignedRoute?.routeName || scheduledAt);
+    const routeConfirmed = Boolean(assignedRoute?.routeName);
 
     return {
       assignedRoute,
       scheduledAt,
       hasExistingProgramming,
-      actionCopy: logisticsLegRouteActionCopy(kind, hasExistingProgramming),
+      actionCopy: logisticsLegRouteActionCopy(kind, hasExistingProgramming, routeConfirmed),
     };
   }, [routeByTaskId, routeProgramTarget]);
 
@@ -197,6 +199,30 @@ export function useEnviosLogistics({
         current.map((entry) => (entry.id === row.id ? result.data : entry)),
       );
       notify.success("Caja llena recibida en oficina");
+    } finally {
+      setProgressBusyId(null);
+    }
+  }
+
+  async function revertFullBoxOfficeReception(row: ShipmentRow, audit: ShipmentAuditContext) {
+    if (!canManageSales) {
+      return;
+    }
+
+    setProgressBusyId(row.id);
+
+    try {
+      const result = await revertFullBoxOfficeReceptionAction({ shipmentId: row.id, audit });
+
+      if (!result.ok) {
+        notify.error(result.error);
+        return;
+      }
+
+      setShipments((current) =>
+        current.map((entry) => (entry.id === row.id ? result.data : entry)),
+      );
+      notify.success("Recepción en oficina revertida");
     } finally {
       setProgressBusyId(null);
     }
@@ -309,11 +335,7 @@ export function useEnviosLogistics({
         setPendingRouteTaskIds(pendingResult.data);
       }
 
-      notify.success(
-        assignResult.data.outcome === "assigned"
-          ? "Ruta asignada"
-          : "Enviado a logística para aprobar la ruta",
-      );
+      notify.success("Enviado a logística para aprobar la ruta");
       setRouteProgramTarget(null);
     } finally {
       setRouteProgramSaving(false);
@@ -388,6 +410,7 @@ export function useEnviosLogistics({
     applyLogisticsPatch,
     applyShipmentStatus,
     receiveFullBoxAtOffice,
+    revertFullBoxOfficeReception,
     confirmProgramRoute,
     confirmPendingRoute,
   };

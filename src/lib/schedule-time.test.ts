@@ -92,7 +92,7 @@ describe("schedule time field eval", () => {
   it("changes suggestions with the selected mode and applies complete ranges", () => {
     assert.match(scheduleTimeFieldSource, /rangeTarget/);
     assert.match(scheduleTimeFieldSource, /resolvedSuggestions\.range/);
-    assert.match(scheduleTimeFieldSource, /PRESET_LABELS\[activeKind\]/);
+    assert.match(scheduleTimeFieldSource, /CLIENT_PREFERENCE_LABEL/);
     assert.match(
       scheduleTimeFieldSource,
       /formatScheduleTimePart\(\{ kind: "range", start, end \}\)/,
@@ -113,12 +113,21 @@ describe("schedule time field eval", () => {
   });
 
   it("renders preset shortcuts above time inputs so the picker does not cover them", () => {
-    const presetIndex = scheduleTimeFieldSource.indexOf("PRESET_LABELS[activeKind]");
-    const timeInputIndex = scheduleTimeFieldSource.indexOf("Hora exacta");
+    const preferenceIndex = scheduleTimeFieldSource.indexOf("CLIENT_PREFERENCE_LABEL");
+    const modesIndex = scheduleTimeFieldSource.indexOf("modeOptions.map");
+    const timeInputIndex = scheduleTimeFieldSource.indexOf(
+      'ariaLabel="Preferencia del cliente: hora exacta"',
+    );
 
-    assert.ok(presetIndex > -1);
-    assert.ok(timeInputIndex > -1);
-    assert.ok(presetIndex < timeInputIndex);
+    assert.ok(preferenceIndex > -1);
+    assert.ok(modesIndex > preferenceIndex);
+    assert.ok(timeInputIndex > modesIndex);
+    assert.equal(scheduleTimeFieldSource.includes("Hora exacta"), false);
+    assert.match(scheduleTimeFieldSource, /CompactInfoDisclosure/);
+    assert.match(
+      scheduleTimeFieldSource,
+      /Logística confirma después la hora/,
+    );
   });
 
   it("uses the custom grid time picker instead of native time inputs", () => {

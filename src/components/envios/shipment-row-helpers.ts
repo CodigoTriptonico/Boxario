@@ -21,22 +21,8 @@ export function shipmentLogisticsCharge(row: ShipmentRow) {
   if (!billing || parseMoneyValue(billing.logisticsSubtotal) <= 0) {
     return null;
   }
-  const plan = row.logistics_plan && typeof row.logistics_plan === "object"
-    ? row.logistics_plan as Record<string, unknown>
-    : {};
-  const adjustments =
-    plan.feeAdjustments && typeof plan.feeAdjustments === "object"
-      ? plan.feeAdjustments as Record<string, unknown>
-      : {};
-  const adjusted = Object.values(adjustments).some((value) => {
-    if (!value || typeof value !== "object") return false;
-    const charge = value as Record<string, unknown>;
-    return charge.enabled === true &&
-      parseMoneyValue(String(charge.amount || "$0")) !==
-        parseMoneyValue(String(charge.suggestion || "$0"));
-  });
   return {
     amount: billing.logisticsSubtotal,
-    adjusted,
+    adjusted: false,
   };
 }

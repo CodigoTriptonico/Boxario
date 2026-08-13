@@ -8,6 +8,7 @@ import { InlineSearchCombobox } from "@/components/inline-search-picker";
 import { SaleRecipientForm } from "@/components/sale/sale-recipient-form";
 import { SaleBoxPicker } from "@/components/sale/sale-box-picker";
 import { SaleRecipientList } from "@/components/sale/sale-recipient-list";
+import { SalePersonListSortControl } from "@/components/sale/sale-person-list-sort-control";
 import { SalePersonListToolbar } from "@/components/sale/sale-person-list-toolbar";
 import { configPricesCountryHref } from "@/lib/country-options";
 import { inventarioHrefWithReturn } from "@/lib/inventario-return";
@@ -16,6 +17,7 @@ import { CountryName } from "@/components/country-flag";
 import { boxCardClass, personFullName, recipientIdentityKey } from "@/components/sale/venta-parts";
 import { resolveCountryPromotions, saleCartLineId } from "@/components/sale/venta/shared";
 import type { VentaController } from "@/components/sale/venta/use-venta-controller";
+import { SALE_RECIPIENT_SORT_OPTIONS } from "@/lib/sale-person-list-sort";
 
 export function VentaRecipientBoxSteps({ controller }: { controller: VentaController; }) {
   const {
@@ -34,6 +36,7 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     countryPromotions,
     createRecipient,
     duplicateRecipient,
+    editingRecipientId,
     mode,
     newRecipientAddressReference,
     newRecipientCity,
@@ -81,6 +84,8 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     setRecipientAddressSuggestions,
     setRecipientAddressValidation,
     setRecipientQuery,
+    recipientSortMode,
+    setRecipientSortMode,
     sortedFilteredRecipients,
     startRecipientCreation,
     stepShellClass,
@@ -119,12 +124,20 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                 createShortLabel="Nuevo"
                 createOnboardingTarget={ONBOARDING_TARGETS.VENTA_NEW_RECIPIENT}
                 onCreate={startRecipientCreation}
+                sortControl={
+                  <SalePersonListSortControl
+                    value={recipientSortMode}
+                    options={SALE_RECIPIENT_SORT_OPTIONS}
+                    onChange={setRecipientSortMode}
+                    ariaLabel="Ordenar destinatarios"
+                  />
+                }
                 search={
                   <InlineSearchCombobox
                     value={recipientQuery}
                     onChange={setRecipientQuery}
                     options={recipientSearchOptions}
-                    placeholder="Buscar destinatario, telefono o pais"
+                    placeholder="Buscar"
                     emptyLabel="Sin destinatarios"
                     ariaLabel="Buscar destinatarios"
                     leadingIcon={<Search className="h-4 w-4" aria-hidden />}
@@ -199,10 +212,26 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                   onUpdateEmail: updateRecipientEmail,
                   onRemoveEmail: removeRecipientEmail,
                 }}
-                meta={{
-                  countries,
-                  duplicateRecipient: duplicateRecipient ?? null,
-                }}
+                  meta={{
+                    countries,
+                    duplicateRecipient: duplicateRecipient ?? null,
+                    initialExactEntrance: (() => {
+                      const recipient = activeSender?.recipients.find(
+                        (item) => item.id === editingRecipientId,
+                      );
+                      return recipient?.exactEntranceLat != null &&
+                        recipient.exactEntranceLng != null
+                        ? {
+                            lat: recipient.exactEntranceLat,
+                            lng: recipient.exactEntranceLng,
+                            note: recipient.exactEntranceNote,
+                            panoId: recipient.exactEntrancePanoId || undefined,
+                            heading: recipient.exactEntranceHeading,
+                            pitch: recipient.exactEntrancePitch,
+                          }
+                        : null;
+                    })(),
+                  }}
               />
             ) : (
               <SaleRecipientList

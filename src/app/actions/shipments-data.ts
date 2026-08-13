@@ -209,24 +209,23 @@ export async function authoritativeSaleQuote(
   const fullBoxDriver = Boolean(fullBoxPlan.driverTaskNeeded);
   const { data: routeSettings, error: routeSettingsError } = await supabase
     .from("organization_route_settings")
-    .select("empty_box_delivery_fee, full_box_pickup_fee, minimum_deposit")
+    .select("minimum_deposit, pickup_included_days, late_pickup_fee")
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (routeSettingsError) throw new Error(routeSettingsError.message);
   const feeSuggestions = {
-    emptyBoxDeliveryFee:
-      String(routeSettings?.empty_box_delivery_fee || defaultInvoiceBillingConfig.emptyBoxDeliveryFee),
-    fullBoxPickupFee:
-      String(routeSettings?.full_box_pickup_fee || defaultInvoiceBillingConfig.fullBoxPickupFee),
+    emptyBoxDeliveryFee: defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
+    fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
     minimumDeposit:
       String(routeSettings?.minimum_deposit || defaultInvoiceBillingConfig.minimumDeposit),
+    pickupIncludedDays: Math.max(Number(routeSettings?.pickup_included_days) || 30, 1),
+    latePickupFee: String(routeSettings?.late_pickup_fee || "$0"),
     logisticsFeeMode: "per_trip" as const,
   };
   const requestedAdjustments = asRecord(plan.feeAdjustments);
 
   function readAdditionalCharge(
     key: "emptyBoxDelivery" | "fullBoxPickup",
-    suggestion: string,
     driverParticipates: boolean,
   ): LogisticsAdditionalCharge & {
     suggestion: string;
@@ -239,23 +238,26 @@ export async function authoritativeSaleQuote(
     if (enabled && !driverParticipates) {
       throw new Error("El cargo adicional solo aplica cuando participa un conductor");
     }
-    const rawAmount = String(requested.amount || suggestion).trim();
-    if (!/^\$?\d+(?:\.\d{1,2})?$/.test(rawAmount)) {
+    const rawAmount = String(requested.amount || "").trim();
+    if (enabled && !rawAmount) {
+      throw new Error("Indica el importe del cargo logístico adicional");
+    }
+    if (enabled && !/^\$?\d+(?:\.\d{1,2})?$/.test(rawAmount)) {
       throw new Error("Importe de cargo logístico inválido");
     }
-    const amount = parseMoney(rawAmount);
-    if (!Number.isFinite(amount) || amount < 0 || amount > 100000) {
+    const amount = enabled ? parseMoney(rawAmount) : 0;
+    if (enabled && (!Number.isFinite(amount) || amount <= 0 || amount > 100000)) {
       throw new Error("Importe de cargo logístico inválido");
     }
     const reason = String(requested.reason || "").trim().slice(0, 500);
-    if (enabled && amount !== parseMoney(suggestion) && !reason) {
-      throw new Error("Explica por qué modificaste la tarifa sugerida");
+    if (enabled && !reason) {
+      throw new Error("Indica la razón del cargo logístico adicional");
     }
     return {
       enabled,
       amount: formatMoneyValue(enabled ? amount : 0),
       reason: enabled ? reason : "",
-      suggestion,
+      suggestion: "$0",
       appliedBy: enabled ? actor?.userId || null : null,
       appliedByName: enabled ? actor?.fullName || actor?.email || "" : "",
       appliedAt: enabled ? new Date().toISOString() : null,
@@ -263,16 +265,8 @@ export async function authoritativeSaleQuote(
   }
 
   const feeAdjustments = {
-    emptyBoxDelivery: readAdditionalCharge(
-      "emptyBoxDelivery",
-      feeSuggestions.emptyBoxDeliveryFee,
-      emptyBoxDriver,
-    ),
-    fullBoxPickup: readAdditionalCharge(
-      "fullBoxPickup",
-      feeSuggestions.fullBoxPickupFee,
-      fullBoxDriver,
-    ),
+    emptyBoxDelivery: readAdditionalCharge("emptyBoxDelivery", emptyBoxDriver),
+    fullBoxPickup: readAdditionalCharge("fullBoxPickup", fullBoxDriver),
   };
   const rawLines = Array.isArray(plan.boxLines) && plan.boxLines.length
     ? plan.boxLines
@@ -360,6 +354,12 @@ export async function authoritativeSaleQuote(
         emptyBoxDelivery: billing.emptyBoxDelivery,
         fullBoxPickup: billing.fullBoxPickup,
         total: billing.logisticsSubtotal,
+      },
+      pickupPolicy: {
+        includedDays: billing.pickupIncludedDays,
+        latePickupFee: billing.latePickupFeeConfigured,
+        startsWhen: "empty_box_delivered_at",
+        snapshottedAt: new Date().toISOString(),
       },
       billing,
       quote: {

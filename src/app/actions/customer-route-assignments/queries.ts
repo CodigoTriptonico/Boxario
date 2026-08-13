@@ -1,5 +1,7 @@
 "use server";
 
+import type { SupabaseClient } from "@supabase/supabase-js";
+
 import {
   mapRequestRow,
 } from "@/app/actions/customer-route-assignments/shared";
@@ -34,7 +36,8 @@ export async function listPendingCustomerRouteAssignmentRequestsAction(): Promis
       return fail("Supabase no configurado");
     }
 
-    const { data, error } = await supabase
+    const database = supabase as unknown as SupabaseClient;
+    const { data, error } = await database
       .from("customer_route_assignment_requests")
       .select(
         `
@@ -43,9 +46,18 @@ export async function listPendingCustomerRouteAssignmentRequestsAction(): Promis
         shipment_id,
         task_id,
         route_template_id,
+        route_definition_id,
+        route_schedule_id,
+        route_date,
+        route_weekday,
+        route_name,
+        route_id,
         scheduled_at,
         driver_id,
         zone_key,
+        postal_code,
+        address_fingerprint,
+        coverage_status,
         status,
         requested_by,
         created_at,
@@ -59,11 +71,13 @@ export async function listPendingCustomerRouteAssignmentRequestsAction(): Promis
           task_type, scheduled_at, schedule_kind, window_start_at, window_end_at
         ),
         template:logistics_route_templates!customer_route_assignment_requests_route_template_id_fkey(name, weekday),
+        definition:logistics_route_definitions!customer_route_assignment_requests_route_definition_id_fkey(name),
+        schedule:logistics_route_schedules!customer_route_assignment_requests_route_schedule_id_fkey(weekday),
         driver:profiles!customer_route_assignment_requests_driver_id_fkey(full_name, email)
       `,
       )
       .eq("organization_id", session.organizationId)
-      .eq("status", "pending")
+      .in("status", ["pending_approval", "template_confirmed"])
       .order("created_at", { ascending: true });
 
     if (error) {
@@ -97,11 +111,12 @@ export async function listPendingCustomerRouteAssignmentTaskIdsAction(): Promise
       return fail("Supabase no configurado");
     }
 
-    const { data, error } = await supabase
+    const database = supabase as unknown as SupabaseClient;
+    const { data, error } = await database
       .from("customer_route_assignment_requests")
       .select("task_id")
       .eq("organization_id", session.organizationId)
-      .eq("status", "pending");
+      .in("status", ["pending_approval", "template_confirmed"]);
 
     if (error) {
       return fail(error.message);
@@ -110,6 +125,85 @@ export async function listPendingCustomerRouteAssignmentTaskIdsAction(): Promise
     return ok(
       (data || []).map((row) => String(row.task_id)),
     );
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function listReviewedCustomerRouteAssignmentRequestsAction(): Promise<
+  ActionResult<CustomerRouteAssignmentRequestRow[]>
+> {
+  try {
+    const session = await requireAppSession();
+    if (
+      !sessionHasPermission(session, "routes.view") &&
+      !sessionHasPermission(session, "sales.manage")
+    ) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return fail("Supabase no configurado");
+    }
+
+    const database = supabase as unknown as SupabaseClient;
+    const { data, error } = await database
+      .from("customer_route_assignment_requests")
+      .select(
+        `
+        id,
+        customer_id,
+        shipment_id,
+        task_id,
+        route_template_id,
+        route_definition_id,
+        route_schedule_id,
+        route_date,
+        route_weekday,
+        route_name,
+        route_id,
+        scheduled_at,
+        driver_id,
+        zone_key,
+        postal_code,
+        address_fingerprint,
+        coverage_status,
+        status,
+        requested_by,
+        created_at,
+        review_note,
+        customer:customers!customer_route_assignment_requests_customer_id_fkey(
+          first_name, last_name, phones, street, house_number, address_reference,
+          neighborhood, city, state, postal_code, country, formatted_address, lat, lng
+        ),
+        shipment:shipments!customer_route_assignment_requests_shipment_id_fkey(code, logistics_plan),
+        task:shipment_logistics_tasks!customer_route_assignment_requests_task_id_fkey(
+          task_type, scheduled_at, schedule_kind, window_start_at, window_end_at
+        ),
+        template:logistics_route_templates!customer_route_assignment_requests_route_template_id_fkey(name, weekday),
+        definition:logistics_route_definitions!customer_route_assignment_requests_route_definition_id_fkey(name),
+        schedule:logistics_route_schedules!customer_route_assignment_requests_route_schedule_id_fkey(weekday),
+        driver:profiles!customer_route_assignment_requests_driver_id_fkey(full_name, email)
+      `,
+      )
+      .eq("organization_id", session.organizationId)
+      .in("status", ["rejected", "deferred"])
+      .order("created_at", { ascending: false });
+
+    if (error) {
+      return fail(error.message);
+    }
+
+    const latestByTaskId = new Map<string, CustomerRouteAssignmentRequestRow>();
+    for (const row of (data || []) as CustomerRouteAssignmentDbRow[]) {
+      const mapped = mapRequestRow(row);
+      if (!latestByTaskId.has(mapped.taskId)) {
+        latestByTaskId.set(mapped.taskId, mapped);
+      }
+    }
+
+    return ok(Array.from(latestByTaskId.values()));
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

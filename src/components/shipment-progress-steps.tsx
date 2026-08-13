@@ -2,6 +2,7 @@
 
 import {
   Building2,
+  Check,
   CircleDollarSign,
   Home,
   MapPinCheck,
@@ -15,6 +16,7 @@ import {
 } from "lucide-react";
 import { useCallback, useLayoutEffect, useRef, useState } from "react";
 import type { ShipmentRow, ShipmentStatus } from "@/lib/shipment-types";
+import { pickupServiceWindow } from "@/lib/pickup-service-window";
 import {
   legHasScheduleChange,
   planLegRecord,
@@ -42,6 +44,7 @@ import {
 } from "@/components/shipment-step-context-menu";
 import { ShipmentStepDetailPanel } from "@/components/shipment-step-detail-panel";
 import {
+  canRevertFullBoxOfficeReception,
   emptyBoxLegLockReason,
   emptyBoxLegLocked,
   fullBoxLegLockReason,
@@ -74,12 +77,14 @@ type ShipmentProgressStepsProps = {
   onLogisticsPatch?: (patch: Partial<ShipmentLogisticsEditorState>, audit: ShipmentAuditContext) => void;
   onStatusChange?: (status: ShipmentStatus, audit: ShipmentAuditContext) => void;
   onFullBoxReceivedAtOffice?: (audit: ShipmentAuditContext) => void;
+  onRevertFullBoxOfficeReception?: (audit: ShipmentAuditContext) => void;
   onProgramRoute?: (kind: "empty_box" | "full_box") => void;
   routeByTaskId?: (taskId: string) => {
     routeName: string;
     assignedTo: string | null;
     routeTemplateId: string | null;
   } | undefined;
+  requestedRouteTaskIds?: Set<string>;
   onLockedLeg?: (message: string) => void;
 };
 
@@ -103,7 +108,7 @@ function timelineRowClass(state: ShipmentProgressStep["state"], interactive: boo
   }
 
   if (state === "pending") {
-    return `${base} opacity-55`;
+    return `${base} text-slate-300`;
   }
 
   if (interactive) {
@@ -157,6 +162,7 @@ function stepIcon(kind: ShipmentProgressKind, channel: ShipmentProgressChannel):
   return MapPinCheck;
 }
 
+/** Pendiente = ámbar outline; en logística = cian relleno (distinto de hecho = verde). */
 function compactLogisticsLegUsesOutline(step: ShipmentProgressStep) {
   if (step.state !== "active") {
     return false;
@@ -169,34 +175,59 @@ function compactLogisticsLegUsesOutline(step: ShipmentProgressStep) {
   return !step.driverTaskOrdered;
 }
 
-function compactStepClass(
+function compactStepNodeClass(
   step: ShipmentProgressStep,
   isDetailOpen: boolean,
 ) {
   const detailRing = isDetailOpen
-    ? "z-10 ring-2 ring-emerald-400 ring-offset-1 ring-offset-surface-card shadow-[0_0_10px_rgba(52,211,153,0.45)]"
+    ? "ring-2 ring-emerald-400 ring-offset-2 ring-offset-surface-list-row"
     : "";
-  const activePulse = step.state === "active" ? "shipment-step-active-pulse border-amber-500" : "";
-  const activeOutlineClass = `border-amber-500 bg-surface-card-header text-amber-100 ${detailRing} ${activePulse}`;
 
   if (compactLogisticsLegUsesOutline(step)) {
-    return activeOutlineClass;
+    return `border-amber-400 bg-amber-400/10 text-amber-200 ${detailRing}`;
   }
 
   if (step.state === "done") {
-    return `border-emerald-700 bg-emerald-400/90 text-slate-950 ${detailRing}`;
+    return `border-emerald-500 bg-emerald-400 text-slate-950 ${detailRing}`;
   }
 
   if (step.state === "active") {
-    return `border-amber-600 bg-amber-400 text-slate-950 ${detailRing} ${activePulse}`;
+    if (step.kind === "empty_box" || step.kind === "full_box") {
+      return `border-sky-400 bg-sky-400 text-slate-950 ${detailRing}`;
+    }
+    return `border-amber-400 bg-amber-400 text-slate-950 ${detailRing}`;
   }
 
-  return `border-black bg-surface-card-header text-slate-500 ${detailRing}`;
+  return `border-slate-600 bg-surface-inset text-slate-500 ${detailRing}`;
+}
+
+function compactStepLabelClass(step: ShipmentProgressStep) {
+  if (step.state === "done") {
+    return "text-emerald-300";
+  }
+
+  if (step.state === "active") {
+    if (compactLogisticsLegUsesOutline(step)) {
+      return "text-amber-100";
+    }
+    if (step.kind === "empty_box" || step.kind === "full_box") {
+      return "text-sky-200";
+    }
+    return "text-slate-100";
+  }
+
+  return "text-slate-500";
+}
+
+function compactConnectorClass(done: boolean) {
+  return done ? "bg-emerald-500/75" : "bg-slate-700";
 }
 
 function compactStepName(
   step: ShipmentProgressStep,
   row?: ShipmentRow,
+  routeByTaskId?: ShipmentProgressStepsProps["routeByTaskId"],
+  requestedRouteTaskIds?: Set<string>,
 ) {
   if (step.kind === "empty_box" || step.kind === "full_box") {
     const taskType =
@@ -205,11 +236,15 @@ function compactStepName(
       (candidate) =>
         candidate.taskType === taskType && candidate.status !== "cancelled",
     );
+    const assignedRoute = task ? routeByTaskId?.(task.id) : undefined;
 
     return logisticsLegCompactLabel(step.kind, {
       active: step.state === "active",
-      ordered: step.driverTaskOrdered === true,
+      ordered: Boolean(
+        task && (assignedRoute?.routeName || requestedRouteTaskIds?.has(task.id)),
+      ),
       scheduledAt: task?.scheduledAt || task?.requestedScheduleAt || null,
+      routeConfirmed: Boolean(assignedRoute?.routeName),
     });
   }
 
@@ -273,8 +308,10 @@ export function ShipmentProgressSteps({
   onLogisticsPatch,
   onStatusChange,
   onFullBoxReceivedAtOffice,
+  onRevertFullBoxOfficeReception,
   onProgramRoute,
   routeByTaskId,
+  requestedRouteTaskIds,
   onLockedLeg,
 }: ShipmentProgressStepsProps) {
   const [menu, setMenu] = useState<ShipmentStepMenuState>(null);
@@ -403,6 +440,16 @@ export function ShipmentProgressSteps({
 
       const lock = legLockReason(row, step.kind);
       if (lock) {
+        if (
+          step.kind === "full_box" &&
+          canRevertFullBoxOfficeReception(row) &&
+          onRevertFullBoxOfficeReception &&
+          event
+        ) {
+          openStepMenu(step, event.clientX, event.clientY, "left_click");
+          return;
+        }
+
         onLockedLeg?.(lock);
         return;
       }
@@ -530,6 +577,16 @@ export function ShipmentProgressSteps({
         scheduleMode={menuScheduleMode}
         scheduleAt={menuScheduleAt}
         {...menuLegContext(menu.kind)}
+        latePickupNotice={(() => {
+          if (menu.kind !== "full_box") return "";
+          const pickupWindow = pickupServiceWindow({
+            logisticsPlan: row.logistics_plan,
+            emptyBoxDeliveredAt: row.empty_box_delivered_at,
+          });
+          return pickupWindow?.chargeApplies
+            ? `El plazo incluido venció. Al pedir que el chofer la recoja se agregará ${pickupWindow.latePickupFee} al invoice.`
+            : "";
+        })()}
         currentStatus={row.status}
         onClose={() => setMenu(null)}
         onApply={(patch) => {
@@ -557,6 +614,18 @@ export function ShipmentProgressSteps({
             stepKind: menu.kind,
           });
         }}
+        onRevertFullBoxOfficeReception={
+          row && canRevertFullBoxOfficeReception(row)
+            ? () => {
+                onRevertFullBoxOfficeReception?.({
+                  interaction: "context_menu",
+                  source: "envios.progress",
+                  stepTitle: menu.title,
+                  stepKind: menu.kind,
+                });
+              }
+            : undefined
+        }
         onProgramRoute={onProgramRoute}
       />
     ) : null;
@@ -564,23 +633,19 @@ export function ShipmentProgressSteps({
   if (compact) {
     const waiting = activeStep?.state === "active";
     const focusStep = waiting ? activeStep : steps.filter((step) => step.state === "done").at(-1) ?? activeStep;
-    const panelTint = waiting
-      ? timings?.isLongWait
-        ? "border-amber-500/60 bg-amber-950/20"
-        : "border-black bg-surface-inset"
-      : "border-emerald-600/40 bg-emerald-950/15";
     const stepButtonClass = singleLine
-      ? "relative flex h-9 w-full min-w-0 items-center gap-1 rounded border px-2 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50"
-      : "relative flex h-10 min-w-0 items-center gap-1.5 rounded border px-1.5 text-left transition-colors disabled:cursor-not-allowed disabled:opacity-50";
+      ? "group relative flex min-h-12 w-full min-w-0 flex-col items-center gap-1 px-1 py-0.5 text-center disabled:cursor-default"
+      : "group relative flex min-h-14 w-full min-w-0 flex-col items-center gap-1.5 px-1 py-0.5 text-center disabled:cursor-default";
     const stepLabelClass = singleLine
-      ? "min-w-0 truncate text-[11px] font-black leading-none"
-      : "min-w-0 truncate text-[11px] font-black leading-tight";
-    const stepIconWrapClass = singleLine ? "h-4 w-4" : "h-5 w-5";
-    const stepIconClass = singleLine ? "h-3 w-3" : "h-3.5 w-3.5";
+      ? "w-full min-w-0 whitespace-normal break-words text-[10px] font-black leading-tight sm:truncate sm:whitespace-nowrap sm:text-[11px]"
+      : "w-full min-w-0 text-[11px] font-black leading-tight";
+    const stepIconWrapClass = singleLine ? "h-7 w-7" : "h-8 w-8";
+    const stepIconClass = singleLine ? "h-3.5 w-3.5" : "h-4 w-4";
 
-    const stepButtons = steps.map((step) => {
+    const stepButtons = steps.map((step, index) => {
       const isDetailOpen = detailStepId === step.id;
       const Icon = stepIcon(step.kind, step.channel);
+      const connectorTopClass = singleLine ? "top-[1.05rem]" : "top-4";
 
       return (
         <button
@@ -603,6 +668,18 @@ export function ShipmentProgressSteps({
               return;
             }
 
+            if (
+              step.kind === "full_box" &&
+              row &&
+              canRevertFullBoxOfficeReception(row) &&
+              onRevertFullBoxOfficeReception &&
+              stepIsInteractive(step)
+            ) {
+              openStepMenuFromButton(step, step.id, event);
+              setDetailStepId(null);
+              return;
+            }
+
             const nextStepId = detailStepId === step.id ? null : step.id;
             setDetailStepId(nextStepId);
             if (nextStepId) {
@@ -612,20 +689,38 @@ export function ShipmentProgressSteps({
             }
           }}
           onContextMenu={(event) => openContextMenu(event, step)}
-          className={`${stepButtonClass} ${stepIsInteractive(step) ? "hover:opacity-90" : ""} ${compactStepClass(step, isDetailOpen)}`}
+          className={`${stepButtonClass} ${stepIsInteractive(step) ? "cursor-pointer" : ""}`}
           aria-label={step.title}
           aria-expanded={isDetailOpen}
           aria-current={step.state === "active" ? "step" : undefined}
         >
+          {index > 0 ? (
+            <span
+              className={`pointer-events-none absolute left-0 right-1/2 h-px ${connectorTopClass} ${compactConnectorClass(steps[index - 1]?.state === "done")}`}
+              aria-hidden
+            />
+          ) : null}
+          {index < steps.length - 1 ? (
+            <span
+              className={`pointer-events-none absolute left-1/2 right-0 h-px ${connectorTopClass} ${compactConnectorClass(step.state === "done")}`}
+              aria-hidden
+            />
+          ) : null}
           <span
-            className={`flex shrink-0 items-center justify-center rounded border border-black/30 bg-black/10 ${stepIconWrapClass}`}
+            className={`relative z-10 flex shrink-0 items-center justify-center rounded-full border transition-transform ${stepIconWrapClass} ${compactStepNodeClass(step, isDetailOpen)} ${stepIsInteractive(step) ? "group-hover:scale-105" : ""}`}
           >
-            <Icon className={stepIconClass} strokeWidth={2.25} aria-hidden />
+            {step.state === "done" ? (
+              <Check className={stepIconClass} strokeWidth={3} aria-hidden />
+            ) : (
+              <Icon className={stepIconClass} strokeWidth={2.25} aria-hidden />
+            )}
           </span>
-          <span className={stepLabelClass}>{compactStepName(step, row)}</span>
+          <span className={`${stepLabelClass} ${compactStepLabelClass(step)}`}>
+            {compactStepName(step, row, routeByTaskId, requestedRouteTaskIds)}
+          </span>
           {isDetailOpen ? (
             <span
-              className="pointer-events-none absolute -bottom-2 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-emerald-400"
+              className="pointer-events-none absolute -bottom-1.5 left-1/2 h-0 w-0 -translate-x-1/2 border-x-[5px] border-t-[6px] border-x-transparent border-t-emerald-400"
               aria-hidden
             />
           ) : null}
@@ -643,8 +738,16 @@ export function ShipmentProgressSteps({
                 openContextMenu(event, focusStep);
               }
             }}
-            title={focusStep && stepIsInteractive(focusStep) ? "Clic derecho: más opciones" : undefined}
-            className={`relative w-full max-w-full min-w-0 rounded-lg border px-1.5 py-1 [contain:paint] ${panelTint}`}
+            title={
+              focusStep && stepIsInteractive(focusStep)
+                ? isLogisticsLegKind(focusStep.kind)
+                  ? focusStep.kind === "full_box"
+                    ? `Oficina o programar ${FULL_BOX_LEG_LABELS.short.toLowerCase()}`
+                    : `Oficina o programar ${EMPTY_BOX_LEG_LABELS.short.toLowerCase()}`
+                  : "Clic derecho: más opciones"
+                : undefined
+            }
+            className="relative w-full max-w-full min-w-0 px-1 py-0.5"
           >
             <div
               className="grid w-full max-w-full gap-1"
@@ -673,8 +776,16 @@ export function ShipmentProgressSteps({
                 openContextMenu(event, focusStep);
               }
             }}
-            title={focusStep && stepIsInteractive(focusStep) ? "Clic derecho: más opciones" : undefined}
-            className={`relative rounded-lg border p-2.5 [contain:paint] ${panelTint}`}
+            title={
+              focusStep && stepIsInteractive(focusStep)
+                ? isLogisticsLegKind(focusStep.kind)
+                  ? focusStep.kind === "full_box"
+                    ? `Oficina o programar ${FULL_BOX_LEG_LABELS.short.toLowerCase()}`
+                    : `Oficina o programar ${EMPTY_BOX_LEG_LABELS.short.toLowerCase()}`
+                  : "Clic derecho: más opciones"
+                : undefined
+            }
+            className="relative rounded-lg border border-black/60 bg-black/10 p-2.5"
           >
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="min-w-0">
@@ -729,11 +840,11 @@ export function ShipmentProgressSteps({
                   title={
                     interactive
                       ? isLogisticsLegKind(step.kind)
-                        ? step.kind === "full_box" && step.state === "active"
-                          ? `Programar o marcar ${FULL_BOX_LEG_LABELS.short.toLowerCase()}`
-                          : step.kind === "empty_box" && step.state === "active"
-                            ? `Programar o marcar ${EMPTY_BOX_LEG_LABELS.short.toLowerCase()}`
-                            : "Clic: alternar oficina / domicilio · Clic derecho: más opciones"
+                        ? step.state === "active"
+                          ? step.kind === "full_box"
+                            ? `Oficina o programar ${FULL_BOX_LEG_LABELS.short.toLowerCase()}`
+                            : `Oficina o programar ${EMPTY_BOX_LEG_LABELS.short.toLowerCase()}`
+                          : "Clic: alternar oficina / domicilio"
                         : "Clic: marcar estado · Clic derecho: elegir otro"
                       : undefined
                   }

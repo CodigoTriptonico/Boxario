@@ -23,6 +23,8 @@ const dayButtonClass =
 
 type DatePickerCalendarProps = {
   value: string;
+  rangeStart?: string;
+  rangeEnd?: string;
   viewYear: number;
   viewMonth: number;
   min?: string;
@@ -31,12 +33,15 @@ type DatePickerCalendarProps = {
   /** Optional logistics markers: YYYY-MM-DD → tone. */
   dayTones?: Readonly<Record<string, LogisticsCalendarDayTone>>;
   showToneLegend?: boolean;
+  embedded?: boolean;
   onChange: (value: string) => void;
   onViewChange: (year: number, month: number) => void;
 };
 
 export function DatePickerCalendar({
   value,
+  rangeStart,
+  rangeEnd,
   viewYear,
   viewMonth,
   min,
@@ -44,6 +49,7 @@ export function DatePickerCalendar({
   allowedWeekdays,
   dayTones,
   showToneLegend = false,
+  embedded = false,
   onChange,
   onViewChange,
 }: DatePickerCalendarProps) {
@@ -65,7 +71,9 @@ export function DatePickerCalendar({
   return (
     <div
       data-date-picker-panel
-      className="w-[17.5rem] overflow-hidden rounded-lg border border-black bg-surface-card shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+      className={embedded
+        ? "w-full overflow-hidden bg-surface-card"
+        : "w-full max-w-[17.5rem] overflow-hidden rounded-lg border border-black bg-surface-card shadow-[0_16px_40px_rgba(0,0,0,0.45)]"}
       onPointerDown={(event) => event.stopPropagation()}
     >
       <div className="flex items-center justify-between gap-2 border-b border-black bg-[#1a221f] px-2 py-2">
@@ -114,6 +122,8 @@ export function DatePickerCalendar({
           }
 
           const selected = cell.date === value;
+          const inRange = Boolean(rangeStart && rangeEnd && cell.date >= rangeStart && cell.date <= rangeEnd);
+          const rangeEndpoint = cell.date === rangeStart || cell.date === rangeEnd;
           const disabled = isDateDisabled(cell.date, min, max, { allowedWeekdays });
           const isToday = cell.date === today;
           const tone = dayTones?.[cell.date] || null;
@@ -123,6 +133,10 @@ export function DatePickerCalendar({
             stateClass = "cursor-not-allowed bg-surface-panel text-slate-600 opacity-40";
           } else if (tone) {
             stateClass = logisticsCalendarDayToneClass(tone);
+          } else if (rangeEndpoint) {
+            stateClass = "bg-emerald-400 text-slate-950 hover:bg-emerald-300";
+          } else if (inRange) {
+            stateClass = "bg-emerald-400/15 text-emerald-100 hover:bg-emerald-400/25";
           } else if (isToday) {
             stateClass =
               "border border-emerald-600/60 bg-surface-panel text-[#f8fafc] hover:bg-surface-card-hover";
@@ -143,9 +157,12 @@ export function DatePickerCalendar({
               onClick={() => onChange(cell.date)}
               className={`${dayButtonClass} ${stateClass}`}
               aria-label={tone ? `${cell.date} · ${tone}` : cell.date}
-              aria-pressed={selected}
+              aria-pressed={selected || inRange}
               data-day-tone={tone || undefined}
               data-day-selected={selected || undefined}
+              data-range-start={cell.date === rangeStart || undefined}
+              data-range-end={cell.date === rangeEnd || undefined}
+              data-in-range={inRange || undefined}
             >
               {cell.day}
               {tone && !disabled ? (

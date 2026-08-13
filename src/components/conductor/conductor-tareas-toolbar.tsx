@@ -16,6 +16,7 @@ import { CompactInfoDisclosure } from "@/components/conductor/conductor-task-ite
 type TaskListMode = "pending" | "completed";
 
 type ConductorTareasToolbarProps = {
+  showDriverContext?: boolean;
   canPreview: boolean;
   effectiveDriverLabel: string;
   previewDriverId: string | null;
@@ -41,6 +42,7 @@ type ConductorTareasToolbarProps = {
 };
 
 export function ConductorTareasToolbar({
+  showDriverContext = true,
   canPreview,
   effectiveDriverLabel,
   previewDriverId,
@@ -65,8 +67,8 @@ export function ConductorTareasToolbar({
   onRetryAllSync,
 }: ConductorTareasToolbarProps) {
   return (
-    <section className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-black bg-surface-card-header p-2 shadow-[0_6px_18px_rgba(0,0,0,0.12)]">
-      {canPreview ? (
+    <section className="mb-3 grid gap-2 rounded-xl border border-black bg-surface-card-header p-2.5 shadow-[0_6px_18px_rgba(0,0,0,0.12)] sm:flex sm:flex-wrap sm:items-center sm:p-2">
+      {showDriverContext && canPreview ? (
         <div className="flex h-10 min-w-0 items-center gap-2 rounded-md border border-sky-800/70 bg-sky-950/25 pl-2">
           <p className="shrink-0 text-xs font-black uppercase tracking-wide text-sky-300">Admin</p>
           <CompactInfoDisclosure ariaLabel="Ver detalle de vista administrativa" tone="sky">
@@ -84,14 +86,14 @@ export function ConductorTareasToolbar({
             disabled={!previewOptions.length}
           />
         </div>
-      ) : (
+      ) : showDriverContext ? (
         <div className="flex h-10 min-w-0 items-center gap-2 px-1.5">
           <p className="shrink-0 text-xs font-black uppercase tracking-wide text-slate-500">Ruta</p>
-          <h1 className="max-w-48 truncate text-sm font-black tracking-tight text-[#f8fafc]">{effectiveDriverLabel}</h1>
+          <h1 className="break-words text-sm font-black tracking-tight text-[#f8fafc] sm:max-w-48 sm:truncate">{effectiveDriverLabel}</h1>
         </div>
-      )}
+      ) : null}
 
-      <div className="flex h-10 min-w-0 overflow-hidden rounded-md border border-black">
+      <div className="hidden h-10 min-w-0 overflow-hidden rounded-md border border-black sm:flex">
         <div className="flex min-w-0 items-center gap-1.5 bg-surface-card px-2">
           <p className="text-xs font-black text-slate-400">Faltan</p>
           <p className="text-base font-black tabular-nums text-[#f8fafc]">{selectedPendingBoxes}</p>
@@ -105,52 +107,52 @@ export function ConductorTareasToolbar({
           <p className="text-base font-black tabular-nums text-rose-200">{completedOutcomeSummary.failedBoxes}</p>
         </div>
       </div>
-      <Link href="/seguimiento/excepciones" className={`${secondaryButtonClass} h-10 text-xs`}>
+      <Link href="/seguimiento/excepciones" className={`${secondaryButtonClass} hidden h-10 text-xs sm:flex`}>
         <AlertTriangle className="h-4 w-4" /> Excepciones
       </Link>
 
-      <div className="flex h-10 min-w-0 overflow-hidden rounded-md border border-black" role="group" aria-label="Cambiar origen de tareas">
+      {agencyModuleEnabled ? <div className="order-3 flex h-11 min-w-0 overflow-hidden rounded-lg border border-black sm:order-none sm:h-10" role="group" aria-label="Cambiar origen de tareas">
         <button type="button" className={`flex-1 text-xs font-black ${operationScope === "domicilios" ? "bg-emerald-950/35 text-emerald-100" : "bg-surface-card text-slate-300"}`} onClick={() => onOperationScopeChange("domicilios")}>Domicilios</button>
-        {agencyModuleEnabled ? <button type="button" className={`flex-1 border-l border-black text-xs font-black ${operationScope === "agencias" ? "bg-emerald-950/35 text-emerald-100" : "bg-surface-card text-slate-300"}`} onClick={() => onOperationScopeChange("agencias")}>Agencias</button> : null}
-      </div>
+        <button type="button" className={`flex-1 border-l border-black text-xs font-black ${operationScope === "agencias" ? "bg-emerald-950/35 text-emerald-100" : "bg-surface-card text-slate-300"}`} onClick={() => onOperationScopeChange("agencias")}>Agencias</button>
+      </div> : null}
 
-      {operationScope === "domicilios" ? <><div className="flex h-10 min-w-0 overflow-hidden rounded-md border border-black" role="group" aria-label="Filtrar tareas por tipo">
+      {operationScope === "domicilios" ? <><div className="order-2 grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-black sm:order-none sm:flex sm:h-10" role="group" aria-label="Filtrar tareas por tipo">
         <button
           type="button"
           aria-pressed={taskFilter === "deliver_empty_box"}
-          className={`flex min-w-0 items-center gap-1.5 px-2.5 text-left text-xs font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 ${
+          className={`flex min-w-0 items-center justify-center gap-1.5 px-2.5 text-left text-sm font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300 sm:text-xs ${
             taskFilter === "deliver_empty_box"
               ? "bg-emerald-950/35 text-emerald-100"
               : "bg-surface-card text-slate-300 hover:bg-surface-inset"
           }`}
           onClick={() => onTaskFilterChange("deliver_empty_box")}
         >
-          <span className="truncate text-xs font-black text-emerald-200">Por dejar</span>
+          <span className="text-xs font-black text-emerald-200">Por dejar</span>
           <span className="shrink-0 tabular-nums text-emerald-200">{pendingSummary.deliverCount}</span>
           <span className="sr-only">cajas por hacer</span>
         </button>
         <button
           type="button"
           aria-pressed={taskFilter === "pickup_full_box"}
-          className={`flex min-w-0 items-center gap-1.5 border-l border-black px-2.5 text-left text-xs font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 ${
+          className={`flex min-w-0 items-center justify-center gap-1.5 border-l border-black px-2.5 text-left text-sm font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-amber-300 sm:text-xs ${
             taskFilter === "pickup_full_box"
               ? "bg-amber-950/30 text-amber-100"
               : "bg-surface-card text-slate-300 hover:bg-surface-inset"
           }`}
           onClick={() => onTaskFilterChange("pickup_full_box")}
         >
-          <span className="truncate text-xs font-black text-amber-200">Por recoger</span>
+          <span className="text-xs font-black text-amber-200">Por recoger</span>
           <span className="shrink-0 tabular-nums text-amber-200">{pendingSummary.pickupCount}</span>
           <span className="sr-only">cajas por hacer</span>
         </button>
       </div>
 
-      <div className="flex h-10 min-w-0 overflow-hidden rounded-md border border-black bg-surface-inset" role="tablist" aria-label="Vista de tareas">
+      <div className="order-1 grid h-11 min-w-0 grid-cols-2 overflow-hidden rounded-lg border border-black bg-surface-inset sm:order-none sm:flex sm:h-10" role="tablist" aria-label="Vista de tareas">
           <button
             type="button"
             role="tab"
             aria-selected={listMode === "pending"}
-            className={`flex min-w-0 items-center justify-center gap-1.5 px-3 text-sm font-black transition ${
+            className={`flex min-w-0 items-center justify-center gap-1.5 px-2 text-sm font-black transition sm:px-3 ${
               listMode === "pending"
                 ? "bg-emerald-950/50 text-emerald-100"
                 : "bg-surface-card text-slate-300 hover:bg-surface-inset"
@@ -165,7 +167,7 @@ export function ConductorTareasToolbar({
             type="button"
             role="tab"
             aria-selected={listMode === "completed"}
-            className={`flex min-w-0 items-center justify-center gap-1.5 border-l border-black px-3 text-sm font-black transition ${
+            className={`flex min-w-0 items-center justify-center gap-1.5 border-l border-black px-2 text-sm font-black transition sm:px-3 ${
               listMode === "completed"
                 ? "bg-sky-950/50 text-sky-100"
                 : "bg-surface-card text-slate-300 hover:bg-surface-inset"
@@ -180,7 +182,7 @@ export function ConductorTareasToolbar({
 
       <button
         type="button"
-        className={`flex h-10 min-w-0 items-center gap-1.5 rounded-md border border-black px-2.5 text-xs font-black ${
+        className={`order-4 flex h-10 min-w-0 items-center justify-center gap-1.5 rounded-lg border border-black px-2.5 text-xs font-black sm:order-none sm:justify-start ${
           offlineSnapshot.needsAttentionCount > 0
             ? "bg-rose-950/35 text-rose-200"
             : hasSyncActivity
@@ -199,7 +201,7 @@ export function ConductorTareasToolbar({
         ) : (
           <CheckCircle2 className="h-4 w-4 shrink-0" />
         )}
-        <span className="truncate">{offlineGlobalLabel}</span>
+        <span className="break-words sm:truncate">{offlineGlobalLabel}</span>
       </button>
       </> : null}
     </section>

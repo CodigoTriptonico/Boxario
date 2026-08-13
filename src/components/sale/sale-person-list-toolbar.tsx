@@ -15,6 +15,7 @@ type SalePersonListToolbarProps = {
   createShortLabel: string;
   onCreate: () => void;
   createOnboardingTarget?: string;
+  sortControl?: ReactNode;
 };
 
 export function SalePersonListToolbar({
@@ -24,12 +25,14 @@ export function SalePersonListToolbar({
   createShortLabel,
   onCreate,
   createOnboardingTarget,
+  sortControl,
 }: SalePersonListToolbarProps) {
   return (
     <div className={flowPersonToolbarShellClass}>
       <div className="flex min-w-0 flex-1 items-stretch gap-2">
         <div className={`${flowPersonToolbarSearchSlotClass} flex-1`}>{search}</div>
         <div className={flowPersonToolbarActionsClass}>
+          {sortControl}
           <button
             type="button"
             onClick={onCreate}

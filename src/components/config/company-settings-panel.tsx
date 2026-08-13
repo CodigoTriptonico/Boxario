@@ -107,7 +107,7 @@ export function CompanySettingsPanel() {
   }
 
   if (!loaded) {
-    return <PageLoading />;
+    return <PageLoading inline />;
   }
 
   if (error) {

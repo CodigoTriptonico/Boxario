@@ -44,13 +44,34 @@ describe("platform companies layout eval", () => {
     assert.match(source, /onContextMenu=\{\(event\) => openContextMenu\(event, org\.id\)\}/);
     assert.match(source, /data-platform-company-context-menu/);
     assert.match(source, /role="menu"/);
-    assert.match(source, /className=\{selectedOrg \? "hidden" : "min-h-\[calc\(100dvh-7rem\)\] border-0 bg-transparent"\}/);
-    assert.match(source, /min-h-\[calc\(100dvh-7rem\)\]/);
+    assert.match(source, /className=\{selectedOrg \? "hidden" : "border-0 bg-transparent"\}/);
+    assert.match(source, /clipContent=\{false\}/);
+    assert.doesNotMatch(source, /min-h-\[calc\(100dvh-7rem\)\]/);
     assert.match(source, /flex min-h-11 items-center gap-2 border-b border-black/);
     assert.match(source, /Información de \$\{selectedOrg\.name\}/);
-    assert.match(source, /contentClassName="p-0"\s+hideHeader/);
+    assert.match(source, /contentClassName="p-0"\s+clipContent=\{false\}\s+hideHeader/);
     assert.match(source, /<ArrowLeft className="h-4 w-4" \/>/);
     assert.match(source, /Cerrar y archivar/);
+  });
+
+  it("opens the context menu without navigating into the company detail", () => {
+    const openStart = source.indexOf("const openContextMenu = useCallback(");
+    const openEnd = source.indexOf("}, [", openStart);
+    assert.ok(openStart > 0 && openEnd > openStart);
+    const openBody = source.slice(openStart, openEnd);
+    assert.match(openBody, /event\.preventDefault\(\)/);
+    assert.match(openBody, /event\.stopPropagation\(\)/);
+    assert.match(openBody, /setContextMenu\(/);
+    assert.doesNotMatch(openBody, /selectOrganization\(/);
+  });
+
+  it("lets the app shell own vertical scroll instead of clipping the company list", () => {
+    assert.match(
+      source,
+      /className=\{selectedOrg \? "hidden" : "border-0 bg-transparent"\}[\s\S]*?clipContent=\{false\}/,
+    );
+    assert.match(source, /flex min-h-0 w-full flex-1 flex-col/);
+    assert.doesNotMatch(source, /overflow-y-auto/);
   });
 
   it("pluralizes user/warehouse counts and never shows dash limits", () => {

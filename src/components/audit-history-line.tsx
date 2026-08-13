@@ -7,7 +7,7 @@ import {
 const auditBadgeClass = {
   date: "border-black/40 bg-surface-inset text-slate-400",
   invoice: "border-emerald-700/35 bg-emerald-400/10 text-emerald-200",
-  moment: "border-amber-700/30 bg-amber-950/30 text-amber-200/90",
+  moment: "border-amber-700/30 bg-amber-950/30 text-amber-200",
   actor: "border-black/40 bg-surface-inset text-slate-300",
 } as const;
 

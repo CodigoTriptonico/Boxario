@@ -4,6 +4,10 @@ import { SalePaymentMethodField } from "@/components/sale/sale-payment-method-fi
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { parseMoneyValue } from "@/lib/logistics-fees";
 import { isSalePaymentUnset, type SalePaymentSelection } from "@/lib/sale-payment-choice";
+import {
+  normalizePaymentMethodSettings,
+  type PaymentMethodSettings,
+} from "@/lib/payment-methods";
 
 type SaleInvoiceConfirmDialogProps = {
   open: boolean;
@@ -21,6 +25,7 @@ type SaleInvoiceConfirmDialogProps = {
   onPaymentNoteChange?: (note: string) => void;
   onCancel: () => void;
   onConfirm: () => void;
+  paymentSettings?: Partial<PaymentMethodSettings>;
 };
 
 export function SaleInvoiceConfirmDialog({
@@ -39,6 +44,7 @@ export function SaleInvoiceConfirmDialog({
   onPaymentNoteChange,
   onCancel,
   onConfirm,
+  paymentSettings,
 }: SaleInvoiceConfirmDialogProps) {
   if (!open) {
     return null;
@@ -46,6 +52,12 @@ export function SaleInvoiceConfirmDialog({
 
   const hasInitialPayment = parseMoneyValue(paymentAmount) > 0;
   const paymentSelectionRequired = hasInitialPayment && isSalePaymentUnset(paymentMethod);
+  const normalizedPaymentSettings = normalizePaymentMethodSettings(paymentSettings);
+  const paymentReferenceRequired =
+    paymentMethod !== "pending" &&
+    paymentMethod !== "unset" &&
+    normalizedPaymentSettings.referenceRequiredMethods.includes(paymentMethod) &&
+    !paymentNote.trim();
 
   return (
     <div className="app-modal-overlay fixed inset-0 z-[140] flex justify-center bg-black/70 p-3 sm:p-4">
@@ -79,6 +91,7 @@ export function SaleInvoiceConfirmDialog({
             hideDepositStatus
             onChange={onPaymentMethodChange}
             onNoteChange={onPaymentNoteChange}
+            paymentSettings={normalizedPaymentSettings}
           />
         ) : (
           <p className="mt-4 rounded-lg border border-black bg-surface-card px-3 py-3 text-sm font-bold text-slate-300">
@@ -107,13 +120,15 @@ export function SaleInvoiceConfirmDialog({
           <button
             type="button"
             onClick={onConfirm}
-            disabled={confirming || paymentSelectionRequired}
+            disabled={confirming || paymentSelectionRequired || paymentReferenceRequired}
             className={`${primaryButtonClass} h-11 text-sm font-black disabled:opacity-40`}
           >
             {confirming
               ? confirmingLabel
               : paymentSelectionRequired
                 ? "Elige cómo cobrar"
+                : paymentReferenceRequired
+                  ? "Completa la referencia"
                 : confirmLabel}
           </button>
         </div>

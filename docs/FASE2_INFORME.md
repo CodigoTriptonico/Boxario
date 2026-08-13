@@ -38,7 +38,7 @@ Validación final con Docker + Supabase local en verde. Paginación, tipos, drif
 ## Docker / Supabase (cierre)
 
 - Docker Desktop activo (Server 29.6.2).
-- Supabase local: API `http://127.0.0.1:54321`, DB `127.0.0.1:54322`, Studio `54323`.
+- Supabase local: API `http://127.0.0.1:60021`, DB `127.0.0.1:60022`, Studio `60023`.
 - Servicios healthy: db, auth, kong, rest, storage, realtime, studio, pg_meta.
 - Opcionales detenidos: imgproxy, analytics, vector, pooler (no bloquean gates).
 - Migraciones aplicadas: **166** (incluye 150–166).

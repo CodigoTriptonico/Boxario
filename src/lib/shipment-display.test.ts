@@ -10,6 +10,8 @@ import {
   isCompletedShipment,
   matchesEnviosSearchQuery,
   matchesEnviosStatusFilter,
+  enviosActiveLegLogisticsToneClass,
+  enviosStatusFilterDisplayLabel,
   resolveInitialShipmentStatus,
   resolvePendingShipmentStatus,
   fullBoxPickupPlanStatus,
@@ -660,10 +662,27 @@ describe("shipmentOperationalStatusLabel", () => {
 });
 
 describe("envios status filter buckets", () => {
-  it("exposes the four tracking buckets without pendiente labels", () => {
+  it("exposes Recolecciones/Entregas first with Pendientes/En logística nested", () => {
     assert.deepEqual(
-      ENVIOS_STATUS_FILTER_OPTIONS.map((option) => option.label),
-      ["Recolecciones", "Entregas", "En oficina", "En tránsito"],
+      ENVIOS_STATUS_FILTER_OPTIONS.map((option) => ({
+        value: option.value,
+        label: option.label,
+        children: option.children?.map((child) => child.label) || null,
+      })),
+      [
+        {
+          value: "recolecciones",
+          label: "Recolecciones",
+          children: ["Pendientes", "En logística"],
+        },
+        {
+          value: "entregas",
+          label: "Entregas",
+          children: ["Pendientes", "En logística"],
+        },
+        { value: "en_oficina", label: "En oficina", children: null },
+        { value: "en_transito", label: "En tránsito", children: null },
+      ],
     );
   });
 
@@ -672,6 +691,207 @@ describe("envios status filter buckets", () => {
 
     assert.equal(matchesEnviosStatusFilter(row, "recolecciones"), true);
     assert.equal(matchesEnviosStatusFilter(row, "entregas"), false);
+  });
+
+  it("uses short closed labels for nested status filters", () => {
+    assert.equal(enviosStatusFilterDisplayLabel("recolecciones"), "Recolecciones");
+    assert.equal(
+      enviosStatusFilterDisplayLabel("recolecciones_sin_orden"),
+      "Recolección pendiente",
+    );
+    assert.equal(
+      enviosStatusFilterDisplayLabel("recolecciones_solicitadas"),
+      "Recolección en logística",
+    );
+    assert.equal(enviosStatusFilterDisplayLabel("entregas_sin_orden"), "Entrega pendiente");
+    assert.equal(enviosStatusFilterDisplayLabel("entregas_solicitadas"), "Entrega en logística");
+  });
+
+  it("exposes card-scale tone classes for pending vs in logistics", () => {
+    assert.equal(enviosActiveLegLogisticsToneClass("pending"), "bg-amber-900/40");
+    assert.equal(enviosActiveLegLogisticsToneClass("in_logistics"), "bg-sky-900/40");
+    assert.equal(enviosActiveLegLogisticsToneClass(null), "");
+  });
+
+  it("matches nested pendientes and en logística within each leg type", () => {
+    const entregaPendiente = baseShipment({
+      status: PENDING_EMPTY_BOX_STATUS,
+      empty_box_delivered_at: null,
+      logistics_plan: {
+        emptyBox: {
+          mode: "Programar entrega de caja vacia",
+        },
+        fullBox: {
+          mode: "",
+          deferred: true,
+        },
+      },
+      logisticsTasks: [],
+    });
+    const entregaEnLogistica = baseShipment({
+      status: PENDING_EMPTY_BOX_STATUS,
+      empty_box_delivered_at: null,
+      logistics_plan: {
+        emptyBox: {
+          mode: "Programar entrega de caja vacia",
+        },
+        fullBox: {
+          mode: "",
+          deferred: true,
+        },
+      },
+      logisticsTasks: [
+        {
+          id: "task-deliver",
+          shipmentId: "shipment-1",
+          taskType: "deliver_empty_box",
+          status: "scheduled",
+          assignedTo: null,
+          scheduledAt: "2026-08-06T10:00:00.000Z",
+          requestedScheduleAt: "2026-08-06T10:00:00.000Z",
+          scheduleConfirmationStatus: "pending",
+          scheduleKind: "exact",
+          windowStartAt: null,
+          windowEndAt: null,
+          warehouseId: null,
+          notes: "",
+          stockDeductedAt: null,
+          completedAt: null,
+          orderedAt: "2026-08-05T12:00:00.000Z",
+          assignedAt: null,
+          loadedAt: null,
+          createdAt: "2026-08-05T12:00:00.000Z",
+        },
+      ],
+    });
+    const recoleccionPendiente = baseShipment({
+      status: PENDING_FULL_BOX_STATUS,
+      logisticsTasks: [],
+    });
+
+    assert.equal(matchesEnviosStatusFilter(entregaPendiente, "entregas"), true);
+    assert.equal(matchesEnviosStatusFilter(entregaPendiente, "entregas_sin_orden"), true);
+    assert.equal(matchesEnviosStatusFilter(entregaPendiente, "entregas_solicitadas"), false);
+    assert.equal(matchesEnviosStatusFilter(entregaEnLogistica, "entregas_solicitadas"), true);
+    assert.equal(matchesEnviosStatusFilter(recoleccionPendiente, "recolecciones_sin_orden"), true);
+    assert.equal(matchesEnviosStatusFilter(recoleccionPendiente, "recolecciones_solicitadas"), false);
+    assert.equal(matchesEnviosStatusFilter(entregaPendiente, "en_oficina"), false);
+  });
+
+  it("splits entregas between sin orden and solicitadas by open delivery task", () => {
+    const sinOrden = baseShipment({
+      status: PENDING_EMPTY_BOX_STATUS,
+      empty_box_delivered_at: null,
+      logistics_plan: {
+        emptyBox: {
+          mode: "Programar entrega de caja vacia",
+        },
+        fullBox: {
+          mode: "",
+          deferred: true,
+        },
+      },
+      logisticsTasks: [],
+    });
+    const solicitada = baseShipment({
+      status: PENDING_EMPTY_BOX_STATUS,
+      empty_box_delivered_at: null,
+      logistics_plan: {
+        emptyBox: {
+          mode: "Programar entrega de caja vacia",
+        },
+        fullBox: {
+          mode: "",
+          deferred: true,
+        },
+      },
+      logisticsTasks: [
+        {
+          id: "task-deliver",
+          shipmentId: "shipment-1",
+          taskType: "deliver_empty_box",
+          status: "scheduled",
+          assignedTo: null,
+          scheduledAt: "2026-08-06T10:00:00.000Z",
+          requestedScheduleAt: "2026-08-06T10:00:00.000Z",
+          scheduleConfirmationStatus: "pending",
+          scheduleKind: "exact",
+          windowStartAt: null,
+          windowEndAt: null,
+          warehouseId: null,
+          notes: "",
+          stockDeductedAt: null,
+          completedAt: null,
+          orderedAt: "2026-08-05T12:00:00.000Z",
+          assignedAt: null,
+          loadedAt: null,
+          createdAt: "2026-08-05T12:00:00.000Z",
+        },
+      ],
+    });
+
+    assert.equal(matchesEnviosStatusFilter(sinOrden, "entregas"), true);
+    assert.equal(matchesEnviosStatusFilter(sinOrden, "entregas_sin_orden"), true);
+    assert.equal(matchesEnviosStatusFilter(sinOrden, "entregas_solicitadas"), false);
+    assert.equal(matchesEnviosStatusFilter(solicitada, "entregas"), true);
+    assert.equal(matchesEnviosStatusFilter(solicitada, "entregas_sin_orden"), false);
+    assert.equal(matchesEnviosStatusFilter(solicitada, "entregas_solicitadas"), true);
+  });
+
+  it("splits recolecciones between sin orden and solicitadas by open pickup task", () => {
+    const sinOrden = baseShipment({
+      status: PENDING_FULL_BOX_STATUS,
+      logistics_plan: {
+        emptyBox: {
+          mode: "Cliente recoge caja vacia en oficina",
+          handingNow: true,
+        },
+        fullBox: {
+          mode: "Programar recoleccion caja llena",
+        },
+      },
+      logisticsTasks: [],
+    });
+    const solicitada = baseShipment({
+      status: PENDING_FULL_BOX_STATUS,
+      logistics_plan: {
+        emptyBox: {
+          mode: "Cliente recoge caja vacia en oficina",
+          handingNow: true,
+        },
+        fullBox: {
+          mode: "Programar recoleccion caja llena",
+        },
+      },
+      logisticsTasks: [
+        {
+          id: "task-pickup",
+          shipmentId: "shipment-1",
+          taskType: "pickup_full_box",
+          status: "scheduled",
+          assignedTo: null,
+          scheduledAt: "2026-08-07T10:00:00.000Z",
+          requestedScheduleAt: "2026-08-07T10:00:00.000Z",
+          scheduleConfirmationStatus: "pending",
+          scheduleKind: "exact",
+          windowStartAt: null,
+          windowEndAt: null,
+          warehouseId: null,
+          notes: "",
+          stockDeductedAt: null,
+          completedAt: null,
+          orderedAt: "2026-08-05T12:00:00.000Z",
+          assignedAt: null,
+          loadedAt: null,
+          createdAt: "2026-08-05T12:00:00.000Z",
+        },
+      ],
+    });
+
+    assert.equal(matchesEnviosStatusFilter(sinOrden, "recolecciones_sin_orden"), true);
+    assert.equal(matchesEnviosStatusFilter(sinOrden, "recolecciones_solicitadas"), false);
+    assert.equal(matchesEnviosStatusFilter(solicitada, "recolecciones_sin_orden"), false);
+    assert.equal(matchesEnviosStatusFilter(solicitada, "recolecciones_solicitadas"), true);
   });
 });
 

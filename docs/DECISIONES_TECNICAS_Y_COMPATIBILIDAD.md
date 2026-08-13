@@ -1,5 +1,77 @@
 # Decisiones técnicas y compatibilidad
 
+### 2026-08-12 - Conservar el indicador visual de compilación de Next.js durante desarrollo
+
+**Contexto:** se ocultó temporalmente la cápsula `Compiling…` / `Rendering…`, pero el usuario aclaró que prefiere verla mientras Boxario continúe en etapa de desarrollo para recordar que las recompilaciones pertenecen al entorno de prueba.
+
+**Decisión:** no configurar `devIndicators: false`; conservar el indicador predeterminado de Next.js mientras se use `next dev`. El indicador desaparece naturalmente en la compilación de producción y no forma parte de la interfaz de Boxario.
+
+**Resultado:** durante las pruebas queda visible que la página está compilando o renderizando y no se confunde ese comportamiento con la experiencia final de producción.
+
+### 2026-08-12 - Datos visuales de mapas no equivalen a geocodificación
+
+**Contexto:** `seed-logistics-visual-cases.mjs` generaba direcciones, ZIP y coordenadas mediante secuencias independientes. Una dirección de Soledad Canyon quedó guardada con coordenadas de Pardee/Valencia y se mostró como si estuviera verificada.
+
+**Decisión:** los mapas operativos representan literalmente las coordenadas persistidas y no intentan adivinar una corrección desde el texto. Los generadores visuales no deben marcar como verificadas coordenadas calculadas artificialmente; una prueba que necesite geografía real debe obtenerla del proveedor configurado o declarar la ausencia de coordenadas.
+
+**Resultado:** un error de datos no se oculta dentro del mapa y los casos visuales futuros usan una respuesta completa de Google Geocoding, incluyendo su dirección normalizada, ZIP, `place_id` y coordenadas, o fallan de forma explícita.
+
+### 2026-08-12 - Vista previa de secuencia y refresco entre módulos
+
+**Contexto:** El cliente de Venta iniciaba la secuencia visual en `1` y Seguimiento confiaba por completo en un bootstrap que podía provenir de una navegación precargada.
+
+**Decisión:** `loadVentaBootstrap` consulta `organization_invoice_counters.last_number + 1` únicamente como vista previa; `next_organization_invoice_number` conserva la asignación definitiva y concurrente. `createShipmentAction` revalida `/seguimiento` y `/logistica`, y el cliente de Seguimiento reemplaza su bootstrap con una consulta fresca al montar.
+
+**Resultado:** No cambia la autoridad transaccional del número ni la idempotencia del alta, y las navegaciones precargadas convergen inmediatamente con la base de datos.
+
+### 2026-08-11 - Preselección por rectángulo sobre el mosaico Census
+
+**Contexto:** Hace falta marcar muchas piezas administrativas sin dibujar polígonos libres ni PostGIS.
+
+**Decisión:** En modo área, el cliente dibuja un rectángulo sobre Google Maps y filtra el mosaico ya cargado por **intersección de bounds** (AABB). Cada pieza se resuelve con `resolveCoveragePlaceFromCensusPolygonAction` (tope 40) y entra al pending múltiple. No se inventa un polígono de cobertura ni se cambia el matching por `place_id`.
+
+**Resultado:** Alta en lote reutiliza el mosaico visible y el flujo de confirmación existente.
+
+### 2026-08-11 - Mosaico Census clicable para cobertura
+
+**Contexto:** La cobertura por lugares necesitaba límites reales visibles antes del clic, no un perímetro calculado a partir del punto tocado.
+
+**Decisión:** `loadCensusPlacesCatalogAction` consulta TIGERweb por `esriGeometryEnvelope` (capas Incorporated Places y CDP), con simplificación según el zoom. El cliente pinta esas piezas en una capa Data aparte; `resolveCoveragePlaceFromCensusPolygonAction` vincula la pieza a Google Places y cachea el GeoJSON exacto en `logistics_census_place_geometry_cache`. No se dibujan polígonos a mano ni se introduce PostGIS.
+
+**Resultado:** El operador ve y elige fronteras administrativas reales; el matching y el guardado siguen basados en lugares.
+
+### 2026-08-10 - Fronteras Census para cobertura por ciudad
+
+**Contexto:** Los bounds viewport de Google Places se ven como cuadrados aproximados; el operador pide frontera real de ciudad sin coste de GIS comercial.
+
+**Decisión:** Para lugares en modo `places`, el mapa solicita geometría gratuita a Census TIGERweb (`Places_CouSub_ConCity_SubMCD`: Incorporated Places y CDPs) con consulta espacial por lat/lng del place, simplificada (`maxAllowableOffset≈55m`) para que Google Maps Data Layer pinte un contorno estable. Se cachea en `logistics_census_place_geometry_cache` (migración `207`, vintage `tigerweb-simp-v1`) por `place_id` de Google. Ciudades (`locality`) prueban incorporada y luego CDP; barrios/zonas solo CDP (no se pinta la ciudad entera). Estilo: trazo marcado y relleno muy suave (no mancha opaca). Si Census no encuentra geometría, viewport de Google como respaldo. La lista sigue siendo la fuente de verdad; fallo Census no bloquea guardado.
+
+**Resultado:** Santa Clarita y otras ciudades US muestran contorno oficial sin pagar geometría; el cuadrado de Google solo aparece como degradación.
+
+### 2026-08-10 - Cobertura places con Google Places y bounds
+
+**Contexto:** La UX de cobertura pasa de ZIP/ZCTA a ciudades y zonas jerárquicas, sin PostGIS ni polígonos dibujados a mano en el MVP.
+
+**Decisión:** Autocomplete/Text Search y Place Details usan `GOOGLE_MAPS_API_KEY` en servidor (`searchCoveragePlacesAction`, `listCoveragePlaceChildrenAction`, `resolveCoveragePlaceDetailsAction`, `resolveCoveragePlaceFromCensusPolygonAction`). La búsqueda combina `(cities)`, `(regions)` y `geocode`, con Text Search de respaldo. La selección en mapa usa el mosaico Census clicable (ver entrada 2026-08-11); ya no se inventa cobertura desde reverse geocode de un punto vacío. Se cachean hijas en `logistics_place_children_cache` y bounds viewport en `logistics_route_coverage_places.bounds`. En el mapa, la identidad visual de `places` es el polígono Census; los bounds viewport solo aparecen como degradación de cobertura ya confirmada. ZCTA sigue pintándose lleno solo para `postal_codes` legado. El matching primario es `place_id` + nombres normalizados; bounds refuerzan cuando hay lat/lng. Sin clave o sin geometría, la lista de lugares sigue siendo la fuente de verdad y el guardado no se bloquea.
+
+**Resultado:** Se puede definir “Santa Clarita completa” o un subconjunto de zonas sin depender de ZIP; el legado postal permanece operable.
+
+### 2026-08-10 - Retiro técnico del cutoff y auto-cierre de rutas
+
+**Contexto:** La migración `194` y el panel de reservas acoplaban cutoff global, excepciones de fecha, triggers `ROUTE_ALREADY_CLOSED` y un job `pg_cron`.
+
+**Decisión:** `204_remove_route_booking_cutoff.sql` elimina columnas `route_booking_cutoff_time` / `booking_cutoff_time`, la tabla `logistics_route_date_exceptions`, RPC `save_route_booking_policy`, funciones/triggers de cutoff, el cron `boxario-close-due-logistics-routes` y recrea `activate_logistics_route_weekday` sin parámetro de cutoff. Esta decisión reemplaza la de 2026-08-05 sobre auto-cierre por `194`.
+
+**Resultado:** La base local ya no bloquea ni cierra rutas por hora del día anterior; el tipado generado debe regenerarse tras aplicar la migración.
+
+### 2026-08-10 - Matriz mínima de regresión para celulares
+
+**Contexto:** el viewport de 390 px no detectaba fallos que sí aparecían en teléfonos compactos: mínimos intrínsecos de formularios, calendarios dentro de paneles, etiquetas comprimidas y overlays posicionados con `window.innerWidth` o anchos fijos.
+
+**Decisión:** `tests/e2e/mobile-responsive.test.mjs` recorre las rutas de usuario en 320×568, 360×800, 390×844 y 430×932. La verificación rechaza desbordamiento del documento, elementos fuera del viewport salvo que pertenezcan a un desplazamiento horizontal explícito y texto visible realmente cortado con elipsis. Los overlays compartidos se calculan contra `document.documentElement.clientWidth`, porque representa el ancho útil después de la barra de desplazamiento, y se revisan abiertos en el viewport compacto.
+
+**Resultado:** la compatibilidad móvil deja de depender de una sola captura o de ocultar `overflow-x`; las regresiones de ancho y legibilidad quedan detectables por ruta y por tamaño de teléfono.
+
 Este documento conserva decisiones de infraestructura, red, autenticación y compatibilidad entre dispositivos que no pertenecen al diseño visual.
 
 ## Jerarquía de fuentes documentales (2026-07-27)
@@ -9,8 +81,9 @@ Cuando dos afirmaciones de la documentación se contradigan, la autoridad se res
 1. Código confirmado por `docs/MAPA_FUNCIONAL_ACTUAL.md` = comportamiento actual.
 2. Regla de negocio más reciente en `REGLAS_NEGOCIO_Y_DEPENDENCIAS.md` = comportamiento deseado.
 3. Decisión técnica más reciente en este documento = implementación aprobada.
-4. Guía UI más reciente en `GUIA_ESTILO_UI.md` = presentación aprobada.
-5. Entradas anteriores = histórico, no fuente vigente.
+4. Guía de interacción más reciente en `GUIA_INTERACCION_Y_ACCIONES_CRITICAS.md` = comportamiento de confirmación, riesgo y recuperación.
+5. Guía UI más reciente en `GUIA_ESTILO_UI.md` = presentación aprobada.
+6. Entradas anteriores = histórico, no fuente vigente.
 
 Una entrada reemplazada no se borra: se marca como histórica indicando la fuente vigente, para que ninguna IA la tome como comportamiento actual.
 
@@ -23,6 +96,42 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 **Resultado:** borrar una lista completa conserva el estado vacio en la fuente de verdad y Ventas recibe el mismo resultado que muestra Configuracion.
 
 ## Registro de decisiones
+
+### 2026-08-10 - RPC atómico para reordenar paradas
+
+**Contexto:** `upsert` no es apropiado para actualizar únicamente `stop_order`: PostgreSQL comprueba las restricciones de la fila candidata antes de resolver `ON CONFLICT`, por lo que una carga parcial podía violar `logistics_route_stops_source_check`.
+
+**Decisión:** `reorder_logistics_route_stops_atomic(uuid, uuid[])` usa una sola transacción `security definer`, deriva actor y organización de la sesión, bloquea la ruta con `FOR UPDATE`, valida permisos, estado, cardinalidad, unicidad y pertenencia de todas las paradas activas, y actualiza mediante `unnest ... with ordinality`. La misma función registra actividad y, cuando corresponde, notifica al conductor. Solo `authenticated` puede ejecutarla.
+
+**Compatibilidad:** El contrato de la acción TypeScript no cambia. La migración no modifica tablas ni datos existentes y admite paradas provenientes tanto de tareas como de visitas de agencia porque nunca reescribe su fuente.
+
+**Resultado:** El orden se guarda completo o no se guarda; los errores internos quedan en el log del servidor y la interfaz recibe mensajes recuperables específicos.
+
+### 2026-08-10 - Recorrido vial de rutas operativas con degradación segura
+
+**Contexto:** El detalle operativo necesita mostrar las paradas sobre un mapa y unirlas siguiendo el orden persistido, sin introducir un segundo motor de ordenamiento.
+
+**Decisión:** El cliente reutiliza `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` y la biblioteca `routes` de Maps JavaScript para solicitar un recorrido `DRIVING` mediante `Route.computeRoutes`, con primera parada como origen, última como destino y hasta 25 puntos intermedios. No se solicita optimización. Si falta la clave, la lista continúa operativa y el enlace universal de Google Maps queda disponible sin clave; si falla el cálculo vial o se supera el límite, los marcadores se unen con una línea directa claramente advertida. El enlace universal se limita a 11 paradas con coordenadas para respetar su capacidad portátil y comunica cuando queda truncado.
+
+**Compatibilidad:** No se añade SDK ni secreto nuevo al navegador. Las coordenadas existentes siguen proviniendo de la validación de direcciones. La integración no inventa origen de almacén, no guarda geometrías viales y no cambia estados ni permisos.
+
+**Resultado:** Boxario ofrece una vista vial actualizable y una salida a Google Maps, manteniendo la lista como fuente operativa incluso ante configuración incompleta, límites del proveedor o fallas de red.
+
+### 2026-08-05 - Comando autoritativo para guardar el plan logistico del envio
+
+**Contexto:** la proteccion de `shipments.logistics_plan` rechazaba el guardado del programador de recogidas porque el action todavia escribia directamente desde una sesion autenticada.
+
+**Decision:** `persistShipmentLogisticsPlanUpdate` conserva la validacion, sincronizacion de tareas y auditoria existentes, pero persiste `logistics_plan` y `delivery_notes` mediante `update_shipment_logistics_plan_atomic`. El RPC es `SECURITY DEFINER`, deriva organizacion e identidad de la sesion y exige `sales.manage`; no se relaja el trigger de columnas autoritativas.
+
+**Resultado:** programar o editar una recogida puede guardar el plan mediante el comando autorizado y las escrituras directas de clientes autenticados continuan bloqueadas.
+
+### 2026-08-03 - AGE-001: idempotencia de solicitud y asignación de agencia
+
+**Contexto:** Las claves de cliente se regeneraban o no viajaban de UI → Action → RPC; assign podía duplicar visita/stop.
+
+**Decisión:** Reutilizar `idempotency_operations` con `request_hash`, claves de cliente obligatorias, pending store de agencia ante timeout, y unicidad `agency_visit_lines(request_line_id)`. Migraciones `179`–`180`.
+
+**Resultado:** Una intención → una solicitud; una asignación → una visita y un stop; replay/conflicto explícitos.
 
 ### 2026-08-02 - Fase 3A: arquitectura documentada y quality gates
 
@@ -38,6 +147,27 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 
 **Resultado:** un desarrollador nuevo tiene ruta clara; CI local distingue gate rápido vs DB.
 
+### 2026-08-03 - CI remoto: GitHub Actions ejecuta quality:gate
+
+**Contexto:** Los gates existían solo en local; un PR podía romper typecheck/lint/arquitectura/duplicación/test:gate sin detección automática.
+
+**Decisión:**
+- Workflow `.github/workflows/quality-gate.yml` corre en `pull_request` y en `push` a `main`.
+- Un solo job ejecuta `npm ci` + `npm run quality:gate` (misma composición que local: typecheck, lint, architecture, duplicates, test:gate).
+- Node 22 en CI; package manager npm con `package-lock.json` (`npm ci` + caché de setup-node).
+- Permisos mínimos: `contents: read`. Sin secretos, sin `pull_request_target`, sin credenciales Supabase.
+- Concurrencia por ref cancela runs previos del mismo PR/rama.
+- Fuera de este workflow (siguen manuales / requieren infra): `quality:db`, `check:db-types`, `test:eval`, `test:e2e`, `build`, `security:release-check`.
+
+**Resultado:** GitHub puede bloquear un PR que rompa el gate rápido sin exponer secretos ni depender de Docker.
+
+**Activación remota (pendiente de confirmación del usuario):** el workflow vive en el árbol local. No se hace push ni se configura branch protection hasta que la fase local esté estable y el usuario lo ordene. Al publicar:
+
+1. Incluir `.github/workflows/quality-gate.yml` en el commit/PR.
+2. En GitHub → Settings → Branches → protect `main`: Require status checks → `quality:gate` (nombre del job), Require a pull request before merging, Do not allow bypassing (según política del equipo).
+3. Verificar un PR de prueba que falle el gate a propósito y otro limpio.
+
+### 2026-08-02 - Tipos DB generados (histórico consolidado)
 
 **Contexto:** Tipos `*DbRow` manuales desalineados con PostgreSQL; Fase 2D pide generación controlada sin migrar todo de golpe.
 
@@ -114,7 +244,7 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 
 > **Histórico — reemplazada parcialmente el 2026-07-27.** La parte de `Entre` quedó obsoleta: los rangos de servicio globales de `organization_route_settings` ya no alimentan las sugerencias. Fuente vigente:
 >
-> - `Exacta` / `Antes de` / `A partir` / `Entre` → `organization_route_settings.schedule_suggestions` (se administra en `Seguimiento → Configuración de ventas`).
+> - `Exacta` / `Antes de` / `A partir` / `Entre` → `organization_route_settings.schedule_suggestions` (preferencia del cliente en el flujo de venta; depósito en `Configuración → Ventas → Depósito`; días activos en `Configuración → Ventas → Rutas`).
 > - Los rangos de `Entre` de Rutas siguen disponibles como referencia operativa de `logistics_weekday_defaults` o `logistics_route_templates` (LOG-006 y LOG-008).
 
 **Contexto:** Las sugerencias visibles en Ventas no deben quedar fijas en el componente ni confundirse con el horario operativo de cada ruta.
@@ -187,7 +317,25 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 
 **Decisión:** Se agregan `sales.settings.manage` y `logistics.settings.manage`, junto con RPC independientes que sólo actualizan las columnas de su eje. La pantalla general conserva la última configuración operativa al usar el RPC heredado de precios.
 
-**Compatibilidad:** El rol Logística recibe su permiso automáticamente, Conductores no lo reciben y Administrador conserva acceso completo. La URL anterior `configuracion?view=deliveries` redirige a la configuración de Ventas en Seguimiento. Los cargos de conductor se editan en `configuracion?view=prices&panel=operativos`; `logistica?view=configuracion` redirige ahí.
+**Compatibilidad:** El rol Logística recibe su permiso automáticamente, Conductores no lo reciben y Administrador conserva acceso completo. La URL anterior `configuracion?view=deliveries` redirige a `configuracion?view=prices&panel=deposito` (2026-08-04). `logistica?view=configuracion` y `configuracion?view=prices&panel=operativos` redirigen a `configuracion?view=prices` (países). El depósito mínimo y los atajos de horario se editan en `Configuración → Ventas`; el cargo logístico adicional lo captura el vendedor en el flujo de venta.
+
+### 2026-08-04 - Sección Ventas (precios, depósito, rutas)
+
+> Histórico — actualizado el 2026-08-04. La decisión vigente permite que Logística abra su propia vista interna de Rutas sin cambiar la fuente de verdad del catálogo.
+
+**Contexto:** El depósito mínimo estaba detrás del engranaje de Seguimiento; “Costos + Horarios” sonaba incoherente; el calendario semanal vivía en Logística y se buscaba en Configuración.
+
+**Decisión:** La sección `view=prices` se presenta como **Ventas** con pestañas `Países`, `Depósito` y `Rutas`. Rutas monta el mismo `LogisticsRouteCatalog` (días, horarios, plantillas). `/logistica?view=rutas`, `/seguimiento?view=configuracion` y `panel=horarios` redirigen a `panel=rutas`. Logística ya no ofrece la vista de edición del catálogo.
+
+**Compatibilidad:** No hay migración de datos. Las actions de rutas y permisos `routes.update_status` se mantienen; solo cambia la ubicación de la UI.
+
+### 2026-08-04 - Acceso de Logística al catálogo semanal de Rutas
+
+> Histórico — actualizado el 2026-08-04. La decisión vigente reemplaza el enlace a Configuración por `/logistica?view=rutas` dentro del módulo de Logística.
+
+**Contexto:** El catálogo semanal vive en Configuración → Ventas → Rutas, pero el operador de Logística necesitaba un acceso directo desde su navegación.
+
+**Decisión:** El permiso `routes.update_status` también permite entrar a `/configuracion` para abrir el panel `view=prices&panel=rutas`. La navegación de Logística enlaza a esa URL; no se duplica la pantalla ni se cambia la fuente de verdad.
 
 ### 2026-07-27 - Escritura logística sin días ni horarios operativos
 
@@ -274,7 +422,7 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 
 **Contexto:** `listLogisticsRoutesAction` cargaba todas las rutas de la organización; el board filtraba en cliente (fecha, chofer, zona, plantilla, historial).
 
-**Decisión:** las listas de rutas usan `LOGISTICS_ROUTES_PAGE_SIZE = 50` (máx. 200), orden `route_date`/`created_at`/`id` desc, y filtros en Supabase (`routeDate`, `assignedTo`, `zoneKey`, `routeTemplateId`, `weekday` acotado, `statusMode`, `search`). Activas = no cancelled/completed; Historial = completed. Tras mutaciones se recarga la página actual, no toda la org. Pickers de envíos/agencias piden `statusMode: "active"` con límite 50.
+**Decisión:** las listas de rutas usan `LOGISTICS_ROUTES_PAGE_SIZE = 50` (máx. 200), orden `route_date`/`created_at`/`id` desc, y filtros en Supabase (`routeDate`, `assignedTo`, `zoneKey`, `routeTemplateId`, `weekday` acotado, `statusMode`, `search`). Activas = no cancelled/completed; Historial = completed. En el board de Tareas, Activas muestra invoices sin ruta operativa cargada; Historial muestra invoices que participaron en una ruta terminada (cualquier tarea del envío en `routeByTaskId`). Tras mutaciones se recarga la página actual, no toda la org. Pickers de envíos/agencias piden `statusMode: "active"` con límite 50.
 
 **Resultado:** el board de Logística pagina con Anterior/Siguiente; no se relajan RLS ni visibilidad de conductor.
 
@@ -298,3 +446,144 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 - UI: Anterior/Siguiente; reset de página al cambiar bodega o categoría; recargas post-mutación usan la página actual de la bodega.
 
 **Resultado esperado:** listados de stock acotados; árbol editable completo; balances no se anulan por paginación.
+
+### 2026-08-03 - Una sola carpeta local editable de Boxario
+
+**Contexto:** auditoría Git para evitar worktrees, clones paralelos o agentes trabajando en copias distintas del proyecto.
+
+**Decisión:**
+- Carpeta canónica: `C:\Users\pablo\OneDrive\Documentos\Codigo\Paginas\Boxario`.
+- Un único working tree activo y una única versión local editable.
+- GitHub (`origin` = `https://github.com/CodigoTriptonico/Boxario.git`) es el remoto y la copia estable.
+- Prohibido crear worktrees o clones salvo orden expresa del usuario.
+- Los análisis pueden ejecutarse en paralelo; las modificaciones deben hacerse secuencialmente en el mismo working tree.
+- No hacer commits ni pushes salvo orden expresa; actualizar GitHub solo después de validar el proyecto local.
+
+**Resultado:** todos los agentes deben operar en la ruta canónica detectada.
+
+### 2026-08-03 - Scroll vertical del área central del App Shell
+
+**Contexto:** en `/platform` la lista de empresas quedaba recortada sin scrollbar. El shell de escritorio ya define el scroll en el contenedor central (`lg:min-h-0 lg:flex-1 lg:overflow-y-auto`), pero el `Panel` de la página usaba `overflow-hidden` (default de `clipContent`) como hijo flex. Eso permite encoger el panel por debajo de su contenido; el padre ve la misma altura y no genera scroll, mientras el panel recorta la lista.
+
+**Decisión:**
+- En escritorio, el único scroll vertical de página es el del área central del App Shell.
+- Las pantallas de listado largo deben usar `clipContent={false}` en `Panel` (u otro contenedor sin `overflow-hidden`) para que el contenido crezca y el shell haga scroll.
+- No forzar `min-h-[calc(100dvh-…)]` en esas listas: produce altura mínima innecesaria con pocos registros y no arregla el clip.
+- Las pantallas con scroll interno propio (inventario, venta, etc.) siguen usando `min-h-0 flex-1 overflow-y-auto` / `overflow-hidden` de forma deliberada dentro del mismo shell.
+
+**Resultado esperado:** listas largas muestran scrollbar en el área central; los últimos registros son alcanzables; no hay doble scrollbar ni clip silencioso.
+
+### 2026-08-04 - Vista interna de Rutas en Logística
+
+**Contexto:** El primer acceso desde la navegación de Logística abría Configuración → Ventas → Rutas, incluyendo el shell de Países y Cobros.
+
+**Decisión:** `/logistica?view=rutas` se resuelve dentro de `LogisticaClient`, con `LogisticsSectionNav active="routes"` y `VentasRutasPanel`. Se elimina la redirección a Configuración y se conserva `LogisticsRouteCatalog` como fuente de verdad reutilizada por el panel. Esta decisión actualiza la entrada anterior que enviaba Rutas de Logística a Configuración.
+
+**Resultado esperado:** Rutas se comporta como una cuarta sección de Logística y no expone las pestañas de Países ni Cobros.
+
+### 2026-08-05 - Validación sin navegador salvo solicitud expresa
+
+**Contexto:** la validación visual mediante navegador interrumpe el flujo y no es necesaria para cada cambio del proyecto.
+
+**Decisión:** no usar ni inspeccionar navegadores para desarrollar, probar o validar Boxario, salvo que el usuario lo solicite expresamente.
+
+**Resultado:** la validación normal se realiza con lectura de código, typecheck, ESLint, pruebas, comprobaciones de base de datos y compilación proporcionales al cambio.
+
+### 2026-08-05 - Hidratación estable con preferencias locales
+
+**Contexto:** en un dispositivo con preferencias de superficie guardadas, el primer render del cliente podía diferir del HTML generado por el servidor. La página seguía visible y los enlaces inferiores navegaban como HTML normal, pero los controles dependientes de React podían quedar sin respuesta.
+
+**Decisión:** los proveedores compartidos deben iniciar con un estado determinista igual en servidor y cliente. Las preferencias de `localStorage` se aplican después del primer render, dentro de un efecto cancelable; no se leen en el inicializador de estado que participa en la hidratación.
+
+**Resultado esperado:** Ventas y el resto del shell se hidratan de forma consistente en celular, aunque ese dispositivo tenga una vista o paleta guardada distinta.
+
+### 2026-08-05 - Limpieza del Service Worker sin bucle de recarga
+
+**Contexto:** al abrir el servidor de desarrollo desde un celular que todavía estaba controlado por un Service Worker anterior, la limpieza podía recargar la ruta continuamente. React ejecuta dos veces los efectos en desarrollo; el segundo montaje eliminaba la marca de recarga mientras el documento aún conservaba el controlador anterior. Los enlaces inferiores parecían funcionar por navegación HTML, pero el resto de la pantalla se reemplazaba antes de procesar el toque.
+
+**Decisión:** después de desregistrar el worker y borrar sus cachés, la marca de recarga única se conserva mientras `navigator.serviceWorker.controller` siga presente. Sólo se elimina cuando el documento ya no está controlado. Además, el HTML de desarrollo comprueba el controlador en `<head>`, antes de los bundles de React; si detecta `/sw.js`, pasa por `/dev-sw-cleanup`, una respuesta sin shell y sin caché que desregistra exclusivamente ese worker, elimina sólo cachés `boxario-static-*` y vuelve a la ruta original. La ruta no existe funcionalmente en producción.
+
+**Resultado esperado:** el desarrollo móvil puede hacer como máximo una recarga de saneamiento y luego permanece estable e interactivo, incluso con el doble montaje de efectos de React.
+
+### 2026-08-05 - Agregación segura y fechas operativas de Estadísticas
+
+**Contexto:** El dashboard anterior agregaba registros en Node, usaba permisos distintos entre ruta y acciones y una consulta legacy leía un ledger global con service role. Además, los límites de día dependían de la zona horaria del runtime.
+
+**Decisión:** Estadísticas usa una única RPC agregada, sin `organization_id` controlado por cliente. La función deriva organización, rol y capacidades de la sesión: administración/auditoría conserva alcance global autorizado; ventas se limita a `sales_owner_id`; logística respeta su capacidad operativa; inventario y finanzas se omiten desde la consulta cuando faltan sus permisos; el conductor continúa bloqueado por el guard de navegación. La RPC fija `search_path`, revoca acceso anónimo y limita rangos a 366 días. Los días de UI son inclusivos y se convierten en servidor a intervalos `[inicio, fin)` con `America/Los_Angeles`; las comparaciones usan un periodo anterior equivalente. La llamada no usa service role ni caché compartida entre sesiones.
+
+**Resultado esperado:** una URL filtrada produce el mismo informe en SSR y al refrescar, no expone datos entre organizaciones y mantiene consistente el corte diario durante cambios DST. Las series y rankings llegan ya agregados y acotados al navegador.
+
+### 2026-08-09 - Contrato v2 de Estadísticas con analítica logística
+
+**Contexto:** La analítica diaria de logística necesita combinar tareas, snapshots de parada, solicitudes, rutas, vehículos y conductores sin descargar registros crudos al navegador ni abrir un segundo alcance de permisos.
+
+**Decisión:** `load_statistics_dashboard_v2` conserva `load_statistics_dashboard` como núcleo comercial y agrega en PostgreSQL `logisticsAnalytics` dentro de la misma llamada. El wrapper vuelve a derivar alcance de organización/tenant y capacidades de la sesión, fija `search_path`, permanece cerrado para `public` y `anon`, y aplica los mismos filtros del informe. Las finalizaciones se consultan por un índice parcial `(organization_id, completed_at)` y los rankings se acotan antes de serializarse.
+
+**Resultado esperado:** SSR, refresco, CSV y ambas pestañas consumen un único contrato agregado; no se usa service role, no se envían tareas de otras organizaciones y el navegador recibe solo series y rankings ya limitados.
+
+### 2026-08-05 - Filtros de Seguimiento persistentes en la pestaña
+
+**Contexto:** el menú lateral abre `/seguimiento` sin query; los filtros vivían solo en estado React y se perdían al cambiar de módulo y volver.
+
+**Decisión:** Seguimiento persiste búsqueda, estado, país, vendedor y readiness en `sessionStorage` (`boxario.seguimiento.filters.v1`) y los sincroniza en la URL (`q`, `status`, `country`, `seller`, `ready`) con `history.replaceState`. Al montar, si la URL no trae claves de filtro se restaura la sesión; si trae alguna, esa clave gana y el resto se fusiona con la sesión. La hidratación arranca en vacío y aplica el restore en un efecto cancelable.
+
+**Resultado esperado:** filtrar, salir a otra pantalla y volver a Seguimiento en la misma pestaña conserva el filtro; refrescar también; cerrar la pestaña lo limpia.
+
+### 2026-08-05 - Cierre automático autoritativo de rutas
+
+**Contexto:** el límite del día anterior se validaba en las entradas de la aplicación, pero el paso de `draft` a `planned` seguía dependiendo exclusivamente del botón manual.
+
+**Decisión:** la migración `194_logistics_route_automatic_close.sql` centraliza el cálculo del cierre efectivo (subruta o día propio; de lo contrario global) en PostgreSQL y usa `America/Los_Angeles` para construir el instante. Un job `pg_cron` por minuto cierra únicamente borradores válidos y registra `logistics.route_auto_closed` con actor `Sistema`. Triggers autoritativos bloquean crear una ruta o insertar una parada después del límite, incluso si el cliente omite la validación. Las funciones automáticas no se exponen a `anon`, `authenticated` ni `service_role`.
+
+**Resultado esperado:** el cierre ocurre sin depender de que un usuario mantenga abierta la página. El botón manual conserva el mismo RPC y puede cerrar antes; los borradores incompletos no se fuerzan ni se envían al conductor.
+
+### 2026-08-06 - Mapa ZIP sin PostGIS
+
+**Contexto:** Se requiere visualizar rutas definidas por ZIP sin introducir edición de polígonos ni dependencia espacial en PostgreSQL.
+
+**Decisión:** Google Maps se carga en cliente con `NEXT_PUBLIC_GOOGLE_MAPS_API_KEY` (además de `GOOGLE_MAPS_API_KEY` server-side para validate-address). Los límites se consultan en el layer ZCTA del servicio oficial Census TIGERweb, con `ZCTA5`, GeoJSON y WGS84. `logistics_zcta_geometry_cache` guarda globalmente ZIP, vintage Census, GeoJSON, límites y fecha de consulta; no se habilita PostGIS. Los límites ZCTA son una aproximación visual y no una frontera postal exacta. Sin la clave pública, la cobertura ZIP sigue siendo editable; el mapa muestra aviso y no bloquea el guardado.
+
+**Resultado:** La lista es la fuente operativa y el mapa es degradable. La primera versión no incluye ZIP+4, polígonos personalizados, optimización vial ni navegación del conductor. El mapa de cobertura solicita la ubicación del operador para marcar `Tú` y encuadrar ZIP + posición; solo ZCTA de EE. UU. tienen geometría.
+
+### 2026-08-06 - Compatibilidad de interruptores semanales geográficos
+
+**Contexto:** Las migraciones de horarios heredadas volvieron a escribir `pickup_days` y exigían un registro en `logistics_weekday_defaults` antes de habilitar un día, aunque los horarios ahora pertenecen a `logistics_route_schedules`.
+
+**Decisión:** `delivery_days` conserva temporalmente los interruptores maestros lunes–domingo para compatibilidad. `pickup_days` queda como campo legado sin nuevas escrituras y los interruptores no dependen de horarios heredados. La migración `197_geographic_route_master_days.sql` restablece este contrato.
+
+**Resultado:** Un día nuevo puede habilitarse y materializar su ruta general geográfica sin bloquearse por el catálogo anterior; los horarios reales siguen perteneciendo a cada definición de ruta.
+
+### 2026-08-08 - Tokens derivados de contraste sin migración de preferencias
+
+**Decisión:** `ui-surface-color-math.ts` calcula luminancia relativa, ratio WCAG y foregrounds legibles para cada color base y hover. `UiSurfacePalette.listRow` expone foreground principal/secundario, foreground hover y bordes derivados; las variables CSS se aplican al montar el contexto activo.
+
+**Compatibilidad:** se conserva `boxario-ui-surfaces:v2` y el esquema persistido de `byContext`/`customPalettes`. Los fondos y hexadecimales personalizados existentes no se reescriben; los nuevos valores derivados se calculan en runtime. Las clases de color dinámicas de personalización usan tokens CSS para que no dependan de que Tailwind haya generado una clase arbitraria.
+
+**Resultado:** preferencias v2 y fondos personalizados siguen siendo válidos sin migración, mientras filas, tarjetas y hover reciben texto e iconos con contraste AA. La auditoría E2E usa `@axe-core/playwright` sobre las rutas autenticadas y los selectores de vista/paleta.
+
+### 2026-08-08 - Bordes de contenedor oscuros y foregrounds derivados
+
+**Decisión:** los foregrounds de texto, iconos, hover y focus continúan calculándose desde la paleta; los bordes generales de paneles, filas, tablas y navegación conservan el tratamiento oscuro original y no se sustituyen globalmente por grises claros.
+
+**Compatibilidad:** no cambia el formato de `boxario-ui-surfaces:v2` ni las preferencias existentes. Los tokens derivados de borde permanecen disponibles para consumidores que necesiten un borde interactivo específico, mientras las superficies compartidas usan el token oscuro.
+
+### 2026-08-09 - Preferencia global del modo de vista
+
+**Decisión:** `boxario-ui-surfaces:v2` conserva una sola propiedad `viewLayout` (`rows`, `cards` o `excel`) para toda la aplicación. Las funciones que aún reciben `contextId` mantienen su API para no romper consumidores, pero el contexto solo determina si Excel está disponible en esa superficie.
+
+**Compatibilidad:** las preferencias v2 antiguas con `viewLayoutByContext` se leen y se convierten en un modo global determinista; el mapa se conserva únicamente durante la lectura compatible y se limpia al guardar una nueva selección. También se aceptan los almacenamientos legacy `boxario:view-layout` y `boxario:envios:view-layout`. Una superficie sin soporte Excel cae a filas mientras conserva la preferencia global.
+
+### 2026-08-08 - Huella de dirección en confirmaciones de Logística
+
+**Contexto:** las solicitudes demo de `Por confirmar` usaban una huella ficticia y la validación de integridad las rechazaba como si la dirección hubiera cambiado. La confirmación masiva además ocultaba el motivo devuelto por la acción.
+
+**Decisión:** los datos demo calculan `address_fingerprint` con los mismos campos normalizados que la aplicación (`place_id`, dirección, ZIP, país y coordenadas). La confirmación masiva conserva el rechazo de seguridad y muestra el invoice junto con el motivo específico de cada fallo.
+
+**Resultado:** las solicitudes demo válidas pueden confirmarse sin relajar la comprobación de cambios de dirección; cualquier error real queda visible para corregirlo.
+### 2026-08-13 - Mapa de entrada en ventana emergente del navegador
+
+**Contexto:** una superficie `position: fixed` o un portal dentro del documento principal continúa confinada a la ventana de Chrome y no puede arrastrarse a un segundo monitor de forma independiente.
+
+**Decisión:** el mapa de entrada usa `window.open` desde el clic de `Abrir mapa` y monta su interfaz mediante un portal React en el documento same-origin de la ventana creada. La ventana copia las hojas de estilo activas, carga su propia instancia de Google Maps y se cierra al desmontarse el formulario. Se conserva una advertencia local cuando el navegador bloquea popups; no se intenta eludir esa política.
+
+**Resultado:** Venta permanece en la pantalla principal mientras el mapa es una ventana nativa, redimensionable y trasladable entre monitores, sin duplicar el estado del formulario ni crear una segunda aplicación.

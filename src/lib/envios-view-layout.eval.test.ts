@@ -23,6 +23,8 @@ describe("envios view layout eval", () => {
   it("renders both shipment list layouts with shared page palette", () => {
     assert.equal(enviosSource.includes("EnviosShipmentRowsList"), true);
     assert.equal(enviosSource.includes("EnviosShipmentCardsGrid"), true);
+    assert.equal(enviosSource.includes("EnviosShipmentExcelTable"), true);
+    assert.equal(enviosSource.includes('viewLayout === "excel"'), true);
     assert.equal(enviosSource.includes("divide-y divide-black/70"), false);
     assert.equal(enviosSource.includes("listRowBaseClass"), true);
     assert.equal(enviosSource.includes("listCardShellClass"), true);
@@ -30,5 +32,18 @@ describe("envios view layout eval", () => {
     assert.equal(enviosSource.includes("sm:grid-cols-2 xl:grid-cols-3"), true);
     assert.equal(enviosSource.includes("expandedShipmentIds"), true);
     assert.equal(enviosSource.includes("toggleShipmentExpanded"), true);
+  });
+
+  it("tints shipment cards and rows for pending vs in logistics", () => {
+    const cardsSource = readFileSync(
+      join(process.cwd(), "src/components/envios/envios-shipment-cards-grid.tsx"),
+      "utf8",
+    );
+    const rowsSource = readFileSync(
+      join(process.cwd(), "src/components/envios/envios-shipment-rows-list.tsx"),
+      "utf8",
+    );
+    assert.match(cardsSource, /enviosActiveLegLogisticsToneClass/);
+    assert.match(rowsSource, /enviosActiveLegLogisticsToneClass/);
   });
 });

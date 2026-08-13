@@ -4,13 +4,13 @@ import { resolveSurfaceContextFromPathname } from "./ui-surface-route-context.ts
 
 describe("ui surface route context", () => {
   it("maps operational list pages to their surface contexts", () => {
-    assert.equal(resolveSurfaceContextFromPathname("/logistica"), "logistics.tasks");
+    assert.equal(resolveSurfaceContextFromPathname("/logistica"), "logistics.confirmations");
     assert.equal(resolveSurfaceContextFromPathname("/seguimiento"), "shipments.tracking");
-    assert.equal(resolveSurfaceContextFromPathname("/seguimiento/historial"), "shipments.tracking");
+    assert.equal(resolveSurfaceContextFromPathname("/seguimiento/historial"), null);
     assert.equal(resolveSurfaceContextFromPathname("/envios"), "shipments.tracking");
-    assert.equal(resolveSurfaceContextFromPathname("/envios/historial"), "shipments.tracking");
+    assert.equal(resolveSurfaceContextFromPathname("/envios/historial"), null);
     assert.equal(resolveSurfaceContextFromPathname("/conductor/tareas"), "conductor.tasks");
-    assert.equal(resolveSurfaceContextFromPathname("/estadisticas"), "stats.sales");
+    assert.equal(resolveSurfaceContextFromPathname("/estadisticas"), null);
     assert.equal(resolveSurfaceContextFromPathname("/time-clock"), "timeclock.admin");
     assert.equal(resolveSurfaceContextFromPathname("/venta"), "sale.senderCard");
   });
@@ -23,5 +23,9 @@ describe("ui surface route context", () => {
     assert.equal(resolveSurfaceContextFromPathname("/bodega"), "warehouse.inventory");
     assert.equal(resolveSurfaceContextFromPathname("/paletas"), "warehouse.pallets");
     assert.equal(resolveSurfaceContextFromPathname("/conductor/inventario-camion"), null);
+    assert.equal(resolveSurfaceContextFromPathname("/logistica/vehiculos"), null);
+    assert.equal(resolveSurfaceContextFromPathname("/logistica/conductores"), null);
+    assert.equal(resolveSurfaceContextFromPathname("/seguimiento/excepciones"), null);
+    assert.equal(resolveSurfaceContextFromPathname("/seguimiento/demo/expediente"), null);
   });
 });

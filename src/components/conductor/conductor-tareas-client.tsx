@@ -1,10 +1,13 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ListTodo } from "lucide-react";
-import { reactivateConductorTaskAction } from "@/app/actions/conductor-tasks";
+import { AlertTriangle, Boxes, ChevronDown, ListTodo, Loader2, RefreshCw, Route, Truck } from "lucide-react";
+import {
+  getConductorTruckInventoryAction,
+  reactivateConductorTaskAction,
+  type ConductorTruckInventoryView,
+} from "@/app/actions/conductor-tasks";
 import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { AgencyVisitsPanel } from "@/components/conductor/agency-visits-panel";
 import { ConductorRouteArrivalPanel } from "@/components/conductor/conductor-route-arrival-panel";
@@ -15,7 +18,9 @@ import {
 } from "@/components/conductor/conductor-task-items";
 import { ConductorTaskResultDialog } from "@/components/conductor/conductor-task-result-dialog";
 import { ConductorTareasToolbar } from "@/components/conductor/conductor-tareas-toolbar";
+import { ConductorTruckInventoryClient } from "@/components/conductor/conductor-truck-inventory-client";
 import { useConductorOfflineSync } from "@/components/conductor/use-conductor-offline-sync";
+import { InlineSearchPicker } from "@/components/inline-search-picker";
 import {
   cardClass,
   Panel,
@@ -38,9 +43,9 @@ import {
 } from "@/lib/conductor-tasks";
 import { summarizeConductorTasks, summarizeConductorCompletedOutcomes } from "@/lib/conductor-dashboard";
 import type { LogisticsTaskType } from "@/lib/logistics-routing";
+import { formatScheduleDateLabel } from "@/lib/sale/schedule-time";
 import {
   CONDUCTOR_TASK_FAILURE_REASONS,
-  type ConductorTruckInventorySummary,
 } from "@/lib/conductor-truck-inventory";
 import type { ConductorRouteArrivalWorkspace } from "@/lib/conductor-route-arrival";
 import {
@@ -58,12 +63,15 @@ type ConductorTareasClientProps = {
   userId: string;
   initialTasks?: ConductorDriverTask[];
   initialCompletedTasks?: ConductorDriverTask[];
-  initialTruckSummary?: ConductorTruckInventorySummary | null;
+  initialTruckView?: ConductorTruckInventoryView | null;
+  initialTruckError?: string;
+  initialWorkspaceView?: string;
   initialRouteArrival?: ConductorRouteArrivalWorkspace;
   agencyModuleEnabled?: boolean;
 };
 
 type TaskListMode = "pending" | "completed";
+type ConductorWorkspaceView = "carga" | "paradas" | "camion";
 
 type TaskDialogState = {
   task: ConductorDriverTask;
@@ -80,7 +88,9 @@ export function ConductorTareasClient({
   userId,
   initialTasks = [],
   initialCompletedTasks = [],
-  initialTruckSummary = null,
+  initialTruckView = null,
+  initialTruckError = "",
+  initialWorkspaceView = "",
   initialRouteArrival = { routes: [], warehouses: [] },
   agencyModuleEnabled = false,
 }: ConductorTareasClientProps) {
@@ -89,6 +99,17 @@ export function ConductorTareasClient({
   const notify = useNotify();
   const { layout: viewLayout } = usePageViewLayout("conductor.tasks");
   const previewOptions = buildConductorPreviewPickerOptions(drivers);
+  const initialRoute = initialTruckView?.routes.find((route) => route.id === initialTruckView.selectedRouteId) || null;
+  const defaultWorkspaceView: ConductorWorkspaceView =
+    initialWorkspaceView === "carga" || initialWorkspaceView === "camion" || initialWorkspaceView === "paradas"
+      ? initialWorkspaceView
+      : initialRoute?.status === "planned"
+        ? "carga"
+        : "paradas";
+  const [workspaceView, setWorkspaceView] = useState<ConductorWorkspaceView>(defaultWorkspaceView);
+  const [truckView, setTruckView] = useState<ConductorTruckInventoryView | null>(initialTruckView);
+  const [truckError, setTruckError] = useState(initialTruckError);
+  const [routeLoading, setRouteLoading] = useState(false);
   const [listMode, setListMode] = useState<TaskListMode>("pending");
   const [operationScope, setOperationScope] = useState<"domicilios" | "agencias">("domicilios");
   const [doneTaskIds, setDoneTaskIds] = useState<string[]>([]);
@@ -126,13 +147,27 @@ export function ConductorTareasClient({
     initialCompletedTasks,
   });
 
-  const pendingTasks = useMemo(
-    () => initialTasks.filter((task) => !doneTaskIds.includes(task.id) && !offlineOperationByTaskId.has(task.id)),
-    [doneTaskIds, initialTasks, offlineOperationByTaskId],
+  const selectedRouteId = truckView?.selectedRouteId ?? null;
+  const selectedRoute = truckView?.routes.find((route) => route.id === selectedRouteId) || null;
+  const routeOpenTasks = useMemo(
+    () => initialTasks.filter((task) => !selectedRouteId || task.routeId === selectedRouteId),
+    [initialTasks, selectedRouteId],
   );
-  const activeTasks = listMode === "pending" ? pendingTasks : completedTasks;
+  const routeCompletedTasks = useMemo(
+    () => completedTasks.filter((task) => !selectedRouteId || task.routeId === selectedRouteId),
+    [completedTasks, selectedRouteId],
+  );
+
+  const pendingTasks = useMemo(
+    () => routeOpenTasks.filter((task) => !doneTaskIds.includes(task.id) && !offlineOperationByTaskId.has(task.id)),
+    [doneTaskIds, offlineOperationByTaskId, routeOpenTasks],
+  );
+  const activeTasks = listMode === "pending" ? pendingTasks : routeCompletedTasks;
   const pendingSummary = useMemo(() => summarizeConductorTasks(pendingTasks), [pendingTasks]);
-  const completedSummary = useMemo(() => summarizeConductorTasks(completedTasks), [completedTasks]);
+  const completedSummary = useMemo(
+    () => summarizeConductorTasks(routeCompletedTasks),
+    [routeCompletedTasks],
+  );
   const [taskFilter, setTaskFilter] = useState<LogisticsTaskType>(() =>
     pendingSummary.deliverCount > 0 ? "deliver_empty_box" : "pickup_full_box",
   );
@@ -159,8 +194,8 @@ export function ConductorTareasClient({
     [pendingTasks, taskFilter],
   );
   const selectedCompletedTasks = useMemo(
-    () => completedTasks.filter((task) => task.taskType === taskFilter),
-    [completedTasks, taskFilter],
+    () => routeCompletedTasks.filter((task) => task.taskType === taskFilter),
+    [routeCompletedTasks, taskFilter],
   );
   const selectedPendingSummary = useMemo(
     () => summarizeConductorTasks(selectedPendingTasks),
@@ -208,6 +243,7 @@ export function ConductorTareasClient({
       } else {
         params.delete("conductor");
       }
+      params.delete("route");
 
       const query = params.toString();
       router.replace(query ? `/conductor/tareas?${query}` : "/conductor/tareas", {
@@ -216,6 +252,52 @@ export function ConductorTareasClient({
     },
     [router, searchParams],
   );
+
+  function updateWorkspaceView(nextView: ConductorWorkspaceView) {
+    setWorkspaceView(nextView);
+    const params = new URLSearchParams(searchParams.toString());
+    params.set("view", nextView);
+    globalThis.history?.replaceState(null, "", `/conductor/tareas?${params.toString()}`);
+
+    if (nextView !== "paradas" && effectiveDriverId) {
+      void getConductorTruckInventoryAction(effectiveDriverId, selectedRouteId).then((result) => {
+        if (result.ok) {
+          setTruckView(result.data);
+          setTruckError("");
+        }
+      });
+    }
+  }
+
+  async function handleRouteChange(routeId: string) {
+    if (!effectiveDriverId || routeId === selectedRouteId || routeLoading) {
+      return;
+    }
+
+    setRouteLoading(true);
+    setTruckError("");
+    try {
+      const nextRouteDate = truckView?.routes.find((route) => route.id === routeId)?.routeDate;
+      const result = await getConductorTruckInventoryAction(effectiveDriverId, routeId, nextRouteDate);
+      if (!result.ok) {
+        setTruckError(result.error);
+        notify.error(result.error);
+        return;
+      }
+
+      setTruckView(result.data);
+      const nextRoute = result.data.routes.find((route) => route.id === result.data.selectedRouteId);
+      const nextView = nextRoute?.status === "planned" ? "carga" : "paradas";
+      setWorkspaceView(nextView);
+      const params = new URLSearchParams(searchParams.toString());
+      params.set("route", routeId);
+      if (nextRouteDate) params.set("date", nextRouteDate);
+      params.set("view", nextView);
+      router.push(`/conductor/tareas?${params.toString()}`);
+    } finally {
+      setRouteLoading(false);
+    }
+  }
 
   function openDialog(task: ConductorDriverTask, result: "completed" | "failed") {
     setDialog({ task, result });
@@ -260,6 +342,11 @@ export function ConductorTareasClient({
 
     if (paymentChoice === "custom" && !paymentAmount.trim()) {
       notify.error("Indica el monto recibido");
+      return;
+    }
+
+    if (paymentChoice === "none" && note.trim().length < 3) {
+      notify.error("Indica por que no recibiste dinero");
       return;
     }
 
@@ -366,18 +453,205 @@ export function ConductorTareasClient({
           ? "Aquí verás entregas de cajas vacías y paradas de tu ruta del día."
           : "Aquí verás recogidas de cajas llenas y paradas de tu ruta del día.";
 
-  const shortageTotal = initialTruckSummary?.shortageTotal ?? 0;
+  const shortageTotal = truckView?.summary.shortageTotal ?? 0;
   const routeBlocked = !canPreview && listMode === "pending" && shortageTotal > 0;
+  const routeTaskTotal = pendingTasks.length + routeCompletedTasks.length;
+  const routeDeliveries = [...pendingTasks, ...routeCompletedTasks].filter(
+    (task) => task.taskType === "deliver_empty_box",
+  ).length;
+  const routePickups = Math.max(routeTaskTotal - routeDeliveries, 0);
+  const vehicleLabel =
+    [...pendingTasks, ...routeCompletedTasks].find((task) => task.vehicleLabel)?.vehicleLabel ||
+    (selectedRoute?.vehicleId ? "Vehiculo asignado" : "Sin vehiculo");
 
   return (
     <>
     <Panel
-      title={canPreview ? "Tareas conductor" : "Mis tareas"}
+      title={canPreview ? "Ruta del conductor" : "Mi ruta"}
       hideHeader
       className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden"
-      contentClassName="flex flex-col p-4 sm:p-5 lg:min-h-0 lg:flex-1"
+      contentClassName="flex flex-col p-0 lg:min-h-0 lg:flex-1"
     >
+        <section className="border-b border-app-border-divider p-4 sm:p-5">
+          <div className="grid gap-3 xl:grid-cols-[minmax(28rem,1fr)_auto] xl:items-stretch">
+            <div className="grid min-w-0 gap-2 sm:grid-cols-2">
+            {canPreview ? (
+              <div className="flex min-h-12 min-w-0 items-center gap-2 rounded-lg border border-sky-800/70 bg-sky-950/25 pl-3">
+                <span className="text-[11px] font-black uppercase tracking-[0.12em] text-sky-300">Conductor</span>
+                <InlineSearchPicker
+                  value={previewDriverId || ""}
+                  onChange={handlePreviewDriverChange}
+                  options={previewOptions}
+                  placeholder="Elegir conductor"
+                  searchPlaceholder="Buscar conductor"
+                  emptyLabel="Sin conductores"
+                  ariaLabel="Conductor a previsualizar"
+                  minWidthClass="min-w-[11rem] sm:min-w-[15rem]"
+                  disabled={!previewOptions.length}
+                />
+              </div>
+            ) : (
+              <div className="flex min-h-12 min-w-0 items-center gap-2 rounded-lg border border-app-border-control bg-surface-inset px-3">
+                <Route className="h-5 w-5 shrink-0 text-emerald-300" />
+                <span className="break-words text-sm font-black text-app-text-primary sm:truncate">{effectiveDriverLabel}</span>
+              </div>
+            )}
+
+            <div className="relative flex min-h-12 min-w-0 items-center gap-2 rounded-lg border border-app-border-control bg-surface-inset px-3">
+              <Route className="h-5 w-5 shrink-0 text-emerald-300" aria-hidden />
+              {truckView?.routes.length ? (
+                <select
+                  className="!bg-surface-inset h-full min-w-0 flex-1 appearance-none border-0 p-0 pr-6 text-sm font-black text-app-text-primary outline-none"
+                  value={selectedRouteId || ""}
+                  disabled={routeLoading}
+                  aria-label="Ruta asignada"
+                  onChange={(event) => void handleRouteChange(event.target.value)}
+                >
+                  {truckView.routes.map((route) => (
+                    <option key={route.id} value={route.id}>
+                      {route.name} · {formatScheduleDateLabel(route.routeDate)} · {route.stopCount} {route.stopCount === 1 ? "parada" : "paradas"}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <span className="min-w-0 flex-1 text-sm font-black text-app-text-primary">
+                  Sin ruta asignada
+                </span>
+              )}
+              {routeLoading ? (
+                <Loader2 className="h-4 w-4 shrink-0 animate-spin text-emerald-300" aria-hidden />
+              ) : truckView?.routes.length ? (
+                <ChevronDown className="pointer-events-none h-4 w-4 shrink-0 text-app-text-secondary" aria-hidden />
+              ) : null}
+            </div>
+            </div>
+
+            <div className="grid min-h-12 grid-cols-3 overflow-hidden rounded-lg border border-app-border-control bg-surface-card">
+              <span className="flex min-w-[6.5rem] flex-col justify-center px-3 text-[10px] font-black uppercase tracking-wide text-app-text-secondary">
+                <strong className="text-xl leading-none tabular-nums text-app-text-primary">{selectedRoute?.stopCount ?? routeTaskTotal}</strong>
+                paradas
+              </span>
+              <span className="flex min-w-[6.5rem] flex-col justify-center border-l border-app-border-divider bg-emerald-950/25 px-3 text-[10px] font-black uppercase tracking-wide text-emerald-200">
+                <strong className="text-xl leading-none tabular-nums">{routeDeliveries}</strong>
+                entregas
+              </span>
+              <span className="flex min-w-[6.5rem] flex-col justify-center border-l border-app-border-divider bg-amber-950/25 px-3 text-[10px] font-black uppercase tracking-wide text-amber-200">
+                <strong className="text-xl leading-none tabular-nums">{routePickups}</strong>
+                recogidas
+              </span>
+            </div>
+          </div>
+
+          <div className="mt-3 flex flex-wrap items-center gap-2 border-t border-app-border-divider pt-3">
+            <Route className="h-4 w-4 shrink-0 text-app-text-muted" />
+            <p className="min-w-0 break-words text-sm font-bold text-app-text-secondary sm:truncate">
+              {selectedRoute ? `${vehicleLabel} - ${formatScheduleDateLabel(selectedRoute.routeDate)}` : "Logística debe asignarte una ruta operativa."}
+            </p>
+          </div>
+          {truckError ? <p role="alert" className="mt-2 text-sm font-black text-rose-200">{truckError}</p> : null}
+        </section>
+
+        {!selectedRoute ? (
+          <div className="flex min-h-[24rem] flex-1 items-center justify-center px-5 py-10 text-center">
+            <div className="max-w-md">
+              <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl border border-sky-800/70 bg-sky-950/30 text-sky-200">
+                <Route className="h-8 w-8" />
+              </span>
+              <p className="mt-5 text-xl font-black text-app-text-primary">
+                {!effectiveDriverId
+                  ? "No hay conductores activos"
+                  : truckView?.routes.length
+                    ? "Selecciona una ruta para prepararte"
+                  : canPreview
+                    ? `${effectiveDriverLabel} no tiene ruta asignada`
+                    : "Aún no tienes una ruta asignada"}
+              </p>
+              <p className="mt-2 text-sm font-bold leading-6 text-app-text-secondary">
+                {!effectiveDriverId
+                  ? "Activa un conductor en Logística para previsualizar su jornada."
+                  : truckView?.routes.length
+                    ? "Puedes revisar la carga y las paradas de hoy o de una próxima fecha."
+                  : canPreview
+                    ? "Cuando Logística publique su recorrido, aquí aparecerán la carga, las paradas y el regreso."
+                    : "Cuando Logística publique tu recorrido, aquí verás qué cargar y cuál es tu primera parada."}
+              </p>
+              <button
+                type="button"
+                className={`${secondaryButtonClass} mx-auto mt-5 h-11 px-4`}
+                onClick={() => router.refresh()}
+              >
+                <RefreshCw className="h-4 w-4" />
+                Actualizar
+              </button>
+            </div>
+          </div>
+        ) : (
+        <div className="lg:grid lg:min-h-0 lg:flex-1 lg:grid-cols-[15rem_minmax(0,1fr)]">
+          <nav
+            className="grid grid-cols-3 gap-2 border-b border-app-border-divider p-3 lg:grid-cols-1 lg:content-start lg:border-b-0 lg:border-r lg:p-4"
+            role="tablist"
+            aria-label="Etapa de mi ruta"
+          >
+              {([
+                ["carga", "Carga", "Preparar carga", "Subir cajas vacías", Boxes],
+                ["paradas", "Paradas", "Paradas", "Entregar y recoger", ListTodo],
+                ["camion", "Camión", "Camión / regreso", "Revisar y cerrar", Truck],
+              ] as const).map(([value, shortLabel, label, description, Icon], index) => (
+                <button
+                  key={value}
+                  type="button"
+                  role="tab"
+                  aria-selected={Boolean(effectiveDriverId && workspaceView === value)}
+                  disabled={!effectiveDriverId}
+                  className={`flex min-h-14 min-w-0 items-center gap-1.5 rounded-lg border px-1.5 text-left transition-colors lg:min-h-[4.5rem] lg:gap-2 lg:px-3 ${
+                    effectiveDriverId && workspaceView === value
+                      ? "border-emerald-700/80 bg-emerald-950/45 text-emerald-100"
+                      : "border-app-border-control bg-surface-card text-app-text-secondary hover:bg-surface-inset disabled:cursor-not-allowed disabled:opacity-55"
+                  }`}
+                  onClick={() => updateWorkspaceView(value)}
+                >
+                  <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border text-xs font-black lg:h-8 lg:w-8 ${
+                    effectiveDriverId && workspaceView === value
+                      ? "border-emerald-700 bg-emerald-900/60 text-emerald-100"
+                      : "border-app-border-divider bg-surface-inset text-app-text-muted"
+                  }`}>
+                    <Icon className="h-4 w-4 lg:hidden" />
+                    <span className="hidden lg:inline">{index + 1}</span>
+                  </span>
+                  <span className="min-w-0">
+                    <span className="block break-words text-xs font-black sm:hidden">{shortLabel}</span>
+                    <span className="hidden truncate text-sm font-black sm:block">{label}</span>
+                    <span className="mt-0.5 hidden truncate text-xs font-bold text-app-text-muted lg:block">{description}</span>
+                  </span>
+                </button>
+              ))}
+          </nav>
+
+          <div className="flex min-w-0 flex-1 flex-col p-4 sm:p-5 lg:min-h-0 lg:overflow-hidden">
+        {!effectiveDriverId ? (
+          <div className="flex min-h-[18rem] flex-1 items-center justify-center text-center">
+            <div className="max-w-lg">
+              <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-xl border border-sky-800/70 bg-sky-950/30 text-sky-200">
+                <Route className="h-7 w-7" />
+              </span>
+              <p className="mt-4 text-xl font-black text-app-text-primary">No hay conductores activos</p>
+              <p className="mt-2 text-sm font-bold leading-6 text-app-text-secondary">
+                Activa un conductor en Logística. Aquí aparecerá su ruta completa, la carga que debe preparar y cada parada por resolver.
+              </p>
+            </div>
+          </div>
+        ) : <>
+
+        {workspaceView !== "carga" && operationScope === "domicilios" && effectiveDriverId ? (
+          <ConductorRouteArrivalPanel
+            initialWorkspace={initialRouteArrival}
+            driverId={effectiveDriverId}
+          />
+        ) : null}
+
+        {workspaceView === "paradas" ? <>
         <ConductorTareasToolbar
+          showDriverContext={false}
           canPreview={canPreview}
           effectiveDriverLabel={effectiveDriverLabel}
           previewDriverId={previewDriverId}
@@ -408,20 +682,14 @@ export function ConductorTareasClient({
             <p className="min-w-0 flex-1 text-sm font-black text-rose-100">
               Faltan {shortageTotal} {shortageTotal === 1 ? "caja vacía" : "cajas vacías"} en el camión.
             </p>
-            <Link
-              href="/conductor/inventario-camion"
+            <button
+              type="button"
               className={`${secondaryButtonClass} h-9 border-rose-800/70 px-3 text-xs text-rose-100 hover:bg-rose-900/40`}
+              onClick={() => updateWorkspaceView("carga")}
             >
               Cargar cajas
-            </Link>
+            </button>
           </div>
-        ) : null}
-
-        {operationScope === "domicilios" && effectiveDriverId ? (
-          <ConductorRouteArrivalPanel
-            initialWorkspace={initialRouteArrival}
-            driverId={effectiveDriverId}
-          />
         ) : null}
 
         {agencyModuleEnabled && operationScope === "agencias" && effectiveDriverId ? <AgencyVisitsPanel driverId={effectiveDriverId} /> : filteredTasks.length ? (
@@ -492,6 +760,28 @@ export function ConductorTareasClient({
               </CompactInfoDisclosure>
             </div>
           </div>
+        )}
+        </> : (
+          <ConductorTruckInventoryClient
+            canPreview={canPreview}
+            drivers={drivers}
+            previewDriverId={previewDriverId}
+            effectiveDriverId={effectiveDriverId}
+            effectiveDriverLabel={effectiveDriverLabel}
+            initialView={truckView}
+            initialError={truckError}
+            embedded
+            mode={workspaceView === "carga" ? "load" : "truck"}
+            onViewChange={(nextView) => {
+              setTruckView(nextView);
+              setTruckError("");
+            }}
+            onRouteStarted={() => updateWorkspaceView("paradas")}
+          />
+        )}
+        </>}
+          </div>
+        </div>
         )}
       </Panel>
 

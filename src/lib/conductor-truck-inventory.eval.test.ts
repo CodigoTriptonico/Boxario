@@ -99,8 +99,16 @@ describe("conductor route eval", () => {
   it("keeps tareas blocked by missing truck boxes", () => {
     assert.match(tareasClientSource, /routeBlocked/);
     assert.match(tareasClientSource, /Cargar cajas/);
-    assert.match(tareasClientSource, /href="\/conductor\/inventario-camion"/);
+    assert.match(tareasClientSource, /updateWorkspaceView\("carga"\)/);
     assert.match(tareasClientSource, /Foto requerida/);
+  });
+
+  it("keeps route work in one staged conductor workspace", () => {
+    assert.match(tareasClientSource, /Preparar carga/);
+    assert.match(tareasClientSource, /Paradas/);
+    assert.match(tareasClientSource, /Camion \/ regreso/);
+    assert.match(tareasClientSource, /selectedRoute\?\.stopCount/);
+    assert.match(tareasClientSource, /ConductorTruckInventoryClient/);
   });
 
   it("separates empty delivery boxes from boxes collected in the truck", () => {

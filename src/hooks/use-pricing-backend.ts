@@ -19,8 +19,11 @@ import type {
 } from "@/lib/pricing/types";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { normalizeScheduleSuggestionConfig } from "@/lib/sale/schedule-suggestions";
+import { SerializedTaskQueue } from "@/lib/pricing/serialized-task-queue";
+import { DEFAULT_PAYMENT_METHOD_SETTINGS } from "@/lib/payment-methods";
 
 const emptyRouteConfig: PricingRouteConfig = {
+  ...DEFAULT_PAYMENT_METHOD_SETTINGS,
   deliveryDays: [],
   pickupDays: [],
   deliveryRanges: [],
@@ -31,6 +34,8 @@ const emptyRouteConfig: PricingRouteConfig = {
   emptyBoxDeliveryFee: defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
   fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
   minimumDeposit: defaultInvoiceBillingConfig.minimumDeposit,
+  pickupIncludedDays: defaultInvoiceBillingConfig.pickupIncludedDays || 30,
+  latePickupFee: defaultInvoiceBillingConfig.latePickupFee || "$0",
   logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,
   scheduleSuggestions: normalizeScheduleSuggestionConfig(undefined),
 };
@@ -104,6 +109,8 @@ export function usePricingBackend(initialData?: PricingConfigPayload) {
     ),
   );
   const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const saveQueueRef = useRef(new SerializedTaskQueue());
+  const pendingSaveCountRef = useRef(0);
   const loadedRef = useRef(loaded);
   const saveableRef = useRef(emptySaveableState());
 
@@ -192,53 +199,99 @@ export function usePricingBackend(initialData?: PricingConfigPayload) {
       distributors: PricingDistributorConfig[];
       distributorPrices: PricingDistributorPrices;
       routeConfig: PricingRouteConfig;
-    }) => {
+    }): Promise<{ ok: true } | { ok: false; error: string }> => {
       if (!enabled) {
-        return;
+        lastSavedSnapshotRef.current = snapshotPayload(saveable);
+        return { ok: true };
       }
 
-      setSaving(true);
       const result = await savePricingConfigAction({
         ...saveable,
         catalogProducts,
       });
-      setSaving(false);
 
       if (!result.ok) {
         setError(result.error);
-        return;
+        return { ok: false, error: result.error };
       }
 
+      setError("");
       lastSavedSnapshotRef.current = snapshotPayload(saveable);
       dispatchOnboardingProgressChanged();
+      return { ok: true };
     },
-    [catalogProducts, enabled, setError, setSaving],
+    [catalogProducts, enabled, setError],
   );
-  const persistRef = useRef(persist);
+
+  const queuePersist = useCallback(
+    (saveable: Parameters<typeof persist>[0]) => {
+      pendingSaveCountRef.current += 1;
+      setSaving(true);
+
+      return saveQueueRef.current.enqueue(async () => {
+          try {
+            if (snapshotPayload(saveable) === lastSavedSnapshotRef.current) {
+              return { ok: true } as const;
+            }
+
+            return await persist(saveable);
+          } catch {
+            const message = "No se pudo guardar la configuración. Inténtalo nuevamente.";
+            setError(message);
+            return { ok: false, error: message } as const;
+          } finally {
+            pendingSaveCountRef.current = Math.max(0, pendingSaveCountRef.current - 1);
+            if (pendingSaveCountRef.current === 0) {
+              setSaving(false);
+            }
+          }
+      });
+    },
+    [persist, setError, setSaving],
+  );
+  const persistRef = useRef(queuePersist);
 
   useEffect(() => {
-    persistRef.current = persist;
-  }, [persist]);
+    persistRef.current = queuePersist;
+  }, [queuePersist]);
 
-  const flushPendingSaveNow = useCallback(async () => {
-    if (!enabled || !loaded) {
-      return;
-    }
+  type PricingSaveable = {
+    countries: PricingCountryConfig[];
+    promotions: PricingPromotionConfig[];
+    distributors: PricingDistributorConfig[];
+    distributorPrices: PricingDistributorPrices;
+    routeConfig: PricingRouteConfig;
+  };
 
-    if (saveTimerRef.current) {
-      clearTimeout(saveTimerRef.current);
-      saveTimerRef.current = null;
-    }
+  const flushPendingSaveNow = useCallback(
+    async (
+      override?: Partial<PricingSaveable>,
+    ): Promise<{ ok: true } | { ok: false; error: string }> => {
+      if (!loaded && enabled) {
+        return { ok: false, error: "La configuración aún se está cargando." };
+      }
 
-    const saveable = saveableRef.current;
-    const currentSnapshot = snapshotPayload(saveable);
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
 
-    if (currentSnapshot === lastSavedSnapshotRef.current) {
-      return;
-    }
+      const saveable: PricingSaveable = {
+        ...saveableRef.current,
+        ...override,
+      };
+      saveableRef.current = saveable;
 
-    await persistRef.current(saveable);
-  }, [enabled, loaded]);
+      const currentSnapshot = snapshotPayload(saveable);
+
+      if (currentSnapshot === lastSavedSnapshotRef.current) {
+        return { ok: true };
+      }
+
+      return persistRef.current(saveable);
+    },
+    [enabled, loaded],
+  );
 
   useEffect(() => {
     if (!enabled) {
@@ -300,7 +353,7 @@ export function usePricingBackend(initialData?: PricingConfigPayload) {
     }
 
     saveTimerRef.current = setTimeout(() => {
-      void persist(saveable);
+      void queuePersist(saveable);
     }, 900);
 
     return () => {
@@ -308,11 +361,21 @@ export function usePricingBackend(initialData?: PricingConfigPayload) {
         clearTimeout(saveTimerRef.current);
       }
     };
-  }, [countries, promotions, distributors, distributorPrices, routeConfig, enabled, loaded, persist]);
+  }, [
+    countries,
+    promotions,
+    distributors,
+    distributorPrices,
+    routeConfig,
+    enabled,
+    loaded,
+    queuePersist,
+  ]);
 
-  const flushPendingSave = useCallback(async () => {
-    await flushPendingSaveNow();
-  }, [flushPendingSaveNow]);
+  const flushPendingSave = useCallback(
+    async (override?: Partial<PricingSaveable>) => flushPendingSaveNow(override),
+    [flushPendingSaveNow],
+  );
 
   return {
     enabled,
@@ -335,3 +398,14 @@ export function usePricingBackend(initialData?: PricingConfigPayload) {
     flushPendingSave,
   };
 }
+
+type PricingFlushResult = { ok: true } | { ok: false; error: string };
+export type PricingFlushPendingSave = (
+  override?: Partial<{
+    countries: PricingCountryConfig[];
+    promotions: PricingPromotionConfig[];
+    distributors: PricingDistributorConfig[];
+    distributorPrices: PricingDistributorPrices;
+    routeConfig: PricingRouteConfig;
+  }>,
+) => Promise<PricingFlushResult>;

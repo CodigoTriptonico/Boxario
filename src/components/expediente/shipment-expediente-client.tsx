@@ -9,6 +9,7 @@ import {
   MapPin,
   MapPinned,
   PackageCheck,
+  Pencil,
   Printer,
   UserRound,
 } from "lucide-react";
@@ -28,6 +29,8 @@ import {
 import { SaleBoxLabel, SaleInvoicePaper } from "@/components/sale/venta-parts";
 import { buildSeguimientoShipmentDeepLink } from "@/lib/seguimiento-deep-link";
 import { physicalPackageStatusLabel } from "@/lib/physical-packages";
+import { ShipmentExpedienteEditDialog } from "@/components/expediente/shipment-expediente-edit-dialog";
+import { ShipmentProgressSteps } from "@/components/shipment-progress-steps";
 import { formatMoneyValue } from "@/lib/logistics-fees";
 import { shipmentStatusDisplayLabel } from "@/lib/shipment-display";
 import type { ShipmentStatus } from "@/lib/shipment-types";
@@ -86,19 +89,19 @@ function ExpedientePartySection({ title, party }: { title: string; party: Shipme
   const mapHref = party.mapQuery ? mapSearchHref(party.mapQuery) : null;
   return (
     <section className="min-w-0 py-1">
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <p className="text-[10px] font-black uppercase tracking-[0.13em] text-slate-500">{title}</p>
-          <p className="mt-1 text-base font-black text-slate-50">{party.name || "Sin nombre"}</p>
-        </div>
-        <div className="max-w-sm text-right">
-          <p className="text-[11px] font-bold leading-relaxed text-slate-500">{party.sourceNote}</p>
-          {mapHref ? <a href={mapHref} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-300 hover:text-emerald-200"><MapPin className="h-3.5 w-3.5" /> Ver en mapa</a> : null}
+      <div className="flex min-w-0 items-start gap-3">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-emerald-300">
+          <UserRound className="h-4 w-4" aria-hidden />
+        </span>
+        <div className="min-w-0">
+          <p className="text-[10px] font-black uppercase tracking-[0.13em] text-emerald-300">{title}</p>
+          <p className="mt-0.5 truncate text-base font-black text-slate-50">{party.name || "Sin nombre"}</p>
+          <p className="mt-0.5 text-[11px] font-bold leading-relaxed text-slate-500">{party.sourceNote}</p>
         </div>
       </div>
       {party.fields.length ? (
         <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-2">
-          {party.fields.map((field) => <Detail key={`${title}-${field.label}`} label={field.label}>{field.label === "Dirección" && mapHref ? <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-emerald-200 hover:text-emerald-100"><span>{field.value}</span><MapPin className="h-3.5 w-3.5 shrink-0" /></a> : field.value}</Detail>)}
+          {party.fields.map((field) => <Detail key={`${title}-${field.label}`} label={field.label}>{field.label === "Dirección" && mapHref ? <a href={mapHref} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-emerald-200 hover:text-emerald-100"><MapPin className="h-3.5 w-3.5 shrink-0" /><span>{field.value}</span><ExternalLink className="h-3 w-3 shrink-0 text-slate-500" /></a> : field.value}</Detail>)}
         </dl>
       ) : <p className="mt-3 text-sm font-bold text-slate-500">No hay más datos disponibles.</p>}
     </section>
@@ -116,6 +119,7 @@ export function ShipmentExpedienteClient({ data }: ShipmentExpedienteClientProps
   }, [data.audit, data.financial, data.logistics, data.packages]);
 
   const [activeSection, setActiveSection] = useState<ExpedienteSectionId>("resumen");
+  const [editOpen, setEditOpen] = useState(false);
   const seguimientoHref = buildSeguimientoShipmentDeepLink({ code: data.code, shipmentId: data.shipmentId, status: data.status });
   const labelTargetIds = data.documents.packages.map((pkg) => expedientePrintTargetId(pkg.invoiceCode));
 
@@ -128,33 +132,64 @@ export function ShipmentExpedienteClient({ data }: ShipmentExpedienteClientProps
     <main className="w-full min-w-0 py-3 sm:py-4">
       <div className="bg-[#1a221f]">
         <div className="no-print border-b border-black bg-[#1c2622] px-3 py-2 sm:px-5"><ExpedienteSectionNav active={activeSection} onChange={setActiveSection} visibleSections={visibleSections} /></div>
-        <header className="no-print border-b border-black bg-[linear-gradient(115deg,rgba(15,62,46,0.42),rgba(28,38,34,0.88)_48%,rgba(26,34,31,1))] px-4 py-4 sm:px-6 sm:py-5">
-          <div className="flex min-w-0 flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300/80">Expediente del envío</p>
-              <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-2">
-                <h1 className="break-words text-2xl font-black tracking-tight text-slate-50 sm:text-3xl">{data.code}</h1>
+        {activeSection === "resumen" ? <header className="no-print border-b border-black bg-[linear-gradient(115deg,rgba(15,62,46,0.42),rgba(28,38,34,0.88)_48%,rgba(26,34,31,1))] px-4 py-4 sm:px-6">
+          <div className="flex min-w-0 flex-wrap items-start justify-between gap-3">
+            <div className="flex min-w-0 items-start gap-3">
+              <span className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-emerald-700/50 bg-emerald-950/40 text-emerald-300">
+                <PackageCheck className="h-5 w-5" aria-hidden />
+              </span>
+              <div className="min-w-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-300">Seguimiento</p>
+                <div className="mt-0.5 flex flex-wrap items-center gap-x-2.5 gap-y-1.5">
+                  <h1 className="break-words text-xl font-black tracking-tight text-slate-50 sm:text-2xl">{data.code}</h1>
                 <span className="rounded-md border border-emerald-700/50 bg-emerald-950/45 px-2 py-1 text-[10px] font-black uppercase tracking-wide text-emerald-100">{shipmentStatusDisplayLabel(data.status as ShipmentStatus)}</span>
+                {data.financial?.depositStatus ? <span className={`rounded-md border px-2 py-1 text-[10px] font-black uppercase tracking-wide ${data.financial.depositStatus === "paid" ? "border-emerald-700/50 bg-emerald-950/45 text-emerald-200" : "border-amber-700/60 bg-amber-950/30 text-amber-100"}`}>{data.financial.depositStatus === "paid" ? "Abono cubierto" : "Abono pendiente"}</span> : null}
+                </div>
+                <p className="mt-1 text-xs font-bold text-slate-400">{expedienteDateLabel(data.createdAt)} <span className="mx-1.5 text-slate-600">·</span> {data.organizationName}</p>
               </div>
-              <p className="mt-2 text-xs font-bold text-slate-400">{expedienteDateLabel(data.createdAt)} <span className="mx-1.5 text-slate-600">·</span> {data.organizationName}</p>
             </div>
-            <Link href={seguimientoHref} className="inline-flex h-10 shrink-0 items-center gap-1.5 rounded-lg border border-emerald-700/50 bg-emerald-950/35 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-900/45">
-              <ExternalLink className="h-4 w-4" /> Abrir en Seguimiento
-            </Link>
+            <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+              {data.edit.canEdit ? (
+                <button type="button" onClick={() => setEditOpen(true)} className="inline-flex h-10 items-center gap-1.5 rounded-lg bg-emerald-400 px-3 text-xs font-black text-slate-950 transition hover:bg-emerald-300">
+                  <Pencil className="h-4 w-4" /> Editar envío
+                </button>
+              ) : (
+                <span className="inline-flex h-10 items-center rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 text-xs font-black text-amber-100" title={data.edit.blockedReason}>
+                  Edición bloqueada
+                </span>
+              )}
+              <Link href={seguimientoHref} className="inline-flex h-10 items-center gap-1.5 rounded-lg border border-emerald-700/50 bg-emerald-950/35 px-3 text-xs font-black text-emerald-100 transition hover:bg-emerald-900/45">
+                <ExternalLink className="h-4 w-4" /> Abrir en Seguimiento
+              </Link>
+            </div>
           </div>
+          <div className="mt-4 border-y border-black/70 py-3">
+            <ShipmentProgressSteps steps={data.timeline.steps} timings={data.timeline.timings} compact singleLine />
+          </div>
+        </header> : null}
 
-          <dl className="mt-5 grid gap-x-6 gap-y-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div><Detail label="Responsable">{data.salesOwnerName || "Sin asignar"}</Detail></div>
-            <div><Detail label="Destino"><CountryName name={data.country} size="xs" labelClassName="text-slate-100" /></Detail></div>
-            <div><Detail label="Cajas">{data.boxCount}</Detail></div>
-            {data.financial ? <div><Detail label="Factura">{data.financial.invoiceStatusLabel}</Detail></div> : null}
-          </dl>
-
-          {data.financial ? <><dl className="mt-5 grid gap-x-6 gap-y-3 border-t border-black/70 pt-4 sm:grid-cols-2 lg:grid-cols-4"><Detail label="Total">{data.financial.quotedTotal}</Detail><Detail label="Abono requerido">{data.financial.depositRequired || "No registrado"}</Detail><Detail label="Abonado" tone="positive">{formatMoneyValue(data.financial.paid)}</Detail><Detail label="Saldo" tone="warning">{data.financial.balanceDue}</Detail></dl>{data.financial.depositStatus ? <p className={`mt-4 border-l-2 pl-3 text-sm font-bold ${data.financial.depositStatus === "paid" ? "border-emerald-400 text-emerald-200" : "border-amber-400 text-amber-100"}`}>{data.financial.depositStatus === "paid" ? "Abono cubierto" : `Abono pendiente${data.financial.depositRemaining ? ` · Faltan ${data.financial.depositRemaining}` : ""}`}</p> : <p className="mt-4 border-l-2 border-slate-600 pl-3 text-sm font-bold text-slate-400">No hay una instantánea histórica del abono para confirmar su estado.</p>}</> : null}
-        </header>
-
-        <div className="min-w-0 px-4 py-5 sm:px-6 sm:py-6">
-          {activeSection === "resumen" ? <section className="space-y-5"><SectionTitle icon={UserRound} eyebrow="Participantes" title="Datos del envío" /><div className="grid gap-5 divide-y divide-black/70 lg:grid-cols-2 lg:divide-x lg:divide-y-0"><ExpedientePartySection title="Remitente" party={data.sender} /><div className="pt-5 lg:pl-6 lg:pt-0">{data.recipient ? <ExpedientePartySection title="Destinatario" party={data.recipient} /> : <p className="text-sm font-bold text-slate-400">Este envío no tiene destinatario registrado.</p>}</div></div></section> : null}
+        <div className="min-w-0 px-4 py-4 sm:px-6 sm:py-5">
+          {activeSection === "resumen" ? <>
+            <section className="grid gap-5 border-b border-black/70 pb-5 lg:grid-cols-[minmax(0,0.72fr)_minmax(0,1.28fr)] lg:divide-x lg:divide-black/70">
+              <div>
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">Operación</p>
+                <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-3 lg:grid-cols-1 xl:grid-cols-3">
+                  <Detail label="Responsable">{data.salesOwnerName || "Sin asignar"}</Detail>
+                  <Detail label="Destino"><CountryName name={data.country} size="xs" labelClassName="text-slate-100" /></Detail>
+                  <Detail label="Cajas">{data.boxCount}</Detail>
+                </dl>
+              </div>
+              <div className="border-t border-black/70 pt-5 lg:border-t-0 lg:pl-5 lg:pt-0">
+                <p className="text-[10px] font-black uppercase tracking-[0.14em] text-emerald-300">Estado de cuenta</p>
+                {data.financial ? <dl className="mt-3 grid grid-cols-2 gap-x-5 gap-y-3 sm:grid-cols-5"><Detail label="Factura">{data.financial.invoiceStatusLabel}</Detail><Detail label="Total">{data.financial.quotedTotal}</Detail><Detail label="Abono requerido">{data.financial.depositRequired || "No registrado"}</Detail><Detail label="Abonado" tone="positive">{formatMoneyValue(data.financial.paid)}</Detail><Detail label="Saldo" tone="warning">{data.financial.balanceDue}</Detail></dl> : <p className="mt-3 text-sm font-bold text-slate-500">Sin información financiera disponible.</p>}
+                {data.financial && !data.financial.depositStatus ? <p className="mt-3 border-l-2 border-slate-600 pl-3 text-xs font-bold text-slate-400">No hay una instantánea histórica del abono para confirmar su estado.</p> : null}
+              </div>
+            </section>
+            <section className="pt-5">
+              <div className="mb-4 flex items-center gap-2.5"><MapPinned className="h-4 w-4 text-emerald-300" aria-hidden /><h2 className="text-sm font-black text-slate-50">Contactos y direcciones</h2></div>
+              <div className="grid gap-5 divide-y divide-black/70 lg:grid-cols-2 lg:divide-x lg:divide-y-0"><ExpedientePartySection title="Remitente" party={data.sender} /><div className="pt-5 lg:pl-6 lg:pt-0">{data.recipient ? <ExpedientePartySection title="Destinatario" party={data.recipient} /> : <p className="text-sm font-bold text-slate-400">Este envío no tiene destinatario registrado.</p>}</div></div>
+            </section>
+          </> : null}
 
           {activeSection === "documentos" ? <section className="space-y-5"><SectionTitle icon={FileText} eyebrow="Documentación" title="Factura y etiquetas" action={<div className="flex flex-wrap gap-2"><button type="button" onClick={() => printExpedienteDocuments(expedientePrintTargetId(data.code))} className={secondaryButtonClass}><Printer className="h-4 w-4" /> Factura</button>{labelTargetIds.length ? <button type="button" onClick={() => printExpedienteDocuments(labelTargetIds)} className={secondaryButtonClass}><Printer className="h-4 w-4" /> Todas las cajas</button> : null}</div>} />
             {!data.documents.billing ? <p className="rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2 text-sm font-bold text-amber-100">Este envío no conserva la instantánea de facturación persistida en la venta. El documento muestra únicamente los datos comerciales disponibles en el envío.</p> : null}
@@ -170,6 +205,14 @@ export function ShipmentExpedienteClient({ data }: ShipmentExpedienteClientProps
           {activeSection === "registro" && data.audit ? <section className="space-y-5 border-t border-black/70 pt-6"><SectionTitle icon={PackageCheck} eyebrow="Trazabilidad" title="Auditoría" />{data.sectionErrors.audit ? <p className="rounded-lg border border-rose-700 bg-rose-950/40 px-3 py-2 text-sm font-bold text-rose-200">{data.sectionErrors.audit}</p> : null}{!data.audit.length ? <p className="text-sm font-bold text-slate-400">Sin movimientos registrados</p> : <div className="space-y-2">{data.audit.map((entry) => <AuditHistoryEntry key={entry.id} entry={entry} />)}</div>}</section> : null}
         </div>
       </div>
+      {editOpen ? (
+        <ShipmentExpedienteEditDialog
+          shipmentId={data.shipmentId}
+          data={data.edit}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => window.location.reload()}
+        />
+      ) : null}
     </main>
   );
 }

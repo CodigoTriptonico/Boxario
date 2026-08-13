@@ -9,6 +9,7 @@ import { recordActivityHistory } from "@/lib/activity-history";
 import { depositStatusForPayment, invoicePaymentKindForCurrentDeposit, readBillingFromPlan } from "@/lib/invoice-billing";
 import { formatMoneyValue } from "@/lib/logistics-fees";
 import { paymentMethodLabel, type PaymentMethod } from "@/lib/payment-methods";
+import { assertPaymentMethodAllowed } from "@/lib/payment-method-policy";
 import { canManageAllShipments, canChangeShipmentSalesOwner } from "@/lib/shipment-visibility";
 import { shipmentContactLogAuditDescription, validateShipmentContactLogInput, type ShipmentContactLogInput } from "@/lib/shipment-contact-log";
 import { isSalesOwnerRole } from "@/lib/shipment-sales-owner";
@@ -28,6 +29,11 @@ import {
   type ShipmentDbRow,
 } from "@/app/actions/shipments-data";
 import { requireShipmentActionContext } from "@/app/actions/shipments-context";
+import {
+  mapCollectPaymentError,
+  parseCollectPaymentRpcResult,
+  validateClientPaymentId,
+} from "@/lib/office-payment-idempotency";
 
 function canWriteShipmentContactLog(session: AppSession, shipment: ShipmentRow) {
   return (
@@ -243,9 +249,56 @@ export async function finalizeShipmentInvoiceAction(input: {
   cost?: string;
   paymentMethod?: PaymentMethod;
   paymentNote?: string;
+  /** Stable client key so retries / double-submit do not insert a second payment. */
+  clientPaymentId: string;
 }): Promise<ActionResult<ShipmentRow>> {
   try {
     const { session, supabase } = await requireShipmentActionContext("sales.manage");
+
+    const idCheck = validateClientPaymentId(input.clientPaymentId);
+    if (!idCheck.ok) {
+      return fail(idCheck.error);
+    }
+    const clientPaymentId = idCheck.value;
+    const paymentMethod = readPaymentMethod(input.paymentMethod);
+
+    // Replay short-circuit: after a lost response the invoice may already be paid
+    // and derived fields (kind/balance) may have changed. Trust the committed row.
+    const { data: existingPayment, error: existingPaymentError } = await supabase
+      .from("shipment_payments")
+      .select("id, shipment_id, amount, method")
+      .eq("organization_id", session.organizationId)
+      .eq("client_payment_id", clientPaymentId)
+      .maybeSingle();
+
+    if (existingPaymentError) {
+      return fail(existingPaymentError.message || "No se pudo verificar el cobro");
+    }
+
+    if (existingPayment) {
+      if (existingPayment.shipment_id !== input.shipmentId) {
+        return fail(mapCollectPaymentError("PAYMENT_IDEMPOTENCY_CONFLICT"));
+      }
+
+      const storedAmount = Number(existingPayment.amount);
+      const requestedAmount =
+        input.amount !== undefined && input.amount.trim() !== ""
+          ? parseMoney(input.amount)
+          : storedAmount;
+
+      if (
+        !Number.isFinite(storedAmount) ||
+        Math.abs(storedAmount - requestedAmount) > 0.009 ||
+        existingPayment.method !== paymentMethod
+      ) {
+        return fail(mapCollectPaymentError("PAYMENT_IDEMPOTENCY_CONFLICT"));
+      }
+
+      const replayedShipment = await listShipmentById(supabase, session, input.shipmentId);
+      return replayedShipment
+        ? ok(replayedShipment)
+        : fail("No se pudo recargar el invoice");
+    }
 
     const { data: current, error: loadError } = await supabase
       .from("shipments")
@@ -272,7 +325,43 @@ export async function finalizeShipmentInvoiceAction(input: {
     const balanceDue = Math.max(quotedTotal - alreadyPaid, 0);
 
     if (balanceDue <= 0) {
-      return fail("No hay pendiente en este invoice");
+      // Lost full-collect response: invoice already paid. Ask SQL (security definer)
+      // to resolve the same clientPaymentId even when RLS hides payment SELECT.
+      const replayAmount =
+        input.amount !== undefined && input.amount.trim() !== ""
+          ? parseMoney(input.amount)
+          : 0;
+      const { data: replayData, error: replayError } = await supabase.rpc(
+        "collect_shipment_invoice_payment",
+        {
+          target_shipment_id: input.shipmentId,
+          target_organization_id: session.organizationId,
+          next_paid: alreadyPaid,
+          next_profit: 0,
+          next_sale_kind: shipment.sale_kind === "empty_box_deposit" ? "empty_box_deposit" : "full",
+          next_invoice_status: shipment.invoice_status,
+          next_accounting_status: shipment.accounting_status,
+          next_finalized_at: shipment.finalized_at,
+          next_logistics_plan: asRecord(shipment.logistics_plan),
+          payment_amount: replayAmount,
+          payment_method: paymentMethod,
+          payment_kind: "balance",
+          payment_note: cleanPaymentNote(input.paymentNote),
+          payment_created_by: session.userId,
+          payment_client_operation_id: clientPaymentId,
+        },
+      );
+      if (replayError) {
+        return fail(mapCollectPaymentError(replayError.message || "No hay pendiente en este invoice"));
+      }
+      const replayResult = parseCollectPaymentRpcResult(replayData);
+      if (!replayResult?.replayed) {
+        return fail("No hay pendiente en este invoice");
+      }
+      const replayedShipment = await listShipmentById(supabase, session, input.shipmentId);
+      return replayedShipment
+        ? ok(replayedShipment)
+        : fail("No se pudo recargar el invoice");
     }
 
     const collectAmount =
@@ -288,10 +377,17 @@ export async function finalizeShipmentInvoiceAction(input: {
       return fail(`El monto no puede superar ${formatMoneyValue(balanceDue)}`);
     }
 
+    const paymentNote = cleanPaymentNote(input.paymentNote);
+    await assertPaymentMethodAllowed({
+      supabase,
+      organizationId: session.organizationId,
+      method: paymentMethod,
+      note: paymentNote,
+      scope: "office",
+    });
+
     const isFullPayment = collectAmount >= balanceDue;
     const paid = alreadyPaid + collectAmount;
-    const paymentMethod = readPaymentMethod(input.paymentMethod);
-    const paymentNote = cleanPaymentNote(input.paymentNote);
     const nextBalanceDue = Math.max(quotedTotal - paid, 0);
     const nextInvoiceStatus = isFullPayment ? "paid" : "open";
     const nextAccountingStatus = isFullPayment ? "exportable" : shipment.accounting_status;
@@ -318,7 +414,7 @@ export async function finalizeShipmentInvoiceAction(input: {
           },
     };
 
-    const { error } = await supabase.rpc("collect_shipment_invoice_payment", {
+    const { data: rpcData, error } = await supabase.rpc("collect_shipment_invoice_payment", {
       target_shipment_id: input.shipmentId,
       target_organization_id: session.organizationId,
       next_paid: paid,
@@ -333,10 +429,19 @@ export async function finalizeShipmentInvoiceAction(input: {
       payment_kind: paymentKind,
       payment_note: paymentNote,
       payment_created_by: session.userId,
+      payment_client_operation_id: clientPaymentId,
     });
 
     if (error) {
-      return fail(error?.message || "No se pudo cobrar el invoice");
+      return fail(mapCollectPaymentError(error.message || "No se pudo cobrar el invoice"));
+    }
+
+    const rpcResult = parseCollectPaymentRpcResult(rpcData);
+    if (!rpcResult) {
+      return fail("Respuesta de cobro invalida");
+    }
+    if (rpcResult.clientPaymentId && rpcResult.clientPaymentId !== clientPaymentId) {
+      return fail("La clave de operacion del cobro no coincide");
     }
 
     const updatedWithPayments = await listShipmentById(supabase, session, input.shipmentId);
@@ -345,29 +450,40 @@ export async function finalizeShipmentInvoiceAction(input: {
       return fail("No se pudo recargar el invoice");
     }
 
+    // Identical replay: SQL already applied the financial effect; do not re-audit.
+    if (rpcResult.replayed) {
+      return ok(updatedWithPayments);
+    }
+
+    const confirmedPaid = updatedWithPayments.paid;
+    const confirmedBalance = Math.max(quotedTotal - confirmedPaid, 0);
+    const confirmedFull = confirmedBalance <= 0.009;
+
     await recordActivityHistory(supabase, session, {
-      action: isFullPayment ? "sale.invoice_finalized" : "sale.invoice_partial_payment",
+      action: confirmedFull ? "sale.invoice_finalized" : "sale.invoice_partial_payment",
       entityType: "shipment",
       entityId: updatedWithPayments.id,
-      title: isFullPayment
+      title: confirmedFull
         ? `Invoice cobrado: ${updatedWithPayments.code}`
         : `Abono registrado: ${updatedWithPayments.code}`,
-      description: isFullPayment
-        ? `${updatedWithPayments.customer_name} · cobrado ${formatMoneyValue(collectAmount)} · ${paymentMethodLabel(paymentMethod)} · total ${formatMoneyValue(paid)}`
-        : `${updatedWithPayments.customer_name} · abono ${formatMoneyValue(collectAmount)} · ${paymentMethodLabel(paymentMethod)} · pendiente ${formatMoneyValue(nextBalanceDue)}`,
+      description: confirmedFull
+        ? `${updatedWithPayments.customer_name} · cobrado ${formatMoneyValue(collectAmount)} · ${paymentMethodLabel(paymentMethod)} · total ${formatMoneyValue(confirmedPaid)}`
+        : `${updatedWithPayments.customer_name} · abono ${formatMoneyValue(collectAmount)} · ${paymentMethodLabel(paymentMethod)} · pendiente ${formatMoneyValue(confirmedBalance)}`,
       metadata: {
-        paid,
+        paid: confirmedPaid,
         collectAmount,
-        balanceDue: nextBalanceDue,
+        balanceDue: confirmedBalance,
         quotedTotal,
         cost,
-        profit: isFullPayment ? Math.max(paid - cost, 0) : 0,
-        invoiceStatus: nextInvoiceStatus,
-        accountingStatus: nextAccountingStatus,
+        profit: confirmedFull ? Math.max(confirmedPaid - cost, 0) : 0,
+        invoiceStatus: updatedWithPayments.invoice_status,
+        accountingStatus: updatedWithPayments.accounting_status,
         paymentMethod,
         paymentKind,
         paymentMethodLabel: paymentMethodLabel(paymentMethod),
         paymentNote,
+        clientPaymentId,
+        replayed: false,
       },
     });
 

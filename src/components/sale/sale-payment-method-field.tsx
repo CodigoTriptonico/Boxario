@@ -3,8 +3,12 @@
 import { ChevronDown } from "lucide-react";
 import { useRef } from "react";
 import { inputClass } from "@/components/ui-blocks";
-import { formatMoneyValue, parseMoneyValue } from "@/lib/logistics-fees";
-import { PAYMENT_METHOD_OPTIONS } from "@/lib/payment-methods";
+import { formatMoneyValue } from "@/lib/logistics-fees";
+import {
+  normalizePaymentMethodSettings,
+  paymentMethodOptionsFor,
+  type PaymentMethodSettings,
+} from "@/lib/payment-methods";
 import {
   type SaleDepositChargeMode,
   resolveSaleDepositChargeAmount,
@@ -26,6 +30,7 @@ type SalePaymentMethodFieldProps = {
   className?: string;
   onChange: (value: SalePaymentSelection) => void;
   onNoteChange?: (note: string) => void;
+  paymentSettings?: Partial<PaymentMethodSettings>;
 };
 
 type SaleDepositPaidToggleProps = {
@@ -78,6 +83,7 @@ type SaleDepositChargeFieldProps = {
   mode: SaleDepositChargeMode;
   depositDraft: string;
   minimumDeposit: string;
+  boxCount?: number;
   quotedTotal: number;
   paid: boolean;
   boxDetail?: string;
@@ -100,6 +106,7 @@ export function SaleDepositChargeField({
   mode,
   depositDraft,
   minimumDeposit,
+  boxCount = 1,
   quotedTotal,
   paid,
   boxDetail = "",
@@ -115,6 +122,7 @@ export function SaleDepositChargeField({
     mode,
     depositDraft,
     minimumDeposit,
+    boxCount,
     quotedTotal,
   });
   const balanceDue = Math.max(quotedTotal - chargeAmount, 0);
@@ -122,7 +130,13 @@ export function SaleDepositChargeField({
   const chargeLabel = formatMoneyValue(chargeAmount);
   const balanceLabel = formatMoneyValue(balanceDue);
   const minimumLabel = formatMoneyValue(
-    Math.min(parseMoneyValue(minimumDeposit), Math.max(quotedTotal, 0)),
+    resolveSaleDepositChargeAmount({
+      mode: "deposit",
+      depositDraft: "",
+      minimumDeposit,
+      boxCount,
+      quotedTotal,
+    }),
   );
   const isFull = mode === "full";
   const hasTotal = quotedTotal > 0;
@@ -267,6 +281,7 @@ type PaymentMethodSelectorProps = {
   disabled: boolean;
   onChange: (value: SalePaymentSelection) => void;
   onNoteChange?: (note: string) => void;
+  paymentSettings?: Partial<PaymentMethodSettings>;
 };
 
 function PaymentMethodSelector({
@@ -275,9 +290,18 @@ function PaymentMethodSelector({
   disabled,
   onChange,
   onNoteChange,
+  paymentSettings,
 }: PaymentMethodSelectorProps) {
   const selectRef = useRef<HTMLSelectElement>(null);
-  const selectedMethod = isSalePaymentChoice(value) && value !== "pending" ? value : "cash";
+  const normalizedSettings = normalizePaymentMethodSettings(paymentSettings);
+  const options = paymentMethodOptionsFor(normalizedSettings.acceptedPaymentMethods);
+  const selectedMethod =
+    isSalePaymentChoice(value) &&
+    value !== "pending" &&
+    normalizedSettings.acceptedPaymentMethods.includes(value)
+      ? value
+      : normalizedSettings.defaultPaymentMethod;
+  const referenceRequired = normalizedSettings.referenceRequiredMethods.includes(selectedMethod);
 
   return (
     <>
@@ -308,7 +332,7 @@ function PaymentMethodSelector({
               }
             }}
           >
-            {PAYMENT_METHOD_OPTIONS.map((option) => (
+            {options.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -318,13 +342,16 @@ function PaymentMethodSelector({
       </label>
 
       <label className="grid gap-1.5">
-        <span className="mt-3 text-xs font-black uppercase text-slate-500">Nota</span>
+        <span className="mt-3 text-xs font-black uppercase text-slate-500">
+          {referenceRequired ? "Referencia obligatoria" : "Nota"}
+        </span>
         <input
           className={inputClass}
           value={note}
           disabled={disabled}
           onChange={(event) => onNoteChange?.(event.target.value)}
           placeholder="Referencia, cheque, ultimos 4..."
+          required={referenceRequired}
         />
       </label>
     </>
@@ -341,7 +368,9 @@ export function SalePaymentMethodField({
   className = "",
   onChange,
   onNoteChange,
+  paymentSettings,
 }: SalePaymentMethodFieldProps) {
+  const normalizedPaymentSettings = normalizePaymentMethodSettings(paymentSettings);
   const paymentUnset = value === SALE_PAYMENT_UNSET;
   const paymentPending = value === "pending";
   const collectingNow = !paymentPending;
@@ -353,7 +382,7 @@ export function SalePaymentMethodField({
     }
 
     if (paid) {
-      onChange("cash");
+      onChange(normalizedPaymentSettings.defaultPaymentMethod);
       return;
     }
 
@@ -370,6 +399,7 @@ export function SalePaymentMethodField({
           disabled={disabled || confirming}
           onChange={onChange}
           onNoteChange={onNoteChange}
+          paymentSettings={normalizedPaymentSettings}
         />
       </div>
     );
@@ -403,6 +433,7 @@ export function SalePaymentMethodField({
             disabled={disabled}
             onChange={onChange}
             onNoteChange={onNoteChange}
+            paymentSettings={normalizedPaymentSettings}
           />
         </div>
       )}

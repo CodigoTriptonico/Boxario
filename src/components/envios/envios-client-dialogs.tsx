@@ -27,6 +27,7 @@ type EnviosClientDialogsProps = {
     finalizePaymentMethod: PaymentMethod;
     finalizePaymentNote: string;
     busyId: string | null;
+    pendingReconcileHint?: boolean;
     setFinalizeCollectMode: (mode: ShipmentCollectMode) => void;
     setFinalizePartialAmount: (value: string) => void;
     setFinalizePaymentMethod: (method: PaymentMethod) => void;
@@ -93,6 +94,7 @@ export function EnviosClientDialogs({
     finalizePaymentMethod,
     finalizePaymentNote,
     busyId,
+    pendingReconcileHint,
     setFinalizeCollectMode,
     setFinalizePartialAmount,
     setFinalizePaymentMethod,
@@ -126,6 +128,11 @@ export function EnviosClientDialogs({
         paymentMethod={finalizePaymentMethod}
         paymentNote={finalizePaymentNote}
         confirming={busyId === finalizeTarget?.id}
+        reconcileNotice={
+          pendingReconcileHint
+            ? "Hay un cobro anterior sin confirmar. Se reutilizará la misma operación al continuar."
+            : undefined
+        }
         onModeChange={setFinalizeCollectMode}
         onPartialAmountChange={setFinalizePartialAmount}
         onPaymentMethodChange={(method) => {
@@ -167,7 +174,7 @@ export function EnviosClientDialogs({
           confirmLabel={
             routeProgramContext?.hasExistingProgramming
               ? "Guardar cambios"
-              : "Asignar ruta"
+              : "Enviar a logística"
           }
           selectionOrder="date-first"
           showDriverPicker={false}

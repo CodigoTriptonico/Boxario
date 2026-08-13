@@ -41,6 +41,7 @@ describe("schedule vs driver order eval", () => {
     );
     assert.match(progressSource, /function compactLogisticsLegUsesOutline/);
     assert.match(progressSource, /!step\.driverTaskOrdered/);
-    assert.match(progressSource, /bg-amber-400/);
+    assert.match(progressSource, /border-amber-400 bg-amber-400\/10/);
+    assert.match(progressSource, /border-sky-400 bg-sky-400/);
   });
 });

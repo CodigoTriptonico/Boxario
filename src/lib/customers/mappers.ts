@@ -24,6 +24,14 @@ export type SaleRecipient = {
   addressVerified: boolean;
   lat: number | null;
   lng: number | null;
+  exactEntranceLat: number | null;
+  exactEntranceLng: number | null;
+  exactEntranceConfirmedAt: string;
+  exactEntranceNote: string;
+  exactEntrancePanoId: string;
+  exactEntranceHeading: number | null;
+  exactEntrancePitch: number | null;
+  createdAt: string;
 };
 
 export type SaleSender = {
@@ -47,6 +55,14 @@ export type SaleSender = {
   addressVerified: boolean;
   lat: number | null;
   lng: number | null;
+  exactEntranceLat: number | null;
+  exactEntranceLng: number | null;
+  exactEntranceConfirmedAt: string;
+  exactEntranceNote: string;
+  exactEntrancePanoId: string;
+  exactEntranceHeading: number | null;
+  exactEntrancePitch: number | null;
+  createdAt: string;
   recipients: SaleRecipient[];
 };
 
@@ -72,6 +88,14 @@ export function customerRowToSender(row: CustomerWithRecipientsRow): SaleSender 
     addressVerified: row.addressVerified,
     lat: row.lat,
     lng: row.lng,
+    exactEntranceLat: row.exactEntranceLat,
+    exactEntranceLng: row.exactEntranceLng,
+    exactEntranceConfirmedAt: row.exactEntranceConfirmedAt,
+    exactEntranceNote: row.exactEntranceNote,
+    exactEntrancePanoId: row.exactEntrancePanoId,
+    exactEntranceHeading: row.exactEntranceHeading,
+    exactEntrancePitch: row.exactEntrancePitch,
+    createdAt: row.createdAt,
     recipients: row.recipients.map(recipientRowToSaleRecipient),
   };
 }
@@ -98,5 +122,13 @@ export function recipientRowToSaleRecipient(row: CustomerRecipientRow): SaleReci
     addressVerified: row.addressVerified,
     lat: row.lat,
     lng: row.lng,
+    exactEntranceLat: row.exactEntranceLat,
+    exactEntranceLng: row.exactEntranceLng,
+    exactEntranceConfirmedAt: row.exactEntranceConfirmedAt,
+    exactEntranceNote: row.exactEntranceNote,
+    exactEntrancePanoId: row.exactEntrancePanoId,
+    exactEntranceHeading: row.exactEntranceHeading,
+    exactEntrancePitch: row.exactEntrancePitch,
+    createdAt: row.createdAt,
   };
 }

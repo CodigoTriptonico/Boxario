@@ -15,11 +15,11 @@ import {
 } from "@/lib/inventory-custody";
 import type { InventoryStockItem } from "@/lib/inventory-stock";
 
-type CustodyKindTab = "empty" | "full";
+type CustodyKindTab = "owned" | "customer";
 
 const custodyKindTabs: AppTabDefinition<CustodyKindTab>[] = [
-  { id: "empty", label: "Vacías", icon: PackageOpen },
-  { id: "full", label: "Llenas", icon: Package },
+  { id: "owned", label: "Inventario propio", icon: PackageOpen },
+  { id: "customer", label: "Paquetes de clientes", icon: Package },
 ];
 
 function CustodyMetric({
@@ -63,7 +63,7 @@ function EmptyCustodyTable({
         <span className="flex h-12 w-12 items-center justify-center rounded-xl border border-black bg-[#111827] text-slate-500">
           <PackageOpen className="h-5 w-5" aria-hidden />
         </span>
-        <p className="mt-4 text-base font-black text-[#f8fafc]">Sin cajas vacías en seguimiento</p>
+        <p className="mt-4 text-base font-black text-[#f8fafc]">Sin inventario propio en seguimiento</p>
         <p className="mt-1 max-w-xs text-sm font-bold text-slate-500">
           {warehouseName
             ? `Cuando haya stock, asignaciones o camión${agencyModuleEnabled ? " o agencias" : ""} para ${warehouseName}, aparecerán aquí.`
@@ -191,22 +191,25 @@ function FullCustodyList({ rows }: { rows: InventoryCustodyFullCount[] }) {
 }
 
 export function InventoryCustodyPanel({
+  warehouseId,
   warehouseName,
   items,
   truckBalances,
   active,
 }: {
+  warehouseId: string;
   warehouseName?: string;
   items: InventoryStockItem[];
   truckBalances: ConductorTruckBalance[];
   active: boolean;
 }) {
-  const [kindTab, setKindTab] = useState<CustodyKindTab>("empty");
+  const [kindTab, setKindTab] = useState<CustodyKindTab>("owned");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [agencyRows, setAgencyRows] = useState<InventoryCustodyAgencyRow[]>([]);
   const [agencyModuleEnabled, setAgencyModuleEnabled] = useState(false);
   const [fullRows, setFullRows] = useState<InventoryCustodyFullCount[]>([]);
+  const [warehouseItems, setWarehouseItems] = useState<InventoryStockItem[]>(items);
 
   useEffect(() => {
     if (!active) {
@@ -217,7 +220,7 @@ export function InventoryCustodyPanel({
     queueMicrotask(() => {
       setLoading(true);
       setError("");
-      void loadInventoryCustodySnapshotAction().then((result) => {
+      void loadInventoryCustodySnapshotAction({ warehouseId }).then((result) => {
         if (cancelled) {
           return;
         }
@@ -232,22 +235,23 @@ export function InventoryCustodyPanel({
         setAgencyRows(result.data.agencyRows);
         setAgencyModuleEnabled(result.data.agencyModuleEnabled);
         setFullRows(result.data.fullPackageCounts);
+        setWarehouseItems(result.data.warehouseItems);
       });
     });
 
     return () => {
       cancelled = true;
     };
-  }, [active]);
+  }, [active, warehouseId]);
 
   const emptyRows = useMemo(
     () =>
       buildInventoryCustodyEmptyRows({
-        items,
+        items: warehouseItems,
         truckBalances,
         agencyRows,
       }),
-    [agencyRows, items, truckBalances],
+    [agencyRows, truckBalances, warehouseItems],
   );
 
   return (
@@ -270,7 +274,7 @@ export function InventoryCustodyPanel({
         <div className="flex flex-1 items-center justify-center px-6 py-16 text-center">
           <p className="text-sm font-bold text-rose-300">{error}</p>
         </div>
-      ) : kindTab === "empty" ? (
+      ) : kindTab === "owned" ? (
         <EmptyCustodyTable rows={emptyRows} warehouseName={warehouseName} agencyModuleEnabled={agencyModuleEnabled} />
       ) : (
         <FullCustodyList rows={fullRows} />

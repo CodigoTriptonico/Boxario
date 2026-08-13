@@ -227,13 +227,13 @@ export function SurfacePalettePicker({
     >
       <div className="mb-3 flex items-start justify-between gap-2 px-0.5">
         <div className="min-w-0">
-          <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-slate-500">
+          <p className="flex items-center gap-1.5 text-xs font-black uppercase tracking-wide text-app-text-muted">
             <Palette className="h-3.5 w-3.5" aria-hidden />
             {title ?? (mode === "personCard" ? "Color de tarjeta" : "Color de filas")}
           </p>
           <p className="mt-0.5 truncate text-sm font-black text-[#f8fafc]">{currentPalette.label}</p>
         </div>
-        <span className="rounded-md border border-black bg-surface-inset px-2 py-1 text-[10px] font-black tabular-nums text-slate-400">
+        <span className="rounded-md border border-app-border-control bg-surface-inset px-2 py-1 text-[10px] font-black tabular-nums text-app-text-secondary">
           {currentPalette.listRow.hex}
         </span>
       </div>
@@ -255,7 +255,7 @@ export function SurfacePalettePicker({
             className={`rounded-md px-2 py-1.5 text-[10px] font-black uppercase tracking-wide transition ${
               tab === id
                 ? "bg-emerald-400/15 text-emerald-200"
-                : "text-slate-500 hover:bg-surface-card hover:text-slate-300"
+                : "text-app-text-muted hover:bg-surface-card hover:text-app-text-secondary"
             }`}
           >
             {label}
@@ -280,11 +280,11 @@ export function SurfacePalettePicker({
                 className={`pointer-events-none absolute inset-0 bg-gradient-to-br opacity-35 ${theme.gradient}`}
                 aria-hidden
               />
-              <span className="relative flex items-center gap-1 text-[10px] font-black uppercase text-slate-300">
+              <span className="relative flex items-center gap-1 text-[10px] font-black uppercase text-app-text-secondary">
                 <Sparkles className="h-3 w-3 text-emerald-300" aria-hidden />
                 {theme.label}
               </span>
-              <span className="relative mt-0.5 block text-[9px] font-bold leading-tight text-slate-500">
+              <span className="relative mt-0.5 block text-[9px] font-bold leading-tight text-app-text-muted">
                 {theme.paletteIds.length} tonos
               </span>
             </button>
@@ -294,9 +294,9 @@ export function SurfacePalettePicker({
 
       {tab === "custom" ? (
         <div className="mt-2 space-y-2 rounded-lg border border-black bg-surface-inset/60 p-2.5">
-          <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">Crear color</p>
+          <p className="text-[10px] font-black uppercase tracking-wide text-app-text-muted">Crear color</p>
           <div className="grid grid-cols-[auto_1fr] gap-2">
-            <label className="grid gap-1 text-[10px] font-black uppercase text-slate-500">
+            <label className="grid gap-1 text-[10px] font-black uppercase text-app-text-muted">
               Base
               <input
                 type="color"
@@ -305,7 +305,7 @@ export function SurfacePalettePicker({
                 className="h-10 w-12 cursor-pointer rounded-md border border-black bg-transparent p-0.5"
               />
             </label>
-            <label className="grid gap-1 text-[10px] font-black uppercase text-slate-500">
+            <label className="grid gap-1 text-[10px] font-black uppercase text-app-text-muted">
               Nombre
               <input
                 value={customName}
@@ -316,7 +316,7 @@ export function SurfacePalettePicker({
             </label>
           </div>
           <div className="flex flex-wrap items-center gap-2">
-            <label className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400">
+            <label className="flex items-center gap-1.5 text-[10px] font-bold text-app-text-secondary">
               <input
                 type="checkbox"
                 checked={autoHover}
@@ -332,7 +332,7 @@ export function SurfacePalettePicker({
               Hover automático
             </label>
             {!autoHover ? (
-              <label className="flex items-center gap-1.5 text-[10px] font-black uppercase text-slate-500">
+              <label className="flex items-center gap-1.5 text-[10px] font-black uppercase text-app-text-muted">
                 Hover
                 <input
                   type="color"
@@ -390,7 +390,7 @@ export function SurfacePalettePicker({
           />
         ))}
         {tab === "custom" && !customBuilt.length ? (
-          <p className="col-span-3 py-4 text-center text-xs font-bold text-slate-500">
+          <p className="col-span-3 py-4 text-center text-xs font-bold text-app-text-muted">
             Aún no tienes colores guardados. Arriba puedes crear el primero.
           </p>
         ) : null}
@@ -399,7 +399,7 @@ export function SurfacePalettePicker({
       {contextId ? (
         <button
           type="button"
-          className={`${secondaryButtonClass} mt-3 flex h-9 w-full items-center justify-center gap-1.5 text-xs font-black text-slate-300`}
+          className={`${secondaryButtonClass} mt-3 flex h-9 w-full items-center justify-center gap-1.5 text-xs font-black text-app-text-secondary`}
           onClick={() => setResetDialogOpen(true)}
         >
           <RotateCcw className="h-3.5 w-3.5" aria-hidden />
@@ -453,10 +453,10 @@ function SurfacePaletteResetDialog({
         className="app-modal-content relative w-full max-w-sm rounded-xl border border-black bg-surface-panel p-4 shadow-2xl sm:p-5"
         onPointerDown={(event) => event.stopPropagation()}
       >
-        <p id="surface-palette-reset-title" className="text-lg font-black text-[#f8fafc]">
+        <p id="surface-palette-reset-title" className="text-lg font-black text-app-text-primary">
           Restablecer colores
         </p>
-        <p className="mt-2 text-sm font-bold leading-snug text-slate-400">
+        <p className="mt-2 text-sm font-bold leading-snug text-app-text-secondary">
           ¿Volver a los colores por defecto solo en{" "}
           <span className="text-slate-200">{pageLabel}</span> o en todas las pantallas?
         </p>
@@ -500,7 +500,7 @@ function LivePreview({
     ? resolveSalePersonCardVariant(palette.personCardId)
     : null;
 
-  if (mode === "personCard" && personVariant) {
+  if (mode === "personCard" && personVariant && !isCustomPaletteId(palette.id)) {
     return (
       <div className={`${personVariant.card} px-3 py-2.5`}>
         <p className={`text-sm font-black ${personVariant.name}`}>Vista previa</p>
@@ -514,11 +514,15 @@ function LivePreview({
       className={`${listRowBaseClass} ${listRowHoverClass} px-3 py-2`}
       style={{
         backgroundColor: palette.listRow.hex,
-        borderColor: "rgba(0,0,0,0.45)",
+        borderColor: "#000000",
       }}
     >
-      <p className="text-sm font-black text-[#f8fafc]">INV-000 · Fila de ejemplo</p>
-      <p className="text-[10px] font-bold text-slate-300">Así se verán tus listados</p>
+      <p className="text-sm font-black" style={{ color: palette.listRow.foregroundHex }}>
+        INV-000 · Fila de ejemplo
+      </p>
+      <p className="text-[10px] font-bold" style={{ color: palette.listRow.mutedForegroundHex }}>
+        Así se verán tus listados
+      </p>
     </div>
   );
 }
@@ -539,6 +543,7 @@ function PaletteSwatch({
   const personVariant = palette.personCardId
     ? resolveSalePersonCardVariant(palette.personCardId)
     : null;
+  const usesPersonVariant = mode === "personCard" && personVariant && !isCustomPaletteId(palette.id);
 
   return (
     <div className="relative">
@@ -552,16 +557,20 @@ function PaletteSwatch({
       >
         <span
           className={`flex h-10 w-full items-center justify-center rounded-md border border-black/50 shadow-inner ${
-            mode === "personCard" && personVariant ? personVariant.swatch : ""
+            usesPersonVariant ? personVariant.swatch : ""
           }`}
           style={
-            mode === "personCard" && personVariant
+            usesPersonVariant
               ? undefined
               : { backgroundColor: palette.listRow.hex }
           }
         >
           {mode === "personCard" ? (
-            <User className="h-3.5 w-3.5 text-slate-950/80" aria-hidden />
+            <User
+              className={usesPersonVariant ? "h-3.5 w-3.5 text-slate-950" : "h-3.5 w-3.5"}
+              style={usesPersonVariant ? undefined : { color: palette.listRow.foregroundHex }}
+              aria-hidden
+            />
           ) : null}
         </span>
         <span className="w-full truncate text-center text-[9px] font-black text-[#f8fafc]">{palette.label}</span>

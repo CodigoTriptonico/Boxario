@@ -68,8 +68,7 @@ export const navItems: {
   { label: "Bodega", href: "/bodega", icon: PackageCheck, section: "warehouse" },
   { label: "Paletas", href: "/paletas", icon: Layers3, section: "warehouse" },
   { label: "Logistica", href: "/logistica", icon: Truck, section: "operations" },
-  { label: "Tareas conductor", href: "/conductor/tareas", icon: ListTodo, section: "operations" },
-  { label: "Inventario camion", href: "/conductor/inventario-camion", icon: Boxes, section: "operations" },
+  { label: "Ruta conductor", href: "/conductor/tareas", icon: ListTodo, section: "operations" },
   { label: "Contabilidad", href: "/contabilidad", icon: Landmark, section: "finance" },
   { label: "Estadisticas", href: "/estadisticas", icon: BarChart3, section: "reports" },
   { label: "Configuracion", href: "/configuracion", icon: Settings, section: "admin" },
@@ -107,11 +106,11 @@ export function CompactNavHeader({
   compactNavSettingsHref,
 }: CompactNavHeaderProps) {
   const buttonClass = compact
-    ? "flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-black bg-surface-card px-3 text-sm font-black text-slate-200 transition-all duration-200 active:scale-[0.98] hover:bg-[#2f3834]"
-    : "flex h-14 min-w-0 flex-1 items-center gap-3 rounded-lg border border-black bg-surface-card px-4 text-left text-lg font-black text-slate-200 transition-all duration-200 hover:-translate-x-0.5 hover:bg-[#2f3834]";
+    ? "flex h-11 min-w-0 flex-1 items-center gap-2 rounded-lg border border-app-border-control bg-surface-card px-3 text-sm font-black text-app-text-secondary transition-all duration-200 active:scale-[0.98] hover:bg-[#2f3834] hover:text-app-text-primary"
+    : "flex h-14 min-w-0 flex-1 items-center gap-3 rounded-lg border border-app-border-control bg-surface-card px-4 text-left text-lg font-black text-app-text-secondary transition-all duration-200 hover:-translate-x-0.5 hover:bg-[#2f3834] hover:text-app-text-primary";
   const settingsClass = compact
-    ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-300 transition-all duration-200 active:scale-[0.98] hover:bg-[#2f3834] hover:text-slate-100"
-    : "flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-300 transition-all duration-200 hover:bg-[#2f3834] hover:text-slate-100";
+    ? "flex h-11 w-11 shrink-0 items-center justify-center rounded-lg border border-app-border-control bg-surface-card text-app-text-secondary transition-all duration-200 active:scale-[0.98] hover:bg-[#2f3834] hover:text-app-text-primary"
+    : "flex h-14 w-14 shrink-0 items-center justify-center rounded-lg border border-app-border-control bg-surface-card text-app-text-secondary transition-all duration-200 hover:bg-[#2f3834] hover:text-app-text-primary";
 
   return (
     <div className="flex gap-2">
@@ -190,7 +189,7 @@ export function mobilePrimaryNavItems(session: AppSession | null, items: NavItem
   const byHref = new Map(items.map((item) => [item.href, item]));
   const preferred =
     session?.roleSlug === "conductor"
-      ? ["/conductor/tareas", "/conductor/inventario-camion"]
+      ? ["/conductor/tareas"]
       : session?.roleSlug === "distribuidor"
         ? ["/agencia", "/solicitudes"]
         : ["administrador_agencia", "vendedor_agencia", "caja_agencia", "operador_agencia"].includes(session?.roleSlug || "")
@@ -280,8 +279,8 @@ export function ShellNavItem({ item, label, isActive, variant, onNavigate }: She
         onClick={() => onNavigate?.(isActive, item.hasSubmenu)}
         className={`relative flex h-11 w-full items-center justify-center rounded-lg border transition-colors duration-200 ${
           isActive
-            ? "border-black bg-[#33413c] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
-            : "border-transparent text-slate-300 hover:border-black hover:bg-surface-card hover:text-white"
+            ? "border-app-border-control bg-[#33413c] text-white shadow-[inset_0_1px_0_rgba(255,255,255,0.04)]"
+            : "border-transparent text-slate-300 hover:border-app-border-control hover:bg-surface-card hover:text-white"
         }`}
       >
         <Icon className={`h-5 w-5 shrink-0 ${isActive ? "text-emerald-200" : "text-slate-400"}`} />
@@ -300,8 +299,8 @@ export function ShellNavItem({ item, label, isActive, variant, onNavigate }: She
         onClick={() => onNavigate?.(isActive, item.hasSubmenu)}
         className={`group relative flex min-h-11 min-w-0 items-center gap-2.5 overflow-hidden rounded-lg border px-2.5 py-1.5 text-left text-sm font-black transition-[background-color,border-color,box-shadow,color] duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-300/70 ${
           isActive
-            ? "sidebar-nav-item-active border-black/90 bg-[#243a32] text-white"
-            : "border-transparent text-slate-300 hover:border-black/90 hover:bg-surface-card hover:text-white"
+            ? "sidebar-nav-item-active border-app-border-control bg-[#243a32] text-white"
+            : "border-transparent text-slate-300 hover:border-app-border-control hover:bg-surface-card hover:text-white"
         }`}
       >
         {isActive ? <span className="sidebar-nav-active-dot h-1.5 w-1.5 shrink-0 rounded-full bg-emerald-300" aria-hidden /> : null}
@@ -321,7 +320,7 @@ export function ShellNavItem({ item, label, isActive, variant, onNavigate }: She
       data-onboarding-target={onboardingTarget}
       onClick={() => onNavigate?.(isActive, item.hasSubmenu)}
       className={`flex h-12 min-w-0 items-center gap-3 rounded-lg border px-3 text-sm font-black transition-all duration-200 active:scale-[0.98] ${
-        isActive ? "border-black bg-emerald-400 text-slate-950" : "border-black bg-surface-card text-slate-300"
+        isActive ? "border-app-border-control bg-emerald-400 text-slate-950" : "border-app-border-control bg-surface-card text-slate-300"
       }`}
     >
       <Icon className="h-5 w-5 shrink-0" />
@@ -336,28 +335,30 @@ export function MobileBottomNav({
   active,
   moreOpen,
   onMore,
+  onNavigate,
 }: {
   session: AppSession | null;
   items: NavItemDef[];
   active: string;
   moreOpen: boolean;
   onMore: () => void;
+  onNavigate?: () => void;
 }) {
   const primary = mobilePrimaryNavItems(session, items);
   const activeInPrimary = primary.some((item) => navItemLabel(item, session) === active);
   const moreActive = !isMobileHomeActive(active) && !activeInPrimary;
 
   return (
-    <nav aria-label="Navegación principal" className="app-shell-mobile-nav fixed inset-x-0 bottom-0 z-[120] border-t border-black bg-[#17201d]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_30px_rgba(0,0,0,0.32)] backdrop-blur lg:hidden">
+    <nav aria-label="Navegación principal" className={`app-shell-mobile-nav fixed inset-x-0 bottom-0 ${moreOpen ? "z-[140]" : "z-[120]"} border-t border-app-border-divider bg-[#17201d]/95 px-2 pb-[max(0.5rem,env(safe-area-inset-bottom))] pt-2 shadow-[0_-12px_30px_rgba(0,0,0,0.32)] backdrop-blur lg:hidden`}>
       <div className="grid w-full grid-cols-4 gap-1">
-        <Link href="/" className={`mobile-tab ${isMobileHomeActive(active) ? "mobile-tab-active" : ""}`} aria-current={isMobileHomeActive(active) ? "page" : undefined}><House className="h-5 w-5" /><span>Inicio</span></Link>
+        <Link href="/" onClick={onNavigate} className={`mobile-tab ${isMobileHomeActive(active) ? "mobile-tab-active" : ""}`} aria-current={isMobileHomeActive(active) ? "page" : undefined}><House className="h-5 w-5" /><span>Inicio</span></Link>
         {primary.map((item) => {
           const Icon = item.icon;
           const selected = navItemLabel(item, session) === active;
-          return <Link key={item.href} href={item.href} className={`mobile-tab ${selected ? "mobile-tab-active" : ""}`} aria-current={selected ? "page" : undefined}><Icon className="h-5 w-5" /><span>{navItemLabel(item, session)}</span></Link>;
+          return <Link key={item.href} href={item.href} onClick={onNavigate} className={`mobile-tab ${selected ? "mobile-tab-active" : ""}`} aria-current={selected ? "page" : undefined}><Icon className="h-5 w-5" /><span>{navItemLabel(item, session)}</span></Link>;
         })}
         {primary.length < 2 ? <span className="mobile-tab pointer-events-none opacity-0" aria-hidden /> : null}
-        <button type="button" onClick={onMore} className={`mobile-tab ${moreOpen || moreActive ? "mobile-tab-active" : ""}`} aria-expanded={moreOpen} aria-label={moreOpen ? "Cerrar más opciones" : "Abrir más opciones"}><MoreHorizontal className="h-5 w-5" /><span>Más</span></button>
+        <button type="button" onClick={onMore} className={`mobile-tab touch-manipulation ${moreOpen || moreActive ? "mobile-tab-active" : ""}`} aria-controls="mobile-more-navigation" aria-expanded={moreOpen} aria-haspopup="true" aria-label={moreOpen ? "Cerrar más opciones" : "Abrir más opciones"}><MoreHorizontal className="h-5 w-5" /><span>Más</span></button>
       </div>
     </nav>
   );

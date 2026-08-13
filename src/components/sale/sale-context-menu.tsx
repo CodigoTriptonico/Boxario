@@ -1,8 +1,13 @@
 "use client";
 
 import { ChevronRight, Copy, Edit3, History, MoreHorizontal, Package, Plus, Trash2 } from "lucide-react";
-import type { ReactNode } from "react";
-import { ContextMenuFlyout } from "@/components/context-menu-flyout";
+import { useState, type ReactNode } from "react";
+import {
+  ContextMenuFlyout,
+  contextMenuFlyoutSideClass,
+  resolveContextMenuFlyoutSide,
+  type ContextMenuFlyoutSide,
+} from "@/components/context-menu-flyout";
 import type { ContextMenuState } from "@/components/sale/venta-parts";
 
 type CopyGroup = {
@@ -43,6 +48,7 @@ export function SaleContextMenu({
   onAddReferral,
   onDelete,
 }: SaleContextMenuProps) {
+  const [copyPanelSide, setCopyPanelSide] = useState<ContextMenuFlyoutSide>("right");
   const resolvedMoreActions: MoreAction[] =
     moreActions.length > 0
       ? moreActions
@@ -123,7 +129,18 @@ export function SaleContextMenu({
             <button
               type="button"
               className="flex h-10 w-full items-center gap-2 rounded-lg px-3 text-left text-sm font-black hover:bg-surface-card"
-              onMouseEnter={() => onActiveCopyGroupChange(group.items.length ? group.label : null)}
+              onMouseEnter={(event) => {
+                if (!group.items.length) {
+                  onActiveCopyGroupChange(null);
+                  return;
+                }
+
+                const anchor = event.currentTarget.parentElement?.getBoundingClientRect();
+                if (anchor) {
+                  setCopyPanelSide(resolveContextMenuFlyoutSide(anchor, 320));
+                }
+                onActiveCopyGroupChange(group.label);
+              }}
               onClick={() => {
                 if (group.items.length === 0) {
                   onCopyValue(undefined);
@@ -135,8 +152,10 @@ export function SaleContextMenu({
             </button>
 
             {group.items.length > 0 && activeCopyGroup === group.label ? (
-              <div className="absolute left-[calc(100%-1px)] top-0 z-50 w-80 rounded-xl border border-black bg-surface-panel p-2 opacity-100 shadow-2xl">
-                <p className="px-3 pb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
+              <div
+                data-flyout-side={copyPanelSide}
+                className={`absolute top-0 z-50 w-80 rounded-xl border border-black bg-surface-panel p-2 opacity-100 shadow-2xl ${contextMenuFlyoutSideClass(copyPanelSide)}`}
+              >                <p className="px-3 pb-2 text-[11px] font-black uppercase tracking-wide text-slate-500">
                   {group.label}
                 </p>
                 {group.items.map((item) => (

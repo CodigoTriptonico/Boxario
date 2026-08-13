@@ -64,7 +64,7 @@ test("verified remitent on same route and zone auto-accepts", () => {
       routeTemplateId: "tpl-dom",
       currentZoneKey: "los-angeles-900",
     }),
-    "assigned",
+    "template_confirmed",
   );
 });
 

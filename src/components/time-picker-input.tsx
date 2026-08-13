@@ -61,7 +61,11 @@ export function TimePickerInput({
     };
   }, [value]);
 
-  const shellClass = `${shellBaseClass} h-9 w-full px-2.5 ${active ? "ring-2 ring-emerald-500/70" : ""} ${shellClassName}`;
+  const shellClass = `${shellBaseClass} h-9 w-full px-2.5 transition ${active ? "ring-2 ring-emerald-500/70" : ""} ${
+    disabled
+      ? "cursor-not-allowed border-slate-900 bg-surface-card opacity-45 grayscale"
+      : ""
+  } ${shellClassName}`;
 
   const updatePanelPosition = useCallback(() => {
     const trigger = triggerRef.current;
@@ -95,6 +99,20 @@ export function TimePickerInput({
     setPanelPosition(null);
     onBlur?.(value);
   }, [onBlur, value]);
+
+  useEffect(() => {
+    if (!disabled || !open) return;
+
+    let active = true;
+    queueMicrotask(() => {
+      if (!active) return;
+      setOpen(false);
+      setPanelPosition(null);
+    });
+    return () => {
+      active = false;
+    };
+  }, [disabled, open]);
 
   const pickTime = useCallback(
     (nextValue: string) => {
@@ -144,14 +162,14 @@ export function TimePickerInput({
   return (
     <>
       <div className={`${shellClass} ${className}`}>
-        <Clock className="h-4 w-4 shrink-0 text-slate-400" aria-hidden />
+        <Clock className={`h-4 w-4 shrink-0 ${disabled ? "text-slate-700" : "text-slate-400"}`} aria-hidden />
         <button
           ref={triggerRef}
           type="button"
           disabled={disabled}
           className={triggerClass}
           aria-label={ariaLabel}
-          aria-expanded={open}
+          aria-expanded={disabled ? false : open}
           aria-haspopup="dialog"
           onClick={() => {
             if (open) {
@@ -165,7 +183,7 @@ export function TimePickerInput({
           {formatTimeInputDisplay(value)}
         </button>
         <ChevronDown
-          className={`h-3.5 w-3.5 shrink-0 text-slate-400 transition ${open ? "rotate-180" : ""}`}
+          className={`h-3.5 w-3.5 shrink-0 transition ${disabled ? "text-slate-700" : "text-slate-400"} ${open ? "rotate-180" : ""}`}
           aria-hidden
         />
       </div>

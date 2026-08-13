@@ -8,6 +8,12 @@ import { PhoneCountryInput } from "@/components/phone-country-input";
 import { flowFormStackClass } from "@/components/flow-form-styles";
 import { SaleAddressGooglePanel } from "@/components/sale/sale-address-google-panel";
 import {
+  openExactEntranceBrowserWindow,
+  SaleExactEntranceWindow,
+  type ExactEntranceDraft,
+  type MapResolvedAddress,
+} from "@/components/sale/sale-exact-entrance-step";
+import {
   type AddressSuggestion,
   type AddressValidation,
   clientFormInputClass,
@@ -61,7 +67,10 @@ type SaleClientFormProps = {
   };
   actions: {
     onCancel: () => void;
-    onSubmit: (options?: { skipAddressVerification?: boolean }) => void;
+    onSubmit: (options?: {
+      skipAddressVerification?: boolean;
+      exactEntrance?: ExactEntranceDraft | null;
+    }) => void | Promise<void>;
     onAddEmail: () => void;
     onUpdateEmail: (index: number, value: string) => void;
     onRemoveEmail: (index: number) => void;
@@ -72,6 +81,7 @@ type SaleClientFormProps = {
   meta: {
     editingCustomerId: string | null;
     duplicateClient: Sender | null;
+    initialExactEntrance?: ExactEntranceDraft | null;
   };
   /** En modal de documentos: apila paneles a ancho completo para que no se corte la dirección. */
   layout?: "split" | "stack";
@@ -88,6 +98,12 @@ export function SaleClientForm({
   const [contactMenuOpen, setContactMenuOpen] = useState(false);
   const [addressUnverifiedAccepted, setAddressUnverifiedAccepted] = useState(false);
   const [showUnverifiedConfirm, setShowUnverifiedConfirm] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapHostWindow, setMapHostWindow] = useState<Window | null>(null);
+  const [mapPopupError, setMapPopupError] = useState("");
+  const [exactEntranceDraft, setExactEntranceDraft] = useState<ExactEntranceDraft | null>(
+    meta.initialExactEntrance || null,
+  );
   const hasRequiredAddress =
     form.street.trim() && form.city.trim() && form.state.trim() && form.postalCode.trim();
   const addressReady = address.validation.status === "valid" || addressUnverifiedAccepted;
@@ -100,11 +116,31 @@ export function SaleClientForm({
         !addressReady));
   const fullAddress = [
     [form.street, form.house].filter(Boolean).join(" "),
+    form.neighborhood,
     [form.city, form.state, form.postalCode].filter(Boolean).join(" "),
     "USA",
   ]
     .filter(Boolean)
     .join(", ");
+  function openMapWindow() {
+    const popup = openExactEntranceBrowserWindow();
+    if (!popup) {
+      setMapPopupError("Chrome bloqueó la ventana del mapa. Permite ventanas emergentes para Boxario.");
+      return;
+    }
+    setMapPopupError("");
+    setMapHostWindow(popup);
+    setMapOpen(true);
+  }
+
+  function dismissMapWindow() {
+    setMapOpen(false);
+    setMapHostWindow(null);
+  }
+
+  useEffect(() => () => {
+    if (mapHostWindow && !mapHostWindow.closed) mapHostWindow.close();
+  }, [mapHostWindow]);
 
   useEffect(() => {
     if (!contactMenuOpen) {
@@ -143,6 +179,7 @@ export function SaleClientForm({
 
   function touchAddressField(update: () => void) {
     setAddressUnverifiedAccepted(false);
+    setExactEntranceDraft(null);
     address.touchField(update);
   }
 
@@ -171,10 +208,36 @@ export function SaleClientForm({
     fullAddress,
   });
 
+  function submitDetails() {
+    void actions.onSubmit({
+      ...(addressUnverifiedAccepted ? { skipAddressVerification: true } : {}),
+      exactEntrance: exactEntranceDraft,
+    });
+  }
+
+  function useMapAddress(resolved: MapResolvedAddress) {
+    form.setStreet(resolved.street);
+    form.setHouse(resolved.houseNumber);
+    form.setNeighborhood(resolved.neighborhood);
+    form.setCity(resolved.city);
+    form.setState(resolved.state);
+    form.setPostalCode(resolved.postalCode);
+    address.setSearch(resolved.formattedAddress);
+    address.setSuggestions([]);
+    address.setValidation({
+      status: "valid",
+      message: "Dirección elegida en el mapa",
+      formattedAddress: resolved.formattedAddress,
+      placeId: resolved.placeId,
+      lat: resolved.lat,
+      lng: resolved.lng,
+    });
+    setAddressUnverifiedAccepted(false);
+  }
+
   return (
     <>
-      <div className="mb-5 border-b border-white/10 pb-4">
-        <div className="flex flex-wrap items-center justify-start gap-2">
+      <div className="mb-4 flex flex-wrap items-center justify-start gap-2 border-b border-white/10 pb-4">
           <button
             type="button"
             onClick={actions.onCancel}
@@ -184,24 +247,21 @@ export function SaleClientForm({
           </button>
           <button
             type="button"
-            onClick={() =>
-              actions.onSubmit(
-                addressUnverifiedAccepted ? { skipAddressVerification: true } : undefined,
-              )
-            }
+            onClick={submitDetails}
             disabled={saveDisabled}
             className="h-10 rounded-md bg-emerald-400 px-5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
           >
-            {meta.editingCustomerId ? "Guardar" : meta.duplicateClient ? "Usar existente" : "Crear remitente"}
+            {meta.duplicateClient
+              ? "Usar existente"
+              : meta.editingCustomerId ? "Guardar remitente" : "Crear remitente"}
           </button>
-        </div>
       </div>
 
       <form
         className={
           layout === "stack"
-            ? "relative grid gap-4"
-            : "relative grid gap-4 lg:grid-cols-2 lg:items-start"
+            ? "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card"
+            : "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card lg:grid-cols-2 lg:items-stretch"
         }
         autoComplete="off"
         onSubmit={(event) => event.preventDefault()}
@@ -213,17 +273,17 @@ export function SaleClientForm({
           <input tabIndex={-1} name="fake-street" autoComplete="street-address" readOnly />
           <input tabIndex={-1} name="fake-city" autoComplete="address-level2" readOnly />
         </div>
-        <div className="flex flex-col self-start overflow-visible rounded-lg border border-black bg-surface-card">
-          <div className="flex items-center gap-3 border-b border-emerald-400/25 bg-[#1f2c28] px-4 py-3">
+        <section className="flex min-w-0 flex-col overflow-visible">
+          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950">
               <UserPlus className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-[#f8fafc]">Remitente</p>
-              <p className="text-xs font-bold text-slate-400">Nombre, correo y telefonos</p>
+              <p className="text-sm font-black uppercase text-[#f8fafc]">Quién envía</p>
+              <p className="text-xs font-bold text-slate-400">Identidad y formas de contacto</p>
             </div>
           </div>
-          <div className="space-y-3 p-4">
+          <div className="space-y-3 p-5">
             <div className={`${flowFormStackClass} max-w-none`}>
               <div className="grid gap-3 sm:grid-cols-2">
                 <label className="grid gap-1.5">
@@ -354,21 +414,26 @@ export function SaleClientForm({
               ) : null}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div className="flex min-w-0 flex-col self-start rounded-lg border border-black bg-surface-card">
-          <div className="flex items-center gap-3 border-b border-sky-300/25 bg-[#1f2c28] px-4 py-3">
+        <section className="flex min-w-0 flex-col border-t border-white/10 lg:border-l lg:border-t-0">
+          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-300 text-slate-950">
               <MapPin className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-[#f8fafc]">Direccion USA</p>
-              <p className="text-xs font-bold text-slate-400">
-                {addressCardSubtitle(addressUi.tone)}
-              </p>
+              <p className="text-sm font-black uppercase text-[#f8fafc]">Dónde recoger</p>
+              <p className="text-xs font-bold text-slate-400">Dirección postal · USA</p>
             </div>
+            <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${address.validation.status === "valid" ? "border-emerald-400/50 bg-emerald-950/40 text-emerald-200" : "border-slate-600 bg-surface-inset text-slate-400"}`}>
+              {exactEntranceDraft ? "Entrada marcada" : addressCardSubtitle(addressUi.tone)}
+            </span>
+            <button type="button" onClick={openMapWindow} className="ml-1 inline-flex h-9 items-center gap-2 rounded-md border border-sky-400/50 bg-sky-950/30 px-3 text-xs font-black text-sky-100 hover:border-emerald-300">
+              <MapPin className="h-4 w-4" /> Cliente verifica mapa
+            </button>
           </div>
-          <div className="space-y-3 p-4">
+          <div className="space-y-3 p-5">
+            {mapPopupError ? <p className="text-xs font-bold text-amber-200">{mapPopupError}</p> : null}
             <label className="grid min-w-0 gap-1.5">
               <span className={clientFormAddressLabelClass(form.street)}>Calle</span>
               <input
@@ -492,8 +557,38 @@ export function SaleClientForm({
               </span>
             </label>
           </div>
-        </div>
+        </section>
       </form>
+
+      {mapOpen && mapHostWindow ? (
+        <SaleExactEntranceWindow
+          open
+          hostWindow={mapHostWindow}
+          personLabel="este remitente"
+          country="USA"
+          addressFields={{
+            street: form.street,
+            houseNumber: form.house,
+            neighborhood: form.neighborhood,
+            city: form.city,
+            state: form.state,
+            postalCode: form.postalCode,
+            country: "USA",
+          }}
+          addressLocation={
+            typeof address.validation.lat === "number" && typeof address.validation.lng === "number"
+              ? { lat: address.validation.lat, lng: address.validation.lng }
+              : null
+          }
+          initialEntrance={exactEntranceDraft}
+          onClose={dismissMapWindow}
+          onAddressResolved={useMapAddress}
+          onConfirm={(draft) => {
+            setExactEntranceDraft(draft);
+            dismissMapWindow();
+          }}
+        />
+      ) : null}
 
       <ActionConfirmDialog
         open={showUnverifiedConfirm}

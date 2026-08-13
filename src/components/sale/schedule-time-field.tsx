@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { CompactInfoDisclosure } from "@/components/compact-info-disclosure";
 import { TimePickerInput } from "@/components/time-picker-input";
 import {
   applyScheduleTimePreset,
@@ -17,12 +18,7 @@ import {
   type ScheduleTimeSuggestions,
 } from "@/lib/sale/schedule-suggestions";
 
-const PRESET_LABELS = {
-  exact: "Horas frecuentes",
-  until: "Límites sugeridos",
-  from: "Inicios sugeridos",
-  range: "Rangos sugeridos",
-} as const;
+const CLIENT_PREFERENCE_LABEL = "Preferencia del cliente";
 
 function segmentClass(selected: boolean) {
   return selected
@@ -124,9 +120,21 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
     ] as const),
     ...(rangeAvailable ? ([(["range", "Entre"] as const)] as const) : []),
   ] as Array<readonly [ScheduleTimeKind, string]>;
+  const hasPresets =
+    activeKind === "range" ? rangePresets.length > 0 : singleTimePresets.length > 0;
 
   return (
-    <div className="grid min-w-0 gap-2">
+    <div className="grid min-w-0 gap-1.5">
+      <div className="flex min-w-0 items-center gap-1.5">
+        <span className="text-[11px] font-black uppercase text-slate-500">
+          {CLIENT_PREFERENCE_LABEL}
+        </span>
+        <CompactInfoDisclosure ariaLabel="Qué significa la preferencia del cliente">
+          No es el horario oficial de la ruta. Logística confirma después la hora de recolección
+          o entrega.
+        </CompactInfoDisclosure>
+      </div>
+
       <div className="flex min-w-0 gap-1 rounded-lg bg-surface-panel p-1">
         {modeOptions.map(([kind, label]) => (
           <button
@@ -140,10 +148,7 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
         ))}
       </div>
 
-      <div className="grid gap-1.5">
-        <span className="text-[11px] font-black uppercase text-slate-500">
-          {PRESET_LABELS[activeKind]}
-        </span>
+      {hasPresets ? (
         <div className="grid grid-cols-4 gap-1.5">
           {activeKind === "range"
             ? rangePresets.map(([label, start, end]) => (
@@ -163,31 +168,44 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
                 </button>
               ))
             : singleTimePresets.map(([label, time]) => (
-            <button
-              key={label}
-              type="button"
-              onClick={() => onChange(applyScheduleTimePreset(activeValue, time))}
-              className={`h-8 min-w-0 rounded-md border px-1 text-[11px] font-black transition ${
-                scheduleTimePresetMatches(activeValue, time)
-                  ? "border-emerald-600 bg-emerald-400 text-slate-950"
-                  : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
-              }`}
-            >
-              {label}
-            </button>
+                <button
+                  key={label}
+                  type="button"
+                  onClick={() => onChange(applyScheduleTimePreset(activeValue, time))}
+                  className={`h-8 min-w-0 rounded-md border px-1 text-[11px] font-black transition ${
+                    scheduleTimePresetMatches(activeValue, time)
+                      ? "border-emerald-600 bg-emerald-400 text-slate-950"
+                      : "border-black bg-surface-inset text-slate-300 hover:bg-surface-card-hover"
+                  }`}
+                >
+                  {label}
+                </button>
               ))}
         </div>
-      </div>
+      ) : null}
 
       {activeKind === "exact" ? (
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-black uppercase text-slate-500">Hora exacta</span>
-          <TimePickerInput
-            value={activeParsed.start}
-            ariaLabel="Hora exacta de entrega"
-            onChange={(nextValue) => update({ start: nextValue })}
-          />
-        </label>
+        <TimePickerInput
+          value={activeParsed.start}
+          ariaLabel="Preferencia del cliente: hora exacta"
+          onChange={(nextValue) => update({ start: nextValue })}
+        />
+      ) : null}
+
+      {activeKind === "from" ? (
+        <TimePickerInput
+          value={activeParsed.start}
+          ariaLabel="Preferencia del cliente: a partir de"
+          onChange={(nextValue) => update({ start: nextValue })}
+        />
+      ) : null}
+
+      {activeKind === "until" ? (
+        <TimePickerInput
+          value={activeParsed.start}
+          ariaLabel="Preferencia del cliente: antes de"
+          onChange={(nextValue) => update({ start: nextValue })}
+        />
       ) : null}
 
       {activeKind === "range" ? (
@@ -196,7 +214,7 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
             <span className="text-[11px] font-black uppercase text-slate-500">Desde</span>
             <TimePickerInput
               value={activeParsed.start}
-              ariaLabel="Hora desde"
+              ariaLabel="Preferencia del cliente: desde"
               active={rangeTarget === "start"}
               onFocus={() => setRangeTarget("start")}
               onChange={(nextValue) => update({ start: nextValue })}
@@ -206,35 +224,13 @@ export function ScheduleTimeField({ value, onChange, suggestions }: ScheduleTime
             <span className="text-[11px] font-black uppercase text-slate-500">Hasta</span>
             <TimePickerInput
               value={activeParsed.end || ""}
-              ariaLabel="Hora hasta"
+              ariaLabel="Preferencia del cliente: hasta"
               active={rangeTarget === "end"}
               onFocus={() => setRangeTarget("end")}
               onChange={(nextValue) => update({ end: nextValue })}
             />
           </label>
         </div>
-      ) : null}
-
-      {activeKind === "from" ? (
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-black uppercase text-slate-500">A partir de</span>
-          <TimePickerInput
-            value={activeParsed.start}
-            ariaLabel="Hora a partir de"
-            onChange={(nextValue) => update({ start: nextValue })}
-          />
-        </label>
-      ) : null}
-
-      {activeKind === "until" ? (
-        <label className="grid gap-1.5">
-          <span className="text-[11px] font-black uppercase text-slate-500">Antes de</span>
-          <TimePickerInput
-            value={activeParsed.start}
-            ariaLabel="Hora antes de"
-            onChange={(nextValue) => update({ start: nextValue })}
-          />
-        </label>
       ) : null}
     </div>
   );

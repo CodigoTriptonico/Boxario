@@ -19,7 +19,7 @@ export function conductorExpectedDepositCollection(input: {
   depositDue: number;
   balanceDue: number;
 }) {
-  if (input.result !== "completed" || input.taskType !== "deliver_empty_box") {
+  if (input.result !== "completed") {
     return 0;
   }
 
@@ -31,6 +31,7 @@ export function conductorPaymentChoiceError(input: {
   expectedAmount: number;
   customAmount: number;
   balanceDue?: number;
+  note?: string;
 }) {
   if (!input.choice) {
     return "Indica si recibiste el depósito.";
@@ -38,6 +39,10 @@ export function conductorPaymentChoiceError(input: {
 
   if (input.choice === "custom" && money(input.customAmount) <= 0) {
     return "Indica un monto recibido válido.";
+  }
+
+  if (input.choice === "none" && String(input.note || "").trim().length < 3) {
+    return "Indica por que no recibiste dinero.";
   }
 
   if (input.choice !== "none" && input.balanceDue !== undefined) {

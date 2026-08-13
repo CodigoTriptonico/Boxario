@@ -7,6 +7,10 @@ const appShellSource = readFileSync(
   join(process.cwd(), "src", "components", "app-shell.tsx"),
   "utf8",
 );
+const appShellNavSource = readFileSync(
+  join(process.cwd(), "src", "components", "app-shell-nav.tsx"),
+  "utf8",
+);
 const brandHeaderSource = readFileSync(
   join(process.cwd(), "src", "components", "notifications", "notifications-center.tsx"),
   "utf8",
@@ -38,7 +42,7 @@ describe("app shell sidebar eval", () => {
     const seguimientoIndex = sourceIndex('{ label: "Seguimiento y envíos", href: "/seguimiento"');
     const inventarioIndex = sourceIndex('{ label: "Inventario", href: "/inventario"');
     const logisticaIndex = sourceIndex('{ label: "Logistica", href: "/logistica"');
-    const tareasIndex = sourceIndex('{ label: "Tareas conductor", href: "/conductor/tareas"');
+    const tareasIndex = sourceIndex('{ label: "Ruta conductor", href: "/conductor/tareas"');
     const estadisticasIndex = sourceIndex('{ label: "Estadisticas", href: "/estadisticas"');
 
     assert.ok(ventaIndex < seguimientoIndex);
@@ -188,6 +192,20 @@ describe("app shell sidebar eval", () => {
     assert.match(appShellSource, /mobile-more-group-\$\{section\.id\}/);
     assert.match(appShellSource, /mobileMoreNavGroups\.map[\s\S]*toggleSidebarGroup\(section\.id\)/);
     assert.match(appShellSource, /mobileMoreNavGroups\.map[\s\S]*expandedSidebarGroups\.includes\(section\.id\)/);
+    assert.match(appShellSource, /rounded-xl border border-emerald-400\/25 bg-\[#263a33\]/);
+    assert.match(appShellSource, /ml-3 grid gap-1 border-l-2 border-emerald-400\/20 pl-2/);
+  });
+
+  it("keeps the mobile more sheet above the bottom navigation and linked to its trigger", () => {
+    assert.match(appShellSource, /<div className="pointer-events-none fixed inset-0 z-\[130\] lg:hidden">/);
+    assert.match(appShellSource, /<nav id="mobile-more-navigation" aria-label="Más opciones"/);
+    assert.match(appShellNavSource, /aria-controls="mobile-more-navigation"/);
+    assert.match(appShellNavSource, /touch-manipulation/);
+    assert.match(appShellNavSource, /moreOpen \? "z-\[140\]" : "z-\[120\]"/);
+    assert.match(appShellSource, /onNavigate=\{\(\) => setMobileMenuOpen\(false\)\}/);
+    assert.match(appShellSource, /pointer-events-none fixed inset-0 z-\[130\] lg:hidden/);
+    assert.match(appShellSource, /pointer-events-auto absolute inset-x-0 bottom-\[calc\(4\.75rem\+env\(safe-area-inset-bottom\)\)\]/);
+    assert.match(appShellSource, /closeMobileMenuOnOutsidePointer/);
   });
 
   it("places desktop sidebar toggle in the grouped footer controls", () => {

@@ -329,14 +329,14 @@ export function UserTeamCard({
       <footer className="mt-auto border-t border-black/60 px-4 py-2">
         <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-[10px] font-bold leading-relaxed text-slate-500">
           <span className="inline-flex items-center gap-1">
-            <Phone className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+            <Phone className="h-3 w-3 shrink-0" aria-hidden />
             {phones.length ? phones.join(" · ") : "Sin teléfono"}
           </span>
           <span className="text-slate-700" aria-hidden>
             ·
           </span>
           <span className="inline-flex items-center gap-1 capitalize">
-            <Calendar className="h-3 w-3 shrink-0 opacity-70" aria-hidden />
+            <Calendar className="h-3 w-3 shrink-0" aria-hidden />
             Alta {formatUserCreatedAt(user.createdAt)}
           </span>
         </p>

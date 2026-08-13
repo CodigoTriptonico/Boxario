@@ -1,6 +1,6 @@
 "use client";
 
-import { Globe2, Truck } from "lucide-react";
+import { CircleDollarSign, Globe2, Route } from "lucide-react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import type { CostosPanel } from "@/components/config/config-url";
@@ -12,7 +12,6 @@ import { CONFIG_SECTION_LABELS } from "@/lib/config-section-labels";
 
 type UseConfigNavigationParams = {
   section: ConfigSection;
-  canManageOperatingCosts: boolean;
   activeCountry: string | null;
   countryFromUrl: string | null;
   selectedCountry: string | null;
@@ -27,7 +26,6 @@ type UseConfigNavigationParams = {
 
 export function useConfigNavigation({
   section,
-  canManageOperatingCosts,
   activeCountry,
   countryFromUrl,
   setSelectedCountry,
@@ -57,25 +55,36 @@ export function useConfigNavigation({
 
   const openCostosPanel = useCallback(
     (panel: CostosPanel) => {
-      if (panel === "operativos") {
-        router.replace("/configuracion?view=prices&panel=operativos", { scroll: false });
+      if (panel === "paises") {
+        router.replace("/configuracion?view=prices", { scroll: false });
         return;
       }
 
-      router.replace("/configuracion?view=prices", { scroll: false });
+      router.replace(`/configuracion?view=prices&panel=${panel}`, { scroll: false });
     },
     [router],
   );
 
-  const costosPanelTabs = useMemo<AppTabDefinition<CostosPanel>[]>(() => {
-    const tabs: AppTabDefinition<CostosPanel>[] = [
+  const costosPanelTabs = useMemo<AppTabDefinition<CostosPanel>[]>(
+    () => [
       { id: "paises", label: "Países", icon: Globe2 },
-    ];
-    if (canManageOperatingCosts) {
-      tabs.push({ id: "operativos", label: "Operativos", icon: Truck });
+      { id: "deposito", label: "Cobros", icon: CircleDollarSign },
+      { id: "rutas", label: "Rutas", icon: Route },
+    ],
+    [],
+  );
+
+  useEffect(() => {
+    const panel = searchParams.get("panel");
+    if (panel === "operativos") {
+      router.replace("/configuracion?view=prices", { scroll: false });
+      return;
     }
-    return tabs;
-  }, [canManageOperatingCosts]);
+
+    if (panel === "horarios") {
+      router.replace("/configuracion?view=prices&panel=rutas", { scroll: false });
+    }
+  }, [router, searchParams]);
 
   useEffect(() => {
     const view = searchParams.get("view");

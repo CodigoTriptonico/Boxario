@@ -17,8 +17,8 @@ export const CONFIG_SECTION_LABELS: Record<ConfigSectionId, ConfigSectionLabel> 
     text: "Empresa, plan, usuarios, roles, bodegas e importación.",
   },
   prices: {
-    title: "Costos",
-    text: "Precios por país y cargos de entrega o recolección.",
+    title: "Ventas",
+    text: "Precios por país, depósito mínimo y rutas semanales.",
   },
   distributors: {
     title: "Distribuidores",

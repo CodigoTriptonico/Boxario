@@ -35,8 +35,8 @@ export function salePaymentChoiceLabel(choice: SalePaymentChoice) {
   return paymentMethodLabel(choice);
 }
 
-export function defaultSalePaymentSelection(): SalePaymentSelection {
-  return "cash";
+export function defaultSalePaymentSelection(preferred?: unknown): SalePaymentSelection {
+  return isPaymentMethod(preferred) ? preferred : "cash";
 }
 
 export function resolveSalePaymentInput(input: {

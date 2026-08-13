@@ -183,6 +183,18 @@ export function shipmentAuditActionLabel(action: string) {
     return "Visita fallida";
   }
 
+  if (action === "customer.route_assignment.deferred") {
+    return "Ruta devuelta a pendiente";
+  }
+
+  if (action === "customer.route_assignment.rejected") {
+    return "Solicitud de ruta rechazada";
+  }
+
+  if (action === "customer.route_assignment.replaced") {
+    return "Ruta propuesta reemplazada";
+  }
+
   if (action === "shipment.driver_payment_not_collected") {
     return "Cobro pendiente";
   }

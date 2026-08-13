@@ -9,6 +9,8 @@
     "scripts/reset-operational-data-keep-catalog.mjs",
     "scripts/run-full-user-test.mjs",
     "scripts/seed-conductors.mjs",
+    "scripts/test-agency-operations-idempotency.mjs",
+    "scripts/test-office-payment-idempotency.mjs",
     "scripts/test-user-deep.mjs",
     "scripts/test-user-flow-simulation.mjs",
     "scripts/**/*.test.mjs",

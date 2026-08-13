@@ -38,6 +38,7 @@ type InventoryOverview = {
 
 export type InventoryStructureEmbeddedShellProps = {
   headerSlot?: React.ReactNode;
+  workspaceNavSlot?: React.ReactNode;
   footerSlot?: React.ReactNode;
   truckPanel?: React.ReactNode;
   itemsPanel: React.ReactNode;
@@ -82,6 +83,7 @@ export type InventoryStructureEmbeddedShellProps = {
 
 export function InventoryStructureEmbeddedShell({
   headerSlot,
+  workspaceNavSlot,
   footerSlot,
   truckPanel,
   itemsPanel,
@@ -123,9 +125,9 @@ export function InventoryStructureEmbeddedShell({
   setEditingCategoryName,
 }: InventoryStructureEmbeddedShellProps) {
   return (
-    <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-black bg-[#25302c] shadow-[0_10px_26px_rgba(0,0,0,0.22)]">
-      <div className="flex shrink-0 items-center gap-2 border-b border-black/70 bg-[#1a2320] px-3 py-2 sm:px-4">
-        <div className={inventoryToolbarRowClass}>
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-xl border border-black bg-[#25302c] shadow-[0_10px_26px_rgba(0,0,0,0.22)]">
+      <div className="flex w-full min-w-0 shrink-0 flex-wrap items-center gap-2 overflow-x-hidden border-b border-black/70 bg-[#1a2320] px-3 py-2 sm:px-4">
+        <div className={`${inventoryToolbarRowClass} min-w-0 flex-1 basis-[min(100%,18rem)]`}>
           {headerSlot ? (
             <div className={inventoryToolbarGroupClass}>{headerSlot}</div>
           ) : null}
@@ -158,7 +160,7 @@ export function InventoryStructureEmbeddedShell({
                 ariaLabel="Categoría de inventario"
                 leadingIcon={<Layers3 className="h-4 w-4" aria-hidden />}
                 options={embeddedCategoryOptions}
-                className="min-w-0 shrink"
+                className="min-w-0 flex-1"
                 shellClassName={`${inventoryToolbarPickerShellClass} ${inventoryToolbarPickerWidthClass}`}
               />
               {hasEmbeddedSubcategories ? (
@@ -221,7 +223,7 @@ export function InventoryStructureEmbeddedShell({
             </div>
           ) : null}
           {!truckTabOpen && selectedCategoryData ? (
-            <div className={inventoryToolbarGroupClass}>
+            <div className="flex min-w-0 flex-1 items-center gap-1 overflow-hidden rounded-lg border border-black bg-[#141a18] p-1">
               <InlineSearchCombobox
                 value={itemQuery}
                 onChange={setItemQuery}
@@ -237,7 +239,7 @@ export function InventoryStructureEmbeddedShell({
             </div>
           ) : null}
         </div>
-        <div className="flex shrink-0 items-center gap-2">
+        <div className="flex min-w-0 max-w-full flex-wrap items-center gap-2">
           {!truckTabOpen && showStructureOptions ? (
             <div className={inventoryToolbarGroupClass}>
               <div ref={newItemAnchorRef} className="relative">
@@ -292,18 +294,18 @@ export function InventoryStructureEmbeddedShell({
               </div>
             </div>
           ) : null}
-          <dl className="flex shrink-0 overflow-hidden rounded-xl border border-black bg-[#17201d]">
-            <div className="min-w-[5.5rem] border-r border-black/70 px-2.5 py-2">
+          <dl className="flex min-w-0 max-w-full flex-wrap overflow-hidden rounded-xl border border-black bg-[#17201d]">
+            <div className="min-w-[4.25rem] flex-1 border-r border-black/70 px-2 py-1.5">
               <dt className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 Artículos
               </dt>
-              <dd className="mt-0.5 text-base font-black tabular-nums text-slate-100">
+              <dd className="mt-0.5 text-sm font-black tabular-nums text-slate-100">
                 {inventoryOverview.itemCount}
               </dd>
             </div>
             <button
               type="button"
-              className={`min-w-[5.5rem] border-r border-black/70 px-2.5 py-2 text-left transition ${
+              className={`min-w-[4.25rem] flex-1 border-r border-black/70 px-2 py-1.5 text-left transition ${
                 !truckTabOpen ? "bg-emerald-400/10" : "hover:bg-white/[0.03]"
               }`}
               onClick={() => onTruckTabChange?.(false)}
@@ -312,13 +314,13 @@ export function InventoryStructureEmbeddedShell({
               <dt className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 En bodega
               </dt>
-              <dd className="mt-0.5 text-base font-black tabular-nums text-emerald-300">
+              <dd className="mt-0.5 text-sm font-black tabular-nums text-emerald-300">
                 {inventoryOverview.warehouseQty}
               </dd>
             </button>
             <button
               type="button"
-              className={`min-w-[5.5rem] border-r border-black/70 px-2.5 py-2 text-left transition ${
+              className={`min-w-[4.25rem] flex-1 border-r border-black/70 px-2 py-1.5 text-left transition ${
                 truckTabOpen ? "bg-sky-400/10" : "hover:bg-white/[0.03]"
               }`}
               onClick={() => onTruckTabChange?.(true)}
@@ -327,29 +329,29 @@ export function InventoryStructureEmbeddedShell({
               <dt className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 En camiones
               </dt>
-              <dd className="mt-0.5 text-base font-black tabular-nums text-sky-300">
+              <dd className="mt-0.5 text-sm font-black tabular-nums text-sky-300">
                 {truckQty}
               </dd>
             </button>
-            <div className="min-w-[5.5rem] border-r border-black/70 px-2.5 py-2">
+            <div className="min-w-[4.25rem] flex-1 border-r border-black/70 px-2 py-1.5">
               <dt className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 Con empleados
               </dt>
-              <dd className="mt-0.5 flex items-baseline gap-1 text-base font-black tabular-nums text-violet-300">
+              <dd className="mt-0.5 flex items-baseline gap-1 text-sm font-black tabular-nums text-violet-300">
                 {inventoryOverview.assignedQty}
                 {inventoryOverview.activeAssignments ? (
-                  <span className="text-[9px] font-bold text-violet-300/60">
+                  <span className="text-[9px] font-bold text-violet-300">
                     {inventoryOverview.activeAssignments} entregas
                   </span>
                 ) : null}
               </dd>
             </div>
-            <div className="min-w-[5.5rem] px-2.5 py-2">
+            <div className="min-w-[4.25rem] flex-1 px-2 py-1.5">
               <dt className="text-[9px] font-black uppercase tracking-wider text-slate-500">
                 Por revisar
               </dt>
               <dd
-                className={`mt-0.5 text-base font-black tabular-nums ${
+                className={`mt-0.5 text-sm font-black tabular-nums ${
                   inventoryOverview.attentionCount ? "text-amber-300" : "text-slate-300"
                 }`}
               >
@@ -358,6 +360,9 @@ export function InventoryStructureEmbeddedShell({
             </div>
           </dl>
         </div>
+        {workspaceNavSlot ? (
+          <div className="min-w-0 max-w-full flex-1 basis-full xl:basis-auto">{workspaceNavSlot}</div>
+        ) : null}
       </div>
 
       <div className="flex min-h-0 min-w-0 flex-1 flex-col">

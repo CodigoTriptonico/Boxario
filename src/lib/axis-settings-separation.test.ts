@@ -6,8 +6,12 @@ const actionSource = readFileSync(
   new URL("../app/actions/axis-settings.ts", import.meta.url),
   "utf8",
 );
-const panelSource = readFileSync(
-  new URL("../components/settings/logistics-settings-panel.tsx", import.meta.url),
+const routePanelSource = readFileSync(
+  new URL("../components/config/ventas-rutas-panel.tsx", import.meta.url),
+  "utf8",
+);
+const geographicRouteSource = readFileSync(
+  new URL("../components/logistica/geographic-route-catalog.tsx", import.meta.url),
   "utf8",
 );
 const dayMigrationSource = readFileSync(
@@ -25,7 +29,8 @@ const implicitDayMigrationSource = readFileSync(
 
 describe("logistics settings ownership", () => {
   it("keeps weekday selection exclusively in routes", () => {
-    assert.doesNotMatch(panelSource, /Días de servicio|daysValue|onDaysChange/);
+    assert.match(routePanelSource, /GeographicRouteCatalog/);
+    assert.match(geographicRouteSource, /weekday/);
     assert.doesNotMatch(
       actionSource,
       /deliveryDays|pickupDays|p_delivery_days|p_pickup_days/,
@@ -46,7 +51,8 @@ describe("logistics settings ownership", () => {
   });
 
   it("keeps operational hours exclusively in the route catalog", () => {
-    assert.doesNotMatch(panelSource, /Rangos disponibles|deliveryRanges|pickupRanges/);
+    assert.match(routePanelSource, /GeographicRouteCatalog/);
+    assert.match(geographicRouteSource, /schedules/);
     assert.doesNotMatch(
       actionSource,
       /deliveryRanges|pickupRanges|p_delivery_ranges|p_pickup_ranges/,

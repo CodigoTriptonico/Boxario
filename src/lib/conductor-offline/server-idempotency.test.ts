@@ -1,8 +1,14 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, it } from "node:test";
 import { readConductorTaskActionsSource } from "@/test-utils/conductor-logistics-action-sources";
 
 const source = readConductorTaskActionsSource();
+const failMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/169_fail_conductor_task_atomic.sql"),
+  "utf8",
+);
 
 describe("conductor offline server idempotency", () => {
   it("keeps empty task notes compatible with the non-null database column", async () => {
@@ -11,10 +17,12 @@ describe("conductor offline server idempotency", () => {
   });
 
   it("accepts a repeated client operation only for the same task, driver and result", async () => {
-    assert.match(source, /error\.code === "23505" && input\.clientOperationId/);
-    assert.match(source, /existingAttempt\?\.task_id === input\.task\.id/);
-    assert.match(source, /existingAttempt\.driver_id === input\.driverId/);
-    assert.match(source, /existingAttempt\.result === input\.result/);
+    assert.match(failMigration, /client_operation_id = p_client_operation_id/);
+    assert.match(failMigration, /existing_attempt\.task_id = p_task_id/);
+    assert.match(failMigration, /existing_attempt\.driver_id = effective_driver/);
+    assert.match(failMigration, /effective_driver := caller_id/);
+    assert.match(failMigration, /existing_attempt\.result = 'failed'/);
+    assert.match(failMigration, /ATTEMPT_CONFLICT/);
   });
 
   it("replays an assigned task using its original schedule day after midnight", async () => {

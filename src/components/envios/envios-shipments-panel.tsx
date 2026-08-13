@@ -15,9 +15,11 @@ import type { collectShipmentInvoiceCopy } from "@/lib/shipment-invoice-copy";
 import type { ShipmentAuditContext } from "@/lib/shipment-audit";
 import type { ShipmentLogisticsEditorState } from "@/lib/shipment-logistics-edit";
 import type { ShipmentStatus } from "@/lib/shipment-types";
+import type { ViewLayout } from "@/lib/view-layout";
+import { EnviosShipmentExcelTable } from "@/components/envios/envios-shipment-excel-table";
 
 type EnviosShipmentsPanelProps = {
-  viewLayout: "rows" | "cards";
+  viewLayout: ViewLayout;
   displayShipments: ShipmentRow[];
   shipmentsLoading: boolean;
   isServerEmptyPage: boolean;
@@ -56,6 +58,7 @@ type EnviosShipmentsPanelProps = {
     audit: ShipmentAuditContext,
   ) => Promise<void>;
   onFullBoxReceivedAtOffice: (row: ShipmentRow, audit: ShipmentAuditContext) => Promise<void>;
+  onRevertFullBoxOfficeReception: (row: ShipmentRow, audit: ShipmentAuditContext) => Promise<void>;
   onProgramRoute?: (row: ShipmentRow, kind: "empty_box" | "full_box") => void;
   pendingRouteTaskIds: Set<string>;
   onLockedLeg: (message: string) => void;
@@ -101,6 +104,7 @@ export function EnviosShipmentsPanel({
   onLogisticsPatch,
   onStatusChange,
   onFullBoxReceivedAtOffice,
+  onRevertFullBoxOfficeReception,
   onProgramRoute,
   pendingRouteTaskIds,
   onLockedLeg,
@@ -113,6 +117,47 @@ export function EnviosShipmentsPanel({
   onPreviousPage,
   onNextPage,
 }: EnviosShipmentsPanelProps) {
+  const emptyState = isServerEmptyPage ? (
+    <div className="flex h-full min-h-[14rem] flex-col items-center justify-center px-4 py-10 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-inset ring-emerald-400/20">
+        <Package className="h-7 w-7" aria-hidden />
+      </span>
+      <p className="mt-4 text-lg font-black text-[#f8fafc]">Sin más envíos</p>
+      <p className="mt-1 text-sm font-bold text-slate-400">
+        No hay resultados en esta página.
+      </p>
+      <button
+        type="button"
+        className={`${secondaryButtonClass} mt-5 inline-flex h-10 items-center px-4 text-sm`}
+        onClick={onPreviousPage}
+      >
+        Volver a la página anterior
+      </button>
+    </div>
+  ) : (
+    <div className="flex h-full min-h-[14rem] flex-col items-center justify-center px-4 py-10 text-center">
+      <span className="flex h-14 w-14 items-center justify-center rounded-full bg-emerald-400/10 text-emerald-300 ring-1 ring-inset ring-emerald-400/20">
+        <Package className="h-7 w-7" aria-hidden />
+      </span>
+      <p className="mt-4 text-lg font-black text-[#f8fafc]">
+        {isHistoryMode ? "Sin envíos entregados" : "Sin envíos"}
+      </p>
+      <p className="mt-1 text-sm font-bold text-slate-400">
+        {isHistoryMode
+          ? "No hay entregas que coincidan con estos filtros."
+          : "No hay envíos que coincidan con estos filtros."}
+      </p>
+      {canManageSales && !isHistoryMode ? (
+        <Link
+          href="/venta"
+          className={`${primaryButtonClass} mt-5 inline-flex h-10 items-center px-4`}
+        >
+          Crear venta
+        </Link>
+      ) : null}
+    </div>
+  );
+
   const listSharedProps = {
     displayShipments,
     canManageSales,
@@ -135,6 +180,7 @@ export function EnviosShipmentsPanel({
     onLogisticsPatch,
     onStatusChange,
     onFullBoxReceivedAtOffice,
+    onRevertFullBoxOfficeReception,
     onProgramRoute,
     pendingRouteTaskIds,
     onLockedLeg,
@@ -146,7 +192,7 @@ export function EnviosShipmentsPanel({
   return (
     <>
       <div className="relative min-h-0 flex-1">
-        <div className="min-h-0 flex-1 overflow-y-auto pr-1">
+        <div className="h-full min-h-0 overflow-y-auto pr-1">
           {shipmentsLoading && !displayShipments.length && !isServerEmptyPage ? (
             <PageLoading inline />
           ) : displayShipments.length ? (
@@ -156,6 +202,12 @@ export function EnviosShipmentsPanel({
                 cardClass={cardClass}
                 expandedShipmentIds={expandedShipmentIds}
               />
+            ) : viewLayout === "excel" ? (
+              <EnviosShipmentExcelTable
+                {...listSharedProps}
+                ownerBusyId={ownerBusyId}
+                onUpdateSalesOwner={onUpdateSalesOwner}
+              />
             ) : (
               <EnviosShipmentCardsGrid
                 {...listSharedProps}
@@ -163,57 +215,8 @@ export function EnviosShipmentsPanel({
                 onUpdateSalesOwner={onUpdateSalesOwner}
               />
             )
-          ) : isServerEmptyPage ? (
-            <div className="rounded-lg border border-black bg-surface-card px-4 py-8 text-center">
-              <Package className="mx-auto h-8 w-8 text-slate-500" />
-              <p className="mt-3 text-xl font-black text-[#f8fafc]">Sin más envíos</p>
-              <p className="mt-1 text-sm font-bold text-slate-400">
-                No hay resultados en esta página.
-              </p>
-              <button
-                type="button"
-                className={`${secondaryButtonClass} mt-4 inline-flex h-11 items-center px-4 text-sm`}
-                onClick={onPreviousPage}
-              >
-                Volver a la página anterior
-              </button>
-            </div>
-          ) : viewLayout === "cards" ? (
-            <div className="grid items-start gap-2.5 sm:grid-cols-2 xl:grid-cols-3">
-              <div className="rounded-lg border border-black bg-surface-card px-4 py-8 text-center sm:col-span-2 xl:col-span-3">
-                <Package className="mx-auto h-8 w-8 text-slate-500" />
-                <p className="mt-3 text-xl font-black text-[#f8fafc]">
-                  {isHistoryMode ? "Sin envíos entregados" : "Sin envíos"}
-                </p>
-                <p className="mt-1 text-sm font-bold text-slate-400">
-                  {isHistoryMode
-                    ? "No hay entregas que coincidan con estos filtros."
-                    : "No hay envíos que coincidan con estos filtros."}
-                </p>
-                {canManageSales && !isHistoryMode ? (
-                  <Link href="/venta" className={`${primaryButtonClass} mt-4 inline-flex h-11 items-center px-4`}>
-                    Crear venta
-                  </Link>
-                ) : null}
-              </div>
-            </div>
           ) : (
-            <div className="rounded-lg border border-black bg-surface-card px-4 py-8 text-center">
-              <Package className="mx-auto h-8 w-8 text-slate-500" />
-              <p className="mt-3 text-xl font-black text-[#f8fafc]">
-                {isHistoryMode ? "Sin envíos entregados" : "Sin envíos"}
-              </p>
-              <p className="mt-1 text-sm font-bold text-slate-400">
-                {isHistoryMode
-                  ? "No hay entregas que coincidan con estos filtros."
-                  : "No hay envíos que coincidan con estos filtros."}
-              </p>
-              {canManageSales && !isHistoryMode ? (
-                <Link href="/venta" className={`${primaryButtonClass} mt-4 inline-flex h-11 items-center px-4`}>
-                  Crear venta
-                </Link>
-              ) : null}
-            </div>
+            emptyState
           )}
         </div>
         {shipmentsLoading && displayShipments.length > 0 ? (

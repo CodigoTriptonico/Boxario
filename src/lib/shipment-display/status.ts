@@ -5,6 +5,7 @@ import {
   TRANSIT_SHIPMENT_STATUSES,
 } from "@/lib/shipment-display/constants";
 import { shipmentLogisticsSteps } from "@/lib/shipment-display/progress";
+import { legDriverTaskOrdered } from "@/lib/shipment-display/shared";
 import type {
   ShipmentLogisticsTaskRow,
   ShipmentProgressStep,
@@ -19,15 +20,79 @@ export type EnviosStatusFilterBucket =
   | "en_transito"
   | "en_destino_final";
 
-export const ENVIOS_STATUS_FILTER_OPTIONS: ReadonlyArray<{
-  value: Exclude<EnviosStatusFilterBucket, "en_destino_final">;
+export type EnviosStatusFilterValue =
+  | Exclude<EnviosStatusFilterBucket, "en_destino_final">
+  | "recolecciones_sin_orden"
+  | "recolecciones_solicitadas"
+  | "entregas_sin_orden"
+  | "entregas_solicitadas";
+
+export type EnviosStatusFilterOption = {
+  value: EnviosStatusFilterValue;
   label: string;
-}> = [
-  { value: "recolecciones", label: "Recolecciones" },
-  { value: "entregas", label: "Entregas" },
+  children?: ReadonlyArray<{
+    value: EnviosStatusFilterValue;
+    label: string;
+  }>;
+};
+
+/** Primero la pierna (dejar/recoger); dentro, pendiente vs ya en Logística. */
+export const ENVIOS_STATUS_FILTER_OPTIONS: ReadonlyArray<EnviosStatusFilterOption> = [
+  {
+    value: "recolecciones",
+    label: "Recolecciones",
+    children: [
+      { value: "recolecciones_sin_orden", label: "Pendientes" },
+      { value: "recolecciones_solicitadas", label: "En logística" },
+    ],
+  },
+  {
+    value: "entregas",
+    label: "Entregas",
+    children: [
+      { value: "entregas_sin_orden", label: "Pendientes" },
+      { value: "entregas_solicitadas", label: "En logística" },
+    ],
+  },
   { value: "en_oficina", label: "En oficina" },
   { value: "en_transito", label: "En tránsito" },
 ];
+
+export function enviosStatusFilterDisplayLabel(value: string) {
+  const clean = value.trim();
+  if (!clean) {
+    return "";
+  }
+
+  switch (clean as EnviosStatusFilterValue) {
+    case "recolecciones":
+      return "Recolecciones";
+    case "recolecciones_sin_orden":
+      return "Recolección pendiente";
+    case "recolecciones_solicitadas":
+      return "Recolección en logística";
+    case "entregas":
+      return "Entregas";
+    case "entregas_sin_orden":
+      return "Entrega pendiente";
+    case "entregas_solicitadas":
+      return "Entrega en logística";
+    case "en_oficina":
+      return "En oficina";
+    case "en_transito":
+      return "En tránsito";
+    default:
+      break;
+  }
+
+  for (const option of ENVIOS_STATUS_FILTER_OPTIONS) {
+    if (option.value === clean) {
+      return option.label;
+    }
+  }
+
+  return clean;
+}
 
 const ENVIOS_STATUS_BUCKET_LABEL: Record<
   EnviosStatusFilterBucket,
@@ -205,6 +270,62 @@ function classifyEnviosStatusFilterBucket(
   }
 }
 
+function isActiveHomeLegPending(row: ShipmentRow) {
+  const bucket = classifyEnviosStatusFilterBucket(row);
+
+  if (bucket === "entregas") {
+    return !legDriverTaskOrdered(row, "deliver_empty_box");
+  }
+
+  if (bucket === "recolecciones") {
+    return !legDriverTaskOrdered(row, "pickup_full_box");
+  }
+
+  return false;
+}
+
+function isActiveHomeLegInLogistics(row: ShipmentRow) {
+  const bucket = classifyEnviosStatusFilterBucket(row);
+
+  if (bucket === "entregas") {
+    return legDriverTaskOrdered(row, "deliver_empty_box");
+  }
+
+  if (bucket === "recolecciones") {
+    return legDriverTaskOrdered(row, "pickup_full_box");
+  }
+
+  return false;
+}
+
+/** Tone of the active home leg for list surfaces (card/row). */
+export type EnviosActiveLegLogisticsTone = "pending" | "in_logistics" | null;
+
+export function enviosActiveLegLogisticsTone(
+  row: ShipmentRow,
+): EnviosActiveLegLogisticsTone {
+  if (isActiveHomeLegPending(row)) {
+    return "pending";
+  }
+  if (isActiveHomeLegInLogistics(row)) {
+    return "in_logistics";
+  }
+  return null;
+}
+
+/** Full-surface wash so pendiente vs en logística reads at card scale. */
+export function enviosActiveLegLogisticsToneClass(
+  tone: EnviosActiveLegLogisticsTone,
+) {
+  if (tone === "pending") {
+    return "bg-amber-900/40";
+  }
+  if (tone === "in_logistics") {
+    return "bg-sky-900/40";
+  }
+  return "";
+}
+
 export function matchesEnviosStatusFilter(
   row: ShipmentRow,
   filter: string,
@@ -215,7 +336,31 @@ export function matchesEnviosStatusFilter(
     return true;
   }
 
-  return classifyEnviosStatusFilterBucket(row) === clean;
+  const bucket = classifyEnviosStatusFilterBucket(row);
+
+  if (clean === bucket) {
+    return true;
+  }
+
+  if (clean === "entregas_sin_orden") {
+    return bucket === "entregas" && !legDriverTaskOrdered(row, "deliver_empty_box");
+  }
+
+  if (clean === "entregas_solicitadas") {
+    return bucket === "entregas" && legDriverTaskOrdered(row, "deliver_empty_box");
+  }
+
+  if (clean === "recolecciones_sin_orden") {
+    return bucket === "recolecciones" && !legDriverTaskOrdered(row, "pickup_full_box");
+  }
+
+  if (clean === "recolecciones_solicitadas") {
+    return (
+      bucket === "recolecciones" && legDriverTaskOrdered(row, "pickup_full_box")
+    );
+  }
+
+  return false;
 }
 
 export function isPendingShipmentStatus(

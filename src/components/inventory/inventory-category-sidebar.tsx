@@ -534,7 +534,7 @@ export function InventoryCategorySidebar({
 
       {showStructureDelete && categoryConfigs.length > 0 ? (
         <div className="mt-2 shrink-0 rounded-lg border border-red-900/50 bg-red-950/20 p-2.5">
-          <p className="text-[10px] font-black uppercase tracking-wide text-red-300/90">
+          <p className="text-[10px] font-black uppercase tracking-wide text-red-300">
             Eliminar estructura
           </p>
           <p className="mt-1 text-[11px] font-bold leading-snug text-slate-500">

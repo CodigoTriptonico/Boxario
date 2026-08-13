@@ -131,7 +131,7 @@ function OnboardingStepRow({
         <div className="flex items-start gap-1.5 px-2 py-2">
           <button
             type="button"
-            className="flex min-w-0 flex-1 items-start gap-2 text-left transition-colors hover:opacity-95"
+            className="flex min-w-0 flex-1 items-start gap-2 text-left transition-colors"
             onClick={() => !step.completed && setIsOpen(!isOpen)}
             aria-expanded={step.completed ? undefined : isOpen}
             disabled={step.completed}
@@ -139,7 +139,7 @@ function OnboardingStepRow({
             <span
               className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-md border ${
                 step.completed
-                  ? "border-emerald-700/30 bg-emerald-400/10 text-emerald-300/80"
+                  ? "border-emerald-700/30 bg-emerald-400/10 text-emerald-300"
                   : isNext
                     ? "border-emerald-600/50 bg-emerald-400/15 text-emerald-200"
                     : "border-black bg-[#1a2320] text-slate-500"

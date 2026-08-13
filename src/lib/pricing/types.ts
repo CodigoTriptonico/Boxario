@@ -1,5 +1,6 @@
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import type { ScheduleSuggestionConfig } from "@/lib/sale/schedule-suggestions";
+import type { PaymentMethodSettings } from "@/lib/payment-methods";
 
 export type InventoryCatalogProduct = {
   catalogKey: string;
@@ -33,7 +34,7 @@ export type PricingDistributorConfig = {
 
 export type PricingDistributorPrices = Record<string, Record<string, PricingBoxConfig[]>>;
 
-export type PricingRouteConfig = {
+export type PricingRouteConfig = PaymentMethodSettings & {
   deliveryDays: string[];
   pickupDays: string[];
   deliveryRanges: string[];
@@ -44,6 +45,8 @@ export type PricingRouteConfig = {
   emptyBoxDeliveryFee: string;
   fullBoxPickupFee: string;
   minimumDeposit: string;
+  pickupIncludedDays: number;
+  latePickupFee: string;
   logisticsFeeMode: "per_trip" | "per_box";
   scheduleSuggestions: ScheduleSuggestionConfig;
 };

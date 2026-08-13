@@ -7,12 +7,14 @@ const stepBarSource = readVentaPartsSource();
 const boxPickerSource = readFileSync(new URL("../components/sale/sale-box-picker.tsx", import.meta.url), "utf8");
 
 describe("venta mobile text readability eval", () => {
-  it("preserves the desktop stepper while mobile tiles scroll instead of squeezing text", () => {
-    assert.match(stepBarSource, /min-w-max items-start gap-0 lg:min-w-0 lg:w-full/);
-    assert.match(stepBarSource, /relative flex shrink-0 snap-start flex-col lg:min-w-0 lg:w-auto/);
+  it("preserves the desktop stepper while five compact mobile tiles share the available width", () => {
+    assert.match(stepBarSource, /grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0/);
+    assert.match(stepBarSource, /relative flex min-w-0 flex-col lg:w-auto lg:snap-start/);
     assert.match(stepBarSource, /step\.detailRows\?\.length/);
-    assert.match(stepBarSource, /w-\[13\.5rem\] lg:flex-\[1\.45\]/);
-    assert.match(stepBarSource, /w-\[8\.5rem\] lg:flex-1/);
+    assert.match(stepBarSource, /lg:flex-\[1\.45\]/);
+    assert.match(stepBarSource, /lg:flex-1/);
+    assert.doesNotMatch(stepBarSource, /w-\[(?:13\.5|8\.5)rem\]/);
+    assert.match(stepBarSource, /tracking-normal sm:truncate sm:text-\[11px\] sm:tracking-wide/);
   });
 
   it("keeps the product title and price together instead of opposite edges", () => {

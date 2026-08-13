@@ -423,41 +423,23 @@ export async function transferInventoryBinStockAction(input: {
       return fail("Sin permiso para ajustar inventario");
     }
 
-    const current = await listInventoryBinPlacementsAction({
-      warehouseId: input.warehouseId,
-      itemId: input.itemId,
+    const supabase = await createScopedSupabase(session);
+    const { error } = await supabase.rpc("transfer_inventory_bin_stock_atomic", {
+      target_org_id: session.organizationId,
+      p_warehouse_id: input.warehouseId,
+      p_item_id: input.itemId,
+      p_from_bin_id: input.fromBinId,
+      p_to_bin_id: input.toBinId,
+      p_qty: qty,
     });
 
-    if (!current.ok) {
-      return current;
+    if (error) {
+      return fail(error.message);
     }
 
-    const fromPlacement = current.data.find((row) => row.binId === input.fromBinId);
-
-    if (!fromPlacement || fromPlacement.quantity < qty) {
-      return fail("No hay suficiente stock en el estante de origen");
-    }
-
-    const nextFromQty = fromPlacement.quantity - qty;
-    const toPlacement = current.data.find((row) => row.binId === input.toBinId);
-    const nextToQty = (toPlacement?.quantity || 0) + qty;
-
-    const fromResult = await setInventoryBinPlacementAction({
+    return listInventoryBinPlacementsAction({
       warehouseId: input.warehouseId,
       itemId: input.itemId,
-      binId: input.fromBinId,
-      quantity: nextFromQty,
-    });
-
-    if (!fromResult.ok) {
-      return fromResult;
-    }
-
-    return setInventoryBinPlacementAction({
-      warehouseId: input.warehouseId,
-      itemId: input.itemId,
-      binId: input.toBinId,
-      quantity: nextToQty,
     });
   } catch (error) {
     return fail(actionErrorMessage(error));

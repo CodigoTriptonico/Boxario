@@ -86,8 +86,8 @@ describe("conductor tareas view", () => {
   it("uses a driver-friendly nav label", () => {
     assert.equal(isConductorRole("conductor"), true);
     assert.equal(isConductorRole("administrador"), false);
-    assert.equal(conductorTasksNavLabel("conductor"), "Mis tareas");
-    assert.equal(conductorTasksNavLabel("administrador"), "Tareas conductor");
+    assert.equal(conductorTasksNavLabel("conductor"), "Mi ruta");
+    assert.equal(conductorTasksNavLabel("administrador"), "Ruta conductor");
   });
 
   it("serializes preview driver into search params", () => {

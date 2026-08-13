@@ -6,7 +6,6 @@ import {
   hasPickupReturnEventForTaskLine,
   LOGISTICS_TASK_EVIDENCE_BUCKET,
   validateConductorTruckDeliver,
-  type ConductorTaskFailureReason,
 } from "@/lib/conductor-truck-inventory";
 import { createStorageSignedUrl } from "@/lib/supabase/storage-url";
 import { recordActivityHistory } from "@/lib/activity-history";
@@ -79,73 +78,6 @@ export async function uploadEvidence(
   return signed || path;
 }
 
-export async function recordTaskAttempt(admin: Admin, session: AppSession, input: {
-  task: ConductorDriverTask;
-  result: "completed" | "failed";
-  driverId: string;
-  failureReason: string;
-  note: string;
-  evidenceUrl: string;
-  paymentExpectedAmount: number | null;
-  paymentAmount: number;
-  paymentMethod: PaymentMethod | "";
-  paymentOutcome: ConductorPaymentOutcome;
-  invoiceVisible: boolean;
-  clientOperationId: string;
-  capturedAt: string | null;
-}) {
-  const audit = conductorActionAudit(session, input.driverId);
-  const note = formatConductorAdminActionNote(input.note, audit);
-  const failureReason = input.result === "failed"
-    ? formatConductorAdminActionNote(input.failureReason, audit)
-    : "";
-
-  const { error } = await admin.from("shipment_logistics_task_attempts").insert({
-    organization_id: session.organizationId,
-    shipment_id: input.task.shipmentId,
-    task_id: input.task.id,
-    route_id: input.task.routeId,
-    driver_id: input.driverId,
-    result: input.result,
-    failure_reason: failureReason,
-    note,
-    evidence_url: input.evidenceUrl,
-    payment_expected_amount: input.paymentExpectedAmount,
-    payment_outcome: input.paymentOutcome,
-    payment_amount: input.paymentOutcome === "not_applicable" ? null : input.paymentAmount,
-    payment_method: input.paymentMethod || null,
-    invoice_visible: input.invoiceVisible,
-    client_operation_id: input.clientOperationId,
-    captured_at: input.capturedAt,
-    created_by: session.userId,
-  });
-
-  if (error) {
-    if (error.code === "23505" && input.clientOperationId) {
-      const { data: existingAttempt, error: lookupError } = await admin
-        .from("shipment_logistics_task_attempts")
-        .select("task_id, driver_id, result")
-        .eq("organization_id", session.organizationId)
-        .eq("client_operation_id", input.clientOperationId)
-        .maybeSingle();
-
-      if (lookupError) {
-        throw new Error(lookupError.message);
-      }
-
-      if (
-        existingAttempt?.task_id === input.task.id &&
-        existingAttempt.driver_id === input.driverId &&
-        existingAttempt.result === input.result
-      ) {
-        return;
-      }
-    }
-
-    throw new Error(error.message);
-  }
-}
-
 async function ensureShipmentPackages(
   admin: Admin,
   session: AppSession,
@@ -168,7 +100,7 @@ async function ensureShipmentPackages(
   if (error) throw new Error(error.message);
 }
 
-export async function recordInvoiceEvidence(admin: Admin, session: AppSession, input: {
+async function recordInvoiceEvidence(admin: Admin, session: AppSession, input: {
   task: ConductorDriverTask;
   shipment: ShipmentRow;
   driverId: string;
@@ -266,7 +198,6 @@ export async function recordInvoiceEvidence(admin: Admin, session: AppSession, i
     },
   });
 }
-
 export async function recordInvoiceIncident(admin: Admin, session: AppSession, input: {
   shipment: ShipmentRow;
   driverId: string;
@@ -274,6 +205,20 @@ export async function recordInvoiceIncident(admin: Admin, session: AppSession, i
   evidenceUrl: string;
 }) {
   await ensureShipmentPackages(admin, session, input.shipment);
+
+  const { data: existingPackages, error: existingError } = await admin
+    .from("shipment_packages")
+    .select("invoice_incident_at")
+    .eq("organization_id", session.organizationId)
+    .eq("shipment_id", input.shipment.id)
+    .limit(1);
+
+  if (existingError) throw new Error(existingError.message);
+
+  // L-H5: idempotent post-commit — do not re-emit incident history on replay.
+  if (existingPackages?.[0]?.invoice_incident_at) {
+    return;
+  }
 
   const now = new Date().toISOString();
   const { error } = await admin
@@ -368,7 +313,7 @@ export async function completeTask(supabase: Supabase, session: AppSession, inpu
 
   if (input.task.taskType === "deliver_empty_box") {
     taskPatch.loaded_at = now;
-    taskPatch.stock_deducted_at = now;
+    // stock_deducted_at is set only by load/fulfill RPCs with a real movement.
   }
 
   // L-H3: never send a pre-RPC logistics_plan snapshot in p_shipment_patch.
@@ -489,7 +434,7 @@ export async function validateConductorCompletedTruckEffects(input: {
  * L-H2: definitive truck movements — only after task is completed.
  * Idempotent via unique indexes + existence checks.
  */
-export async function applyConductorCompletedTruckEffects(input: {
+async function applyConductorCompletedTruckEffects(input: {
   admin: Admin;
   session: AppSession;
   supabase: Supabase;
@@ -707,56 +652,5 @@ export async function applyConductorCompletedPostCommitEffects(input: {
     paymentAmount: input.paymentAmount || 0,
     paymentMethod: input.paymentMethod || "",
     paymentOutcome: input.paymentOutcome || "not_applicable",
-  });
-}
-
-export async function failTask(supabase: Supabase, session: AppSession, input: {
-  task: ConductorDriverTask;
-  shipment: ShipmentRow;
-  driverId: string;
-  failureReason: ConductorTaskFailureReason;
-  note: string;
-  evidenceUrl: string;
-}) {
-  const now = new Date().toISOString();
-  const audit = conductorActionAudit(session, input.driverId);
-  const fullNote = [input.failureReason, input.note].filter(Boolean).join(" - ");
-  const auditedFullNote = formatConductorAdminActionNote(fullNote, audit);
-
-  const { error: taskError } = await supabase
-    .from("shipment_logistics_tasks")
-    .update({
-      status: "cancelled",
-      notes: auditedFullNote,
-      completed_at: null,
-      updated_at: now,
-    })
-    .eq("id", input.task.id)
-    .eq("organization_id", session.organizationId);
-
-  if (taskError) {
-    throw new Error(taskError.message);
-  }
-
-  await recordActivityHistory(supabase, session, {
-    action: "shipment.logistics_task_failed",
-    entityType: "shipment",
-    entityId: input.shipment.id,
-    title: `Tarea cancelada: ${input.shipment.code}`,
-    description: `${conductorTaskTypeLabel[input.task.taskType]} - ${auditedFullNote}`,
-    metadata: {
-      shipmentCode: input.shipment.code,
-      source: "conductor.tareas",
-      taskId: input.task.id,
-      taskType: input.task.taskType,
-      status: "cancelled",
-      driverId: input.driverId,
-      failureReason: input.failureReason,
-      note: input.note,
-      evidenceUrl: input.evidenceUrl,
-      cancelledAt: now,
-      nextStep: "Reprogramar con Logística",
-      ...conductorActionAuditMetadata(session, input.driverId),
-    },
   });
 }

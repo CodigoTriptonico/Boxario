@@ -8,9 +8,9 @@ export type OnboardingHelpBlock = {
 
 export const onboardingStepHelp: Record<OnboardingStepId, OnboardingHelpBlock> = {
   countries: {
-    what: "Los países destino están en Configuración → Costos.",
+    what: "Los países destino están en Configuración → Ventas.",
     why: "Boxario necesita saber a qué países puedes enviar antes de cotizar o vender.",
-    tip: "Menú lateral → Configuración → Costos → Agregar país o elige uno de la lista.",
+    tip: "Menú lateral → Configuración → Ventas → Agregar país o elige uno de la lista.",
   },
   inventory: {
     what: "En Inventario creas categorías y productos: cajas, tamaños o artículos que vendes.",
@@ -18,9 +18,9 @@ export const onboardingStepHelp: Record<OnboardingStepId, OnboardingHelpBlock> =
     tip: "Inventario → icono de estructura → Nueva categoría → elige la categoría → Agregar.",
   },
   pricing: {
-    what: "En Costos eliges un destino, vinculas productos y pones su precio de venta.",
+    what: "En Ventas eliges un destino, vinculas productos y pones su precio de venta.",
     why: "El cliente debe ver el precio correcto según el país del destinatario.",
-    tip: "Abre Costos → pestaña Países → abre un país → Items → + Agregar ítems (si faltan) → escribe precio de venta.",
+    tip: "Abre Ventas → pestaña Países → abre un país → Items → + Agregar ítems (si faltan) → escribe precio de venta.",
   },
   stock: {
     what: "En Inventario abres cada producto y registras cuántas unidades hay en bodega.",

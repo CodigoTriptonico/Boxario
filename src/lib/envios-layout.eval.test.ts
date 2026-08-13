@@ -15,12 +15,16 @@ describe("envios page layout eval", () => {
       true,
     );
     assert.equal(
-      enviosSource.includes('<div className="mb-3 shrink-0 rounded-xl border border-black bg-surface-card-header p-2">'),
+      enviosSource.includes('<div className={`${panelToolbarClass} mb-3`}>'),
       true,
     );
     assert.equal(
-      enviosSource.includes('className="min-h-0 flex-1 overflow-y-auto pr-1"'),
+      enviosSource.includes('className="h-full min-h-0 overflow-y-auto pr-1"'),
       true,
+    );
+    assert.equal(
+      enviosSource.includes('rounded-lg border border-black bg-surface-card px-4 py-8 text-center'),
+      false,
     );
     assert.equal(enviosSource.includes("divide-y divide-black/70"), false);
     assert.equal(enviosSource.includes("listRowBaseClass"), true);

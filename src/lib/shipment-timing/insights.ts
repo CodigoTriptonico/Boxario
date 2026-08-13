@@ -136,7 +136,7 @@ export function timingInsightRowTextClass(
   if (status === "active") {
     return elapsedMs !== null && elapsedMs >= DAY_MS
       ? "text-amber-300"
-      : "text-amber-400/90";
+      : "text-amber-400";
   }
 
   return saleAgeTextClass(elapsedMs ?? 0);

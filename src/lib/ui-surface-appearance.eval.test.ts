@@ -33,7 +33,7 @@ describe("ui surface appearance eval", () => {
     assert.equal(sidebarControls.includes("Color de página"), false);
     assert.equal(frame.includes("resolveSurfaceContextFromPathname"), true);
     assert.equal(frame.includes("surfaceContextId"), true);
-    assert.equal(routeContext.includes("logistics.tasks"), true);
+    assert.equal(routeContext.includes("logistics.confirmations"), true);
     assert.equal(routeContext.includes("shipments.tracking"), true);
     assert.equal(picker.includes("UI_SURFACE_THEME_GROUPS"), true);
     assert.equal(picker.includes("saveCustomPalette"), true);
@@ -44,7 +44,7 @@ describe("ui surface appearance eval", () => {
       "components/logistica-client.tsx",
       "components/envios-client.tsx",
       "components/conductor/conductor-tareas-client.tsx",
-      "components/estadisticas/ventas-panel.tsx",
+      "components/estadisticas-client.tsx",
       "components/time-clock/time-clock-admin-client.tsx",
     ];
 
@@ -98,8 +98,11 @@ describe("ui surface appearance eval", () => {
     assert.match(sidebarControls, /useState\(false\)/);
     assert.match(sidebarControls, /Mostrar opciones de vista y apariencia/);
     assert.match(sidebarControls, /Ocultar opciones de vista y apariencia/);
-    assert.match(sidebarControls, /SlidersHorizontal/);
-    assert.match(sidebarControls, /<X className="h-4 w-4 shrink-0"/);
+    assert.match(sidebarControls, /ChevronRight/);
+    assert.match(sidebarControls, /ChevronLeft/);
+    assert.match(sidebarControls, /aria-expanded=\{expanded\}/);
+    assert.doesNotMatch(sidebarControls, /SlidersHorizontal/);
+    assert.doesNotMatch(sidebarControls, /<X className="h-4 w-4 shrink-0"/);
     assert.doesNotMatch(sidebarControls, /ChevronsUp|ChevronsDown/);
     assert.match(sidebarControls, /<CollapsibleControlsRow/);
   });

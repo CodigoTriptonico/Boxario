@@ -1,4 +1,4 @@
-import { Suspense } from "react";
+import { ModuleSuspense } from "@/components/module-suspense";
 import { requirePathAccess } from "@/lib/auth/require";
 
 export default async function EstadisticasLayout({
@@ -7,5 +7,5 @@ export default async function EstadisticasLayout({
   children: React.ReactNode;
 }) {
   await requirePathAccess("/estadisticas");
-  return <Suspense fallback={null}>{children}</Suspense>;
+  return <ModuleSuspense>{children}</ModuleSuspense>;
 }

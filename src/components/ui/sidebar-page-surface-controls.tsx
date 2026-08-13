@@ -1,6 +1,6 @@
 "use client";
 
-import { Palette, SlidersHorizontal, X } from "lucide-react";
+import { ChevronLeft, ChevronRight, Palette } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { SidebarCollapseButton } from "@/components/notifications/notifications-center";
 import { ViewLayoutToggle } from "@/components/view-layout-toggle";
@@ -11,6 +11,7 @@ import {
   useUiSurfacePreferences,
 } from "@/components/ui/ui-surface-preferences-provider";
 import {
+  surfaceContextSupportsExcelLayout,
   surfaceContextSupportsViewLayout,
   uiSurfaceContextMeta,
   type UiSurfaceContextId,
@@ -20,9 +21,9 @@ type SidebarControlsVariant = "sidebar" | "rail" | "bar";
 
 const iconButtonClass = {
   sidebar:
-    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-400 transition hover:bg-[#2f3834] hover:text-slate-200 active:scale-[0.98]",
-  rail: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-400 transition hover:bg-[#2f3834] hover:text-slate-200 active:scale-[0.98]",
-  bar: "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-400 transition hover:bg-[#2f3834] hover:text-slate-200 active:scale-[0.98]",
+    "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-app-border-control bg-surface-card text-app-text-secondary transition hover:bg-[#2f3834] hover:text-app-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-focus-ring active:scale-[0.98]",
+  rail: "flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-app-border-control bg-surface-card text-app-text-secondary transition hover:bg-[#2f3834] hover:text-app-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-focus-ring active:scale-[0.98]",
+  bar: "flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-app-border-control bg-surface-card text-app-text-secondary transition hover:bg-[#2f3834] hover:text-app-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-app-focus-ring active:scale-[0.98]",
 };
 
 function footerRowClass(variant: SidebarControlsVariant) {
@@ -51,36 +52,23 @@ function CollapsibleControlsRow({
   const expandLabel = "Mostrar opciones de vista y apariencia";
   const collapseLabel = "Ocultar opciones de vista y apariencia";
 
-  if (!expanded) {
-    return (
-      <div className={footerRowClass(variant)}>
-        <button
-          type="button"
-          className={iconButtonClass[variant]}
-          aria-expanded={false}
-          aria-label={expandLabel}
-          title={expandLabel}
-          onClick={() => setExpanded(true)}
-        >
-          <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
-        </button>
-      </div>
-    );
-  }
-
   return (
     <div className={footerRowClass(variant)}>
-      {children}
       <button
         type="button"
         className={iconButtonClass[variant]}
-        aria-expanded={true}
-        aria-label={collapseLabel}
-        title={collapseLabel}
-        onClick={() => setExpanded(false)}
+        aria-expanded={expanded}
+        aria-label={expanded ? collapseLabel : expandLabel}
+        title={expanded ? collapseLabel : expandLabel}
+        onClick={() => setExpanded((value) => !value)}
       >
-        <X className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+        {expanded ? (
+          <ChevronLeft className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+        ) : (
+          <ChevronRight className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
+        )}
       </button>
+      {expanded ? children : null}
     </div>
   );
 }
@@ -94,11 +82,12 @@ function SidebarPageSurfaceControlsContent({
 }) {
   const meta = uiSurfaceContextMeta(contextId);
   const { paletteIdForContext, setContextPalette } = useUiSurfacePreferences();
-  const { layout, toggleViewLayout } = usePageViewLayout(contextId);
+  const { layout, setViewLayout } = usePageViewLayout(contextId);
   const [paletteOpen, setPaletteOpen] = useState(false);
   const paletteTriggerRef = useRef<HTMLButtonElement>(null);
   const currentId = paletteIdForContext(contextId);
   const supportsLayout = surfaceContextSupportsViewLayout(contextId);
+  const supportsExcel = surfaceContextSupportsExcelLayout(contextId);
 
   usePageListRowPalette(contextId);
 
@@ -113,7 +102,8 @@ function SidebarPageSurfaceControlsContent({
       {supportsLayout ? (
         <ViewLayoutToggle
           layout={layout}
-          onToggle={toggleViewLayout}
+          onChange={setViewLayout}
+          supportsExcel={supportsExcel}
           variant={variant === "bar" ? "sidebar" : variant}
         />
       ) : null}

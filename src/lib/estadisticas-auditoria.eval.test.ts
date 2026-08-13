@@ -25,7 +25,7 @@ describe("auditoria route eval", () => {
     assert.match(auditoriaPageSource, /redirect\(shipment \? `\/seguimiento\?audit=\$\{encodeURIComponent\(shipment\)\}` : "\/seguimiento"\)/);
     assert.equal(estadisticasSource.includes('id: "auditoria"'), false);
     assert.equal(estadisticasSource.includes('id: "inventario"'), false);
-    assert.match(estadisticasSource, /router\.replace\(shipment \? `\/seguimiento\?audit=\$\{shipment\}` : "\/seguimiento"\)/);
+    assert.match(estadisticasSource, /router\.replace\(shipment \? `\/seguimiento\?audit=\$\{encodeURIComponent\(shipment\)\}` : "\/seguimiento"\)/);
     assert.match(estadisticasSource, /router\.replace\("\/inventario"\)/);
     assert.match(historyActionSource, /audit\.immutable\.view/);
   });

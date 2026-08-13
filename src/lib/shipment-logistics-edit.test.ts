@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import type { ShipmentRow } from "@/lib/shipment-types";
 import {
   buildUpdatedLogisticsPlan,
+  canRevertFullBoxOfficeReception,
   emptyBoxLegLocked,
   fullBoxLegLocked,
   logisticsTaskSyncPlan,
@@ -303,5 +304,49 @@ describe("shipment-logistics-edit", () => {
     const pickup = taskSync.find((spec) => spec.taskType === "pickup_full_box");
     assert.equal(pickup?.needed, true);
     assert.equal(pickup?.scheduleMode, "pending");
+  });
+
+  it("allows reverting office full-box reception before departure", () => {
+    const received = baseShipment({
+      empty_box_delivered_at: "2026-01-01T00:00:00.000Z",
+      full_box_collected_at: "2026-01-02T00:00:00.000Z",
+      office_received_at: "2026-01-02T00:00:00.000Z",
+      status: "En oficina",
+      logistics_plan: {
+        emptyBox: {
+          mode: EMPTY_BOX_OFFICE_MODE,
+          handingNow: true,
+          stockDeductedAt: "2026-01-01T00:00:00.000Z",
+        },
+        fullBox: {
+          mode: FULL_BOX_OFFICE_MODE,
+        },
+      },
+    });
+
+    assert.equal(canRevertFullBoxOfficeReception(received), true);
+    assert.equal(fullBoxLegLocked(received), true);
+  });
+
+  it("blocks reverting office reception after departure", () => {
+    const departed = baseShipment({
+      empty_box_delivered_at: "2026-01-01T00:00:00.000Z",
+      full_box_collected_at: "2026-01-02T00:00:00.000Z",
+      office_received_at: "2026-01-02T00:00:00.000Z",
+      departed_at: "2026-01-03T00:00:00.000Z",
+      status: "Pickup",
+      logistics_plan: {
+        emptyBox: {
+          mode: EMPTY_BOX_OFFICE_MODE,
+          handingNow: true,
+          stockDeductedAt: "2026-01-01T00:00:00.000Z",
+        },
+        fullBox: {
+          mode: FULL_BOX_OFFICE_MODE,
+        },
+      },
+    });
+
+    assert.equal(canRevertFullBoxOfficeReception(departed), false);
   });
 });

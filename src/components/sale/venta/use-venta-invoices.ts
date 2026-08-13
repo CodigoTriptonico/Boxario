@@ -10,7 +10,9 @@ import { requestCustomerRouteAssignmentAction } from "@/app/actions/customer-rou
 import { createShipmentAction } from "@/app/actions/shipments";
 import { type QuickEmptyBoxDraft } from "@/components/sale/sale-quick-empty-box-modal";
 import { saleRouteDecisionTask, saleRouteDecisionTemplateId, type SaleRouteDecision } from "@/lib/sale-route-decision";
+import { listCustomerLogisticsChargeHistoryAction } from "@/app/actions/sale-customer-history";
 import { billingWithRecordedPayment, disabledLogisticsAdditionalCharge, invoiceAccountingStateForPayment, logisticsAdditionalChargeIsValid, type InvoiceBillingSnapshot } from "@/lib/invoice-billing";
+import { emptyCustomerLogisticsChargeHistory } from "@/lib/logistics-charge-history";
 import { formatMoneyValue, parseMoneyValue } from "@/lib/logistics-fees";
 import { recordRecentSale } from "@/lib/sale-recent-storage";
 import {
@@ -74,6 +76,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setCreatedInvoice,
     setCreatingOpenInvoice,
     setCreatingQuickInvoice,
+    setCustomerLogisticsChargeHistory,
     setFinishDocTab,
     setInvoiceConfirmOpen,
     setInvoicePaymentMethod,
@@ -96,6 +99,20 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setShowQuickCheckout,
     setStockMessage,
   } = context;
+
+  async function refreshCustomerLogisticsChargeHistory(customerId?: string | null) {
+    const id = String(customerId || "").trim();
+    if (!id || id.startsWith("local-") || !isSupabaseConfigured()) {
+      setCustomerLogisticsChargeHistory(emptyCustomerLogisticsChargeHistory());
+      return;
+    }
+
+    const result = await listCustomerLogisticsChargeHistoryAction({ customerId: id });
+    if (!result.ok) {
+      return;
+    }
+    setCustomerLogisticsChargeHistory(result.data);
+  }
 
   function buildLogisticsPlan(billingSnapshot: InvoiceBillingSnapshot | null = invoiceBilling) {
     const boxLines = selectedBoxLines.map((line) => ({
@@ -361,6 +378,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
       recordRecentSale(selectedSender.id, selectedRecipient.id || undefined);
       void reloadHistory();
       void reloadSaleShortcuts();
+      void refreshCustomerLogisticsChargeHistory(selectedSender.id);
 
       setCreatedInvoice({
         shipmentId: shipmentResult.data.id,
@@ -379,13 +397,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
       setInvoicePaymentNote("");
       if (retries.length) {
         setStockMessage("");
-        notify.error(`Invoice ${invoice} creado. Reintenta la ruta pendiente.`);
-      } else if (shipmentResult.data.stockWarning) {
-        setStockMessage("");
-        notify.success(`Invoice ${invoice} creado.`);
-        notify.info(
-          `${shipmentResult.data.stockWarning} Revisa Notificaciones.`,
-        );
+        notify.success(`Invoice ${invoice} creado. La ruta quedó pendiente; revisa el detalle.`);
       } else {
         setStockMessage("");
         notify.success(`Invoice ${invoice} creado.`);
@@ -423,8 +435,8 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     );
     setStockMessage("");
     notify.success(
-      result.data.outcome === "assigned"
-        ? `${retry.label}: ruta asignada.`
+      result.data.outcome === "template_confirmed"
+        ? `${retry.label}: confirmada dentro de la plantilla.`
         : `${retry.label}: enviada a Logística para aprobar.`,
     );
   }
@@ -435,7 +447,11 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setQuickSelectedPromotionId("");
     setQuickPayNowDraft(draft.payNowAmount);
     setQuickPayNowDraftTouched(true);
-    setQuickPaymentMethod(draft.depositPaid ? defaultSalePaymentSelection() : "pending");
+    setQuickPaymentMethod(
+      draft.depositPaid
+        ? defaultSalePaymentSelection(logisticsFees.defaultPaymentMethod)
+        : "pending",
+    );
     setQuickPaymentNote("");
     setQuickSaleSender(null);
     setQuickSaleCountry(null);
@@ -459,13 +475,8 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
   }
 
   async function confirmQuickEmptyBoxCharge(): Promise<boolean> {
-    if (
-      !logisticsAdditionalChargeIsValid(
-        quickEmptyBoxAdditionalCharge,
-        logisticsFees.emptyBoxDeliveryFee,
-      )
-    ) {
-      notify.error("Escribe la razón del ajuste de la tarifa logística");
+    if (!logisticsAdditionalChargeIsValid(quickEmptyBoxAdditionalCharge)) {
+      notify.error("Indica el importe y la razón del cargo logístico adicional");
       return false;
     }
     if (
@@ -610,10 +621,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
       }
 
       const completionWarnings = [
-        shipmentResult.data.stockWarning,
-        routeNeedsRetry
-          ? "La ruta necesita reintento."
-          : "",
+        routeNeedsRetry ? "La ruta necesita reintento." : "",
       ].filter(Boolean);
 
       if (quickSaleDraft.sender.id) {
@@ -622,18 +630,15 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
 
       void reloadHistory();
       void reloadSaleShortcuts();
+      void refreshCustomerLogisticsChargeHistory(quickSaleDraft.sender.id);
 
       setQuickCheckoutCompleted(true);
       setQuickTrackingToken(shipmentResult.data.publicTrackingToken || "");
       setQuickPaymentMethod(SALE_PAYMENT_UNSET);
       setQuickPaymentNote("");
       if (completionWarnings.length) {
-        const stockWarning = shipmentResult.data.stockWarning || "";
         setStockMessage(routeNeedsRetry ? completionWarnings.join(" ") : "");
         notify.success(`Invoice ${invoice} creado.`);
-        if (stockWarning) {
-          notify.info(`${stockWarning} Revisa Notificaciones.`);
-        }
         if (routeNeedsRetry) {
           notify.error("La ruta necesita reintento.");
         }

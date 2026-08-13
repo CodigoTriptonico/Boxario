@@ -1,4 +1,5 @@
 import type { LogisticsRouteCatalog as LogisticsRouteCatalogData } from "@/app/actions/logistics-routes";
+import type { CustomerRouteAssignmentRequestRow } from "@/app/actions/customer-route-assignments";
 import type {
   RouteMemberRow,
   ShipmentLogisticsTaskRow,
@@ -93,10 +94,13 @@ export type TaskAddressMeta = LogisticsTaskAddressRow & {
 };
 
 export type LogisticaClientProps = {
+  initialView?: "tasks" | "routes";
+  initialRoutesTab?: "confirmations" | "templates" | "operational" | "history" | "configuration";
   initialShipments?: ShipmentRow[];
   initialRouteMembers?: RouteMemberRow[];
   initialWarehouses?: WarehouseRow[];
   initialRoutes?: LogisticsRouteRow[];
+  initialPendingBookings?: CustomerRouteAssignmentRequestRow[];
   initialTaskAddresses?: LogisticsTaskAddressRow[];
   initialRouteCatalog?: LogisticsRouteCatalogData;
   canManageRoutes?: boolean;

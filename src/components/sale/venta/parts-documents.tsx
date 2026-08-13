@@ -182,6 +182,9 @@ export function SaleInvoicePaper({
       ...(parseMoneyValue(billing.fullBoxPickup) > 0
         ? [{ key: "pickup", label: "Recolección a domicilio", amount: billing.fullBoxPickup }]
         : []),
+      ...(parseMoneyValue(billing.latePickupFee) > 0
+        ? [{ key: "late-pickup", label: "Recolección fuera de plazo", amount: billing.latePickupFee }]
+        : []),
     ]
     : [];
   // Con abono y una sola línea, la línea ya es el total: no repetir Total.
@@ -412,9 +415,17 @@ export function SaleInvoicePaper({
           </div>
         </section>
         <footer className="mt-6 grid grid-cols-[1fr_auto] items-end gap-5 border-t border-zinc-300 pt-4">
-          <p className="max-w-[23rem] text-[9px] font-bold uppercase leading-relaxed tracking-[0.12em] text-zinc-600">
-            Conserva esta factura para rastreo, cobros y movimientos logisticos.
-          </p>
+          <div className="max-w-[27rem] space-y-1 text-[9px] font-bold uppercase leading-relaxed tracking-[0.1em] text-zinc-600">
+            <p>Conserva esta factura para rastreo, cobros y movimientos logisticos.</p>
+            {billing && billing.pickupIncludedDays > 0 ? (
+              <p>
+                Recolección incluida por {billing.pickupIncludedDays} días desde la entrega de la caja vacía.
+                {parseMoneyValue(billing.latePickupFeeConfigured) > 0
+                  ? ` Después se cobra ${billing.latePickupFeeConfigured}.`
+                  : ""}
+              </p>
+            ) : null}
+          </div>
           <InvoiceQrCode
             invoiceNumber={invoiceNumber}
             trackingToken={trackingToken}

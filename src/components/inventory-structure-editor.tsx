@@ -42,6 +42,7 @@ type InventoryStructureEditorProps = {
   showStructureDelete?: boolean;
   embedded?: boolean;
   headerSlot?: React.ReactNode;
+  workspaceNavSlot?: React.ReactNode;
   toolbarEndSlot?: React.ReactNode;
   footerSlot?: React.ReactNode;
   truckQty?: number;
@@ -73,6 +74,7 @@ export function InventoryStructureEditor({
   showStructureDelete = false,
   embedded = false,
   headerSlot,
+  workspaceNavSlot,
   toolbarEndSlot,
   footerSlot,
   truckQty = 0,
@@ -432,6 +434,7 @@ export function InventoryStructureEditor({
   const sidebarLayout = embedded ? (
     <InventoryStructureEmbeddedShell
       headerSlot={headerSlot}
+      workspaceNavSlot={workspaceNavSlot}
       footerSlot={footerSlot}
       truckPanel={truckPanel}
       itemsPanel={itemsPanel}

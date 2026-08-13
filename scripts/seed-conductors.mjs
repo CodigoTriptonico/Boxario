@@ -22,18 +22,17 @@ const admin = createClient(url, serviceKey, {
   },
 });
 
-const users = [
-  {
-    email: "conductor1@scgs.local",
-    password: localUserPassword,
-    fullName: "Conductor 1",
-  },
-  {
-    email: "conductor2@scgs.local",
-    password: localUserPassword,
-    fullName: "Conductor 2",
-  },
-];
+const users = Array.from({ length: 5 }, (_, index) => ({
+  email: `conductor${index + 1}@scgs.local`,
+  password: localUserPassword,
+  fullName: `Conductor ${index + 1}`,
+}));
+
+const vehicles = users.map((user, index) => ({
+  driverEmail: user.email,
+  name: `Camión ${index + 1}`,
+  plate: `SCGS-DEMO-${String(index + 1).padStart(2, "0")}`,
+}));
 
 async function findAuthUserByEmail(email) {
   let page = 1;
@@ -94,6 +93,7 @@ try {
     select id, name
     from public.organizations
     where kind = 'client'
+      and lower(name) = 'scgs'
     order by created_at
     limit 1
   `);
@@ -137,8 +137,11 @@ try {
     [roleId],
   );
 
+  const driverIds = new Map();
+
   for (const user of users) {
     const authUserId = await ensureAuthUser(user);
+    driverIds.set(user.email, authUserId);
 
     await client.query(
       `
@@ -156,6 +159,48 @@ try {
     );
   }
 
+  for (const vehicle of vehicles) {
+    const driverId = driverIds.get(vehicle.driverEmail);
+    const existingVehicle = await client.query(
+      `
+        select id
+        from public.logistics_vehicles
+        where organization_id = $1
+          and lower(plate) = lower($2)
+        limit 1
+      `,
+      [org.id, vehicle.plate],
+    );
+
+    if (existingVehicle.rowCount) {
+      await client.query(
+        `
+          update public.logistics_vehicles
+          set name = $2,
+              assigned_driver_id = $3,
+              is_active = true,
+              updated_at = now()
+          where id = $1
+        `,
+        [existingVehicle.rows[0].id, vehicle.name, driverId],
+      );
+    } else {
+      await client.query(
+        `
+          insert into public.logistics_vehicles (
+            organization_id,
+            name,
+            plate,
+            assigned_driver_id,
+            is_active
+          )
+          values ($1, $2, $3, $4, true)
+        `,
+        [org.id, vehicle.name, vehicle.plate, driverId],
+      );
+    }
+  }
+
   await client.query("commit");
 
   console.log(`Connected to ${label}`);
@@ -163,6 +208,9 @@ try {
   console.log("Rol: conductor");
   for (const user of users) {
     console.log(`Usuario: ${user.email} (credencial local configurada; existentes sin cambio)`);
+  }
+  for (const vehicle of vehicles) {
+    console.log(`Vehiculo: ${vehicle.name} (${vehicle.plate}) -> ${vehicle.driverEmail}`);
   }
 } catch (error) {
   await client.query("rollback");

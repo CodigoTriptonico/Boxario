@@ -178,6 +178,7 @@ export function InventoryTrackingDrawer({
           <div className="flex min-h-0 flex-1 flex-col">
             {tab === "custody" ? (
               <InventoryCustodyPanel
+                warehouseId={warehouseId}
                 warehouseName={warehouseName}
                 items={items}
                 truckBalances={truckBalances}

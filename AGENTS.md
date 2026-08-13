@@ -3,7 +3,8 @@
 ## Antes de modificar el proyecto
 
 - Leer `docs/REGLAS_NEGOCIO_Y_DEPENDENCIAS.md` antes de cambiar lógica de negocio, datos o flujos entre módulos.
-- Leer `docs/GUIA_ESTILO_UI.md` antes de cambiar la interfaz, modales, formularios o interacción.
+- Leer `docs/GUIA_ESTILO_UI.md` antes de cambiar la interfaz, modales, formularios o apariencia.
+- Leer `docs/GUIA_INTERACCION_Y_ACCIONES_CRITICAS.md` antes de cambiar confirmaciones, acciones destructivas, guardado, deshacer, carga o manejo de errores de interacción.
 - Buscar primero la fuente de verdad existente y conservar la arquitectura, permisos y auditoría del proyecto.
 - No inventar datos ni relajar validaciones de seguridad para ocultar un problema operativo.
 
@@ -12,7 +13,8 @@
 Cuando el usuario aclare cómo debe funcionar una pantalla, una regla de negocio o una interacción, registrar la decisión en el documento correspondiente:
 
 - Reglas de negocio, dependencias, estados y efectos en datos: `docs/REGLAS_NEGOCIO_Y_DEPENDENCIAS.md`.
-- Apariencia, mensajes, advertencias, accesibilidad y comportamiento de interfaz: `docs/GUIA_ESTILO_UI.md`.
+- Apariencia, mensajes, advertencias visuales y preferencias de interfaz: `docs/GUIA_ESTILO_UI.md`.
+- Confirmaciones, riesgo, deshacer, carga, doble envío y recuperación ante errores de interacción: `docs/GUIA_INTERACCION_Y_ACCIONES_CRITICAS.md`.
 - Compatibilidad, despliegue local, red, autenticación y decisiones técnicas transversales: `docs/DECISIONES_TECNICAS_Y_COMPATIBILIDAD.md`.
 
 Agregar una nota breve con fecha, contexto, decisión y resultado. No registrar cada cambio mecánico; registrar únicamente decisiones que deban conservarse para futuras modificaciones.

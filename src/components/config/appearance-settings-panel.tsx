@@ -9,6 +9,7 @@ import {
   type UiSurfaceContextId,
   type UiSurfaceContextKind,
 } from "@/lib/ui-surface-context";
+import { isCustomPaletteId } from "@/lib/ui-surface-custom-palettes";
 import { UI_SURFACE_PALETTES } from "@/lib/ui-surface-palettes";
 import { resolveSalePersonCardVariant } from "@/components/sale/sale-person-card-variants";
 
@@ -18,9 +19,17 @@ function ListRowPreview({ paletteId }: { paletteId: string }) {
   return (
     <div
       className={`${listRowBaseClass} ${palette.listRow.rowClass} ${palette.listRow.hoverClass} px-3 py-2`}
+      style={{
+        color: palette.listRow.foregroundHex,
+        borderColor: "#000000",
+      }}
     >
-      <p className="text-sm font-black text-[#f8fafc]">INV-000 · Cliente demo</p>
-      <p className="text-[11px] font-bold text-slate-300">Vista previa de fila</p>
+      <p className="text-sm font-black" style={{ color: palette.listRow.foregroundHex }}>
+        INV-000 · Cliente demo
+      </p>
+      <p className="text-[11px] font-bold" style={{ color: palette.listRow.mutedForegroundHex }}>
+        Vista previa de fila
+      </p>
     </div>
   );
 }
@@ -28,6 +37,24 @@ function ListRowPreview({ paletteId }: { paletteId: string }) {
 function PersonCardPreview({ paletteId }: { paletteId: string }) {
   const { resolvePalette } = useUiSurfacePreferences();
   const palette = resolvePalette(paletteId);
+  if (isCustomPaletteId(palette.id)) {
+    return (
+      <div
+        className={`${listRowBaseClass} px-3 py-2.5`}
+        style={{
+          backgroundColor: palette.listRow.hex,
+          borderColor: "#000000",
+        }}
+      >
+        <p className="text-sm font-black" style={{ color: palette.listRow.foregroundHex }}>
+          María López
+        </p>
+        <p className="text-xs font-bold" style={{ color: palette.listRow.mutedForegroundHex }}>
+          555-0100
+        </p>
+      </div>
+    );
+  }
   const variant = resolveSalePersonCardVariant(palette.personCardId ?? paletteId);
   return (
     <div className={`${variant.card} px-3 py-2.5`}>
@@ -116,11 +143,20 @@ export function AppearanceSettingsPanel() {
             <div
               key={palette.id}
               className={`${listRowBaseClass} ${palette.listRow.rowClass} px-3 py-2`}
+              style={{
+                color: palette.listRow.foregroundHex,
+                borderColor: "#000000",
+              }}
             >
-              <span className="text-xs font-black text-[#f8fafc]">
+              <span className="text-xs font-black" style={{ color: palette.listRow.foregroundHex }}>
                 {palette.tag} · {palette.label}
               </span>
-              <span className="ml-2 text-[10px] font-bold text-slate-400">{palette.listRow.hex}</span>
+              <span
+                className="ml-2 text-[10px] font-bold"
+                style={{ color: palette.listRow.mutedForegroundHex }}
+              >
+                {palette.listRow.hex}
+              </span>
             </div>
           ))}
         </div>

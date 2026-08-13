@@ -50,7 +50,7 @@ export function OnboardingStartPanel({
           <ListChecks className="h-5 w-5" aria-hidden />
         </span>
         <div className="min-w-0 flex-1">
-          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-300/90">
+          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-300">
             Configuración inicial
           </p>
           <h3 className="mt-0.5 text-base font-black text-[#f8fafc]">

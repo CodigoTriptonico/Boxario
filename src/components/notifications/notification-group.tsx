@@ -89,7 +89,7 @@ export function NotificationGroup({
         >
           <button
             type="button"
-            className="flex min-w-0 flex-1 items-center gap-2.5 text-left transition-colors hover:opacity-95"
+            className="flex min-w-0 flex-1 items-center gap-2.5 text-left transition-colors"
             onClick={() => setOpen(!open)}
             aria-expanded={open}
             aria-controls={panelId}
@@ -97,7 +97,7 @@ export function NotificationGroup({
             <span
               className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-md border ${
                 allComplete
-                  ? "border-emerald-700/30 bg-emerald-400/10 text-emerald-300/90"
+                  ? "border-emerald-700/30 bg-emerald-400/10 text-emerald-300"
                   : "border-black bg-[#1a2320] text-slate-500"
               }`}
             >
@@ -124,7 +124,7 @@ export function NotificationGroup({
                 {completedCount}/{totalCount}
               </span>
               <span
-                className={`h-1.5 w-1.5 rounded-full ${allComplete ? "bg-emerald-400/80" : styles.dot} opacity-70`}
+                className={`h-1.5 w-1.5 rounded-full ${allComplete ? "bg-emerald-400" : styles.dot}`}
                 aria-hidden
               />
               <ChevronDown
@@ -168,7 +168,7 @@ export function NotificationGroup({
       <div className="flex items-start gap-2 px-3.5 py-3.5">
         <button
           type="button"
-          className="flex min-w-0 flex-1 items-start gap-3 text-left transition-colors hover:opacity-95"
+          className="flex min-w-0 flex-1 items-start gap-3 text-left transition-colors"
           onClick={() => setOpen(!open)}
           aria-expanded={open}
           aria-controls={panelId}

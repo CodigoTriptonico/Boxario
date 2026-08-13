@@ -9,6 +9,7 @@ import {
   publishRouteValidationErrors,
   routeAllowsLivePendingStopEdits,
   routeAllowsOperationalTaskCompletion,
+  routeAllowsPreDepartureStopReorder,
   taskRequiresActiveRouteToComplete,
 } from "@/lib/logistics-state-machine";
 
@@ -28,6 +29,14 @@ describe("logistics-state-machine", () => {
     assert.equal(routeAllowsLivePendingStopEdits("planned"), false);
   });
 
+  it("allows stop reordering before departure without reopening the route", () => {
+    assert.equal(routeAllowsPreDepartureStopReorder("draft"), true);
+    assert.equal(routeAllowsPreDepartureStopReorder("planned"), true);
+    assert.equal(routeAllowsPreDepartureStopReorder("in_progress"), false);
+    assert.equal(routeAllowsPreDepartureStopReorder("completed"), false);
+    assert.equal(routeAllowsPreDepartureStopReorder("cancelled"), false);
+  });
+
   it("guards package pallet and operational completion contracts", () => {
     assert.doesNotThrow(() => assertPhysicalPackageTransition("in_truck", "pending_intake"));
     assert.equal(isWarehousePalletTransitionAllowed("open", "closed"), true);
@@ -37,12 +46,10 @@ describe("logistics-state-machine", () => {
     assert.equal(taskRequiresActiveRouteToComplete("pickup_full_box"), true);
   });
 
-  it("requires driver vehicle and stops to publish", () => {
+  it("closes a complete draft before driver and vehicle assignment", () => {
     assert.deepEqual(
       publishRouteValidationErrors({
         status: "draft",
-        assignedTo: "d1",
-        vehicleId: "v1",
         stopCount: 2,
         stopsWithoutGeo: 0,
         tasksWithoutConfirmedDate: 0,

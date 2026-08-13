@@ -6,6 +6,7 @@ import {
   resolveRouteDateForTemplate,
 } from "@/lib/logistics-route-week";
 import { logisticsWeekdayKeys } from "@/lib/logistics-route-catalog";
+import { normalizeGenericLogisticsRouteName } from "@/lib/logistics-day-route";
 
 export type { LogisticsTaskWaiting } from "@/lib/logistics-view/timing";
 export {
@@ -132,7 +133,7 @@ export function buildTaskRoutePickerOptions(input: {
         (route) =>
           route.routeTemplateId === template.id &&
           route.routeDate === routeDate &&
-          (route.status === "draft" || route.status === "planned"),
+          route.status === "draft",
       );
       return !covered;
     })
@@ -142,12 +143,12 @@ export function buildTaskRoutePickerOptions(input: {
 
       return {
         value: `template:${template.id}`,
-        label: `${template.name} (${weekdayLabel})`,
+        label: `${normalizeGenericLogisticsRouteName(template.name, template.weekday)} (${weekdayLabel})`,
         searchText: `${template.name} ${weekdayLabel} ${routeDate} plantilla semanal`.trim(),
       };
     });
 
-  const routeOptions = operationalForDate.map((route) => ({
+  const routeOptions = operationalForDate.filter((route) => route.status === "draft").map((route) => ({
     value: `route:${route.id}`,
     label: route.name,
     searchText: `${route.name} ${route.routeDate} ${
@@ -200,6 +201,28 @@ export function matchesLogisticsWeekdayFilter(input: {
   }
 
   return false;
+}
+
+/** True when a scheduled invoice remains visible but its weekday is disabled. */
+export function isLogisticsDateOnDisabledWeekday(input: {
+  scheduledAt?: string | null;
+  routeDate?: string | null;
+  enabledDays?: ReadonlyArray<string>;
+}) {
+  const enabledDays = input.enabledDays;
+  if (!enabledDays) {
+    return false;
+  }
+
+  const scheduleDate = scheduledAtToLocalDateInput(input.scheduledAt || null);
+  const date = scheduleDate || String(input.routeDate || "").trim();
+  if (!date) {
+    return false;
+  }
+
+  const weekday = getLogisticsWeekdayIndex(date);
+  const key = logisticsWeekdayKeys[weekday];
+  return !key || !enabledDays.includes(key);
 }
 
 /** True when no route template is selected, or the task/route uses that template. */
@@ -296,7 +319,7 @@ export function buildLogisticsDayRouteFilterOptions(input: {
     })
     .map((template) => ({
       value: template.id,
-      label: template.name,
+      label: normalizeGenericLogisticsRouteName(template.name, template.weekday),
       searchText: `${template.name} ${weekdayLabel}`.trim(),
     }));
 
@@ -475,6 +498,20 @@ export function resolveRouteConfirmCopy(
 
 export function isClosedLogisticsStatus(status: string) {
   return CLOSED_LOGISTICS_STATUSES.has(status);
+}
+
+/** First loaded route that contains any of the shipment logistics tasks. */
+export function findLogisticsRouteForShipmentTasks<TRouteInfo>(
+  tasks: ReadonlyArray<{ id: string }>,
+  routeByTaskId: ReadonlyMap<string, TRouteInfo>,
+) {
+  for (const task of tasks) {
+    const info = routeByTaskId.get(task.id);
+    if (info) {
+      return info;
+    }
+  }
+  return undefined;
 }
 
 function taskByType<TTask extends LogisticsInvoiceTaskInput>(

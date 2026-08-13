@@ -97,7 +97,7 @@ Permisos de ruta: `PATH_PERMISSIONS` en `src/lib/auth/permissions.ts`.
 - Tablas: `shipments`, `shipment_packages`, `shipment_payments`, `shipment_logistics_tasks`, `inventory_stock`, `inventory_sale_reservations`, `inventory_movements`, `activity_history`, `security_audit_events`, `shipment_sale_operations`
 
 #### Seguimiento y envíos — `/seguimiento`
-- Componentes: `EnviosPageContent` → `EnviosClient`, `ShipmentJournalDialog`, `SalesSettingsPanel` (vista configuración)
+- Componentes: `EnviosPageContent` → `EnviosClient`, `ShipmentJournalDialog`; configuración comercial en `Configuración → Ventas`
 - Actions: `listShipmentsAction`, `updateShipmentLogisticsPlanAction`, `updateLogisticsTaskAction`, `finalizeShipmentInvoiceAction`, `shipment-journal.ts`, `confirmLogisticsTaskScheduleAction`
 - Roles típicos: vendedor, logística, admin, finanzas/auditor (lectura según permiso)
 
@@ -641,8 +641,8 @@ Vistas legacy `?view=auditoria|inventario` redirigen fuera.
 | Bodegas / bins | `warehouses`, `warehouse_bins` | `warehouses.manage` | Inventario, venta, logística |
 | Precios/promos/tiempos por país | pricing config / `savePricingConfigAction` | `sales.manage` | `/venta` |
 | Costos operativos conductor + lead time | `organization_route_settings` vía `save_logistics_axis_settings_v3` | `logistics.settings.manage` / `settings.manage` | Venta, logística |
-| Depósito mínimo / sugerencias horario / pending | `organization_route_settings` vía sales axis | `sales.settings.manage` | Seguimiento config + Venta |
-| Días/horarios de ruta | `logistics_weekday_defaults`, `logistics_route_templates` | `routes.update_status` | Venta, logística |
+| Depósito mínimo / pending | `organization_route_settings` vía sales axis | `sales.settings.manage` | Configuración → Ventas → Depósito + flujo de venta |
+| Días/horarios de ruta | `logistics_weekday_defaults`, `logistics_route_templates` | `routes.update_status` | Configuración → Ventas → Rutas; Logística consume |
 | Servicios comerciales por país | `country_commercial_service_settings` | comercial (módulo agencia) | Agencias/vendedores |
 | Apariencia UI | `localStorage` | usuario local | Preferencias visuales |
 | Time clock | tablas time_clock_* | `time_clock.manage` | `/reloj` |
@@ -949,7 +949,7 @@ Módulos menú:
 - /logistica = planificar routes/stops/templates; flota solo admin
 - /conductor/tareas + /conductor/inventario-camion = ejecutar + truck inventory events
 - /contabilidad = dashboard BusinessCommandCenter finance; libro 071 NO alimentado por UI
-- /estadisticas = métricas reales vendedores + distribuidores legacy
+- /estadisticas = dashboard ejecutivo agregado de ventas, cobros, cartera, logística, inventario, agencias y excepciones; usa RPC scoped y no consume el ledger global de distribuidores legacy
 - /configuracion = org/users/roles/warehouses/pricing/logistics fees/timeclock
 
 Flujo feliz venta:

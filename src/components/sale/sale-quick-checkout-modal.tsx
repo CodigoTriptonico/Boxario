@@ -12,18 +12,18 @@ import {
 } from "@/components/sale/venta-parts";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import type { OrganizationBranding } from "@/lib/organizations/branding";
+import { SaleAdditionalChargeEditor } from "@/components/sale/sale-additional-charge-editor";
 import { saleFinishActionLabel, type InvoiceBillingSnapshot } from "@/lib/invoice-billing";
-import {
-  logisticsAdditionalChargeRequiresReason,
-  type LogisticsAdditionalCharge,
-} from "@/lib/invoice-billing";
-import { moneyInputDisplayValue, normalizeMoneyInput, parseMoneyValue } from "@/lib/logistics-fees";
+import type { LogisticsAdditionalCharge } from "@/lib/invoice-billing";
+import type { CustomerLogisticsChargeLegHistory } from "@/lib/logistics-charge-history";
+import { parseMoneyValue } from "@/lib/logistics-fees";
 import {
   defaultSalePaymentSelection,
   type SalePaymentSelection,
 } from "@/lib/sale-payment-choice";
 import { SaleInvoiceConfirmDialog } from "@/components/sale/sale-invoice-confirm-dialog";
 import { useState } from "react";
+import type { PaymentMethodSettings } from "@/lib/payment-methods";
 
 type SaleQuickCheckoutModalProps = {
   branding?: OrganizationBranding | null;
@@ -50,8 +50,9 @@ type SaleQuickCheckoutModalProps = {
   onStartNewSale: () => void;
   confirming?: boolean;
   logisticsCharge: LogisticsAdditionalCharge | null;
-  logisticsChargeSuggestion: string;
+  logisticsChargeHistory?: CustomerLogisticsChargeLegHistory;
   onLogisticsChargeChange: (charge: LogisticsAdditionalCharge) => void;
+  paymentSettings?: Partial<PaymentMethodSettings>;
 };
 
 export function SaleQuickCheckoutModal({
@@ -79,8 +80,9 @@ export function SaleQuickCheckoutModal({
   onStartNewSale,
   confirming = false,
   logisticsCharge,
-  logisticsChargeSuggestion,
+  logisticsChargeHistory,
   onLogisticsChargeChange,
+  paymentSettings,
 }: SaleQuickCheckoutModalProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
@@ -161,64 +163,14 @@ export function SaleQuickCheckoutModal({
         </div>
 
         {!completed && logisticsCharge ? (
-          <section className="no-print mt-4 rounded-xl border border-black bg-surface-card p-4">
-            <label className="flex items-center justify-between gap-3">
-              <span>
-                <span className="block text-sm font-black text-white">Cargo logístico adicional</span>
-                <span className="block text-xs font-semibold text-slate-400">
-                  Sugerido {logisticsChargeSuggestion}; la entrega normal está incluida.
-                </span>
-              </span>
-              <input
-                type="checkbox"
-                checked={logisticsCharge.enabled}
-                onChange={(event) =>
-                  onLogisticsChargeChange({
-                    ...logisticsCharge,
-                    enabled: event.target.checked,
-                    amount: event.target.checked ? logisticsChargeSuggestion : "$0",
-                    reason: "",
-                  })
-                }
-                className="h-5 w-5 accent-emerald-400"
-              />
-            </label>
-            {logisticsCharge.enabled ? (
-              <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                <label className="flex h-10 items-center rounded-lg border border-black bg-surface-inset px-3">
-                  <span className="mr-1 text-slate-400">$</span>
-                  <input
-                    inputMode="decimal"
-                    value={moneyInputDisplayValue(logisticsCharge.amount)}
-                    onChange={(event) =>
-                      onLogisticsChargeChange({
-                        ...logisticsCharge,
-                        amount: normalizeMoneyInput(event.target.value),
-                      })
-                    }
-                    className="min-w-0 flex-1 bg-transparent font-black text-white outline-none"
-                  />
-                </label>
-                {logisticsAdditionalChargeRequiresReason(
-                  logisticsCharge,
-                  logisticsChargeSuggestion,
-                ) ? (
-                  <input
-                    value={logisticsCharge.reason}
-                    onChange={(event) =>
-                      onLogisticsChargeChange({ ...logisticsCharge, reason: event.target.value })
-                    }
-                    placeholder="Razón del ajuste (obligatoria)"
-                    className="h-10 rounded-lg border border-amber-700/70 bg-surface-inset px-3 text-sm font-bold text-white outline-none"
-                  />
-                ) : (
-                  <p className="self-center text-xs font-semibold text-emerald-300">
-                    Se usará la sugerencia de Logística.
-                  </p>
-                )}
-              </div>
-            ) : null}
-          </section>
+          <div className="no-print mt-4">
+            <SaleAdditionalChargeEditor
+              label="entrega"
+              value={logisticsCharge}
+              history={logisticsChargeHistory}
+              onChange={onLogisticsChargeChange}
+            />
+          </div>
         ) : null}
 
         {stockMessage && !completed ? (
@@ -265,7 +217,7 @@ export function SaleQuickCheckoutModal({
                   onPaymentNoteChange("");
                   onPaymentMethodChange(
                     billing && parseMoneyValue(billing.payNow) > 0
-                      ? defaultSalePaymentSelection()
+                      ? defaultSalePaymentSelection(paymentSettings?.defaultPaymentMethod)
                       : "pending",
                   );
                   setConfirmOpen(true);
@@ -303,6 +255,7 @@ export function SaleQuickCheckoutModal({
           paymentNote={paymentNote}
           onPaymentMethodChange={onPaymentMethodChange}
           onPaymentNoteChange={onPaymentNoteChange}
+          paymentSettings={paymentSettings}
           onCancel={() => {
             if (!confirming) {
               setConfirmOpen(false);

@@ -41,7 +41,7 @@ export function UserWarehouseAccessEditor({
       <div className="grid gap-3">
         <div className="flex items-start gap-2.5 rounded-lg border border-sky-900/50 bg-sky-950/35 px-3 py-2.5">
           <Shield className="mt-0.5 h-4 w-4 shrink-0 text-sky-300" aria-hidden />
-          <p className="text-xs font-bold leading-relaxed text-sky-100/90">
+          <p className="text-xs font-bold leading-relaxed text-sky-100">
             El administrador accede a todas las bodegas activas. No necesita asignación
             manual.
           </p>
@@ -118,7 +118,7 @@ export function UserWarehouseAccessEditor({
                 checked
                   ? "border-emerald-800/60 bg-emerald-950/30"
                   : "border-black bg-surface-inset"
-              } ${disabled ? "opacity-60" : ""}`}
+              } ${disabled ? "saturate-[0.8]" : ""}`}
             >
               <button
                 type="button"
@@ -184,7 +184,7 @@ export function UserWarehouseAccessEditor({
       </ul>
 
       {selectedIds.length === 0 ? (
-        <p className="text-xs font-bold text-amber-200/90">
+        <p className="text-xs font-bold text-amber-200">
           Sin bodegas marcadas, el usuario no podrá operar inventario.
         </p>
       ) : showFavoriteHint ? (

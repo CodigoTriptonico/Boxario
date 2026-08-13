@@ -7,7 +7,13 @@ import {
   listLogisticsRoutesAction,
   listLogisticsTaskAddressesAction,
 } from "@/app/actions/logistics-routes";
+import {
+  listPendingCustomerRouteAssignmentRequestsAction,
+  listReviewedCustomerRouteAssignmentRequestsAction,
+} from "@/app/actions/customer-route-assignments";
+import type { CustomerRouteAssignmentRequestRow } from "@/app/actions/customer-route-assignments/types";
 import { listRouteMembersAction, listShipmentsAction } from "@/app/actions/shipments";
+import { SHIPMENTS_BOARD_LIMIT } from "@/lib/shipments-pagination";
 import { listWarehousesAction } from "@/app/actions/warehouses";
 import { listLogisticsVehiclesAction } from "@/app/actions/logistics-fleet";
 import type { RouteMemberRow, ShipmentRow } from "@/lib/shipment-types";
@@ -17,12 +23,13 @@ import type { LogisticsVehicleRow } from "@/lib/logistics-fleet";
 import { LOGISTICS_LIVE_REFRESH_MS, shouldRunLogisticsLiveRefresh } from "@/lib/logistics-live-refresh";
 import {
   LOGISTICS_ROUTES_PAGE_SIZE,
+  defaultLogisticsRoutesListFilters,
+  logisticsRoutesListFiltersKey,
   type ListLogisticsRoutesOptions,
 } from "@/lib/logistics-routes-pagination";
 
 type LogisticsNotify = {
   error: (message: string) => void;
-  info: (message: string) => void;
 };
 
 export function useLogisticsData({
@@ -30,6 +37,7 @@ export function useLogisticsData({
   initialRouteMembers,
   initialWarehouses,
   initialRoutes,
+  initialPendingBookings,
   initialTaskAddresses,
   initialRouteCatalog,
   supabaseReady,
@@ -39,6 +47,7 @@ export function useLogisticsData({
   initialRouteMembers?: RouteMemberRow[];
   initialWarehouses?: WarehouseRow[];
   initialRoutes?: LogisticsRouteRow[];
+  initialPendingBookings?: CustomerRouteAssignmentRequestRow[];
   initialTaskAddresses?: LogisticsTaskAddressRow[];
   initialRouteCatalog?: LogisticsRouteCatalogData;
   supabaseReady: boolean;
@@ -49,6 +58,14 @@ export function useLogisticsData({
   const [warehouses, setWarehouses] = useState<WarehouseRow[]>(initialWarehouses || []);
   const [routes, setRoutes] = useState<LogisticsRouteRow[]>(initialRoutes || []);
   const [vehicles, setVehicles] = useState<LogisticsVehicleRow[]>([]);
+  const [pendingBookings, setPendingBookings] = useState<CustomerRouteAssignmentRequestRow[]>(
+    initialPendingBookings || [],
+  );
+  const [pendingBookingsLoaded, setPendingBookingsLoaded] = useState(
+    !supabaseReady || initialPendingBookings !== undefined,
+  );
+  const [reviewedBookings, setReviewedBookings] = useState<CustomerRouteAssignmentRequestRow[]>([]);
+  const [reviewedBookingsLoaded, setReviewedBookingsLoaded] = useState(!supabaseReady);
   const [taskAddresses, setTaskAddresses] = useState<LogisticsTaskAddressRow[]>(
     initialTaskAddresses || [],
   );
@@ -70,12 +87,26 @@ export function useLogisticsData({
     Boolean(initialRoutes && initialRoutes.length === LOGISTICS_ROUTES_PAGE_SIZE),
   );
   const [routesLoading, setRoutesLoading] = useState(false);
-  const routeFiltersRef = useRef<ListLogisticsRoutesOptions>({ statusMode: "active" });
+  const bootstrapRouteFilters = defaultLogisticsRoutesListFilters();
+  const initialAppliedRoutesFiltersKey = initialRoutes
+    ? logisticsRoutesListFiltersKey(bootstrapRouteFilters)
+    : "";
+  const routeFiltersRef = useRef<ListLogisticsRoutesOptions>(bootstrapRouteFilters);
   const skipInitialRouteFiltersRef = useRef(Boolean(initialRoutes));
+  const appliedRoutesFiltersKeyRef = useRef(initialAppliedRoutesFiltersKey);
+  const [appliedRoutesFiltersKey, setAppliedRoutesFiltersKey] = useState(
+    initialAppliedRoutesFiltersKey,
+  );
   const pageRef = useRef(0);
 
+  const markRoutesFiltersApplied = useCallback((filters: ListLogisticsRoutesOptions) => {
+    const key = logisticsRoutesListFiltersKey(filters);
+    appliedRoutesFiltersKeyRef.current = key;
+    setAppliedRoutesFiltersKey(key);
+  }, []);
+
   const reloadShipmentsAndAddresses = useCallback(async () => {
-    const shipmentsResult = await listShipmentsAction();
+    const shipmentsResult = await listShipmentsAction({ limit: SHIPMENTS_BOARD_LIMIT, offset: 0 });
     if (!shipmentsResult.ok) {
       notify.error(shipmentsResult.error);
       return null;
@@ -115,6 +146,7 @@ export function useLogisticsData({
         if (routesResult.ok) {
           setRoutes(routesResult.data);
           setHasMore(routesResult.data.length === LOGISTICS_ROUTES_PAGE_SIZE);
+          markRoutesFiltersApplied(routeFiltersRef.current);
           if (targetPage != null) {
             pageRef.current = targetPage;
             setPage(targetPage);
@@ -128,15 +160,19 @@ export function useLogisticsData({
         setRoutesLoading(false);
       }
     },
-    [notify],
+    [markRoutesFiltersApplied, notify],
   );
 
   const applyRouteFilters = useCallback(
     (filters: ListLogisticsRoutesOptions) => {
       routeFiltersRef.current = filters;
+      const nextKey = logisticsRoutesListFiltersKey(filters);
       if (skipInitialRouteFiltersRef.current) {
         skipInitialRouteFiltersRef.current = false;
-        return;
+        // SSR loads today's active routes; only skip when the UI already matches that scope.
+        if (nextKey === appliedRoutesFiltersKeyRef.current) {
+          return;
+        }
       }
       void reloadRoutes(filters, 0);
     },
@@ -155,6 +191,26 @@ export function useLogisticsData({
     }
   }, []);
 
+  const reloadPendingBookings = useCallback(async () => {
+    const result = await listPendingCustomerRouteAssignmentRequestsAction();
+    if (result.ok) {
+      setPendingBookings(result.data);
+    } else {
+      notify.error(result.error);
+    }
+    setPendingBookingsLoaded(true);
+  }, [notify]);
+
+  const reloadReviewedBookings = useCallback(async () => {
+    const result = await listReviewedCustomerRouteAssignmentRequestsAction();
+    if (result.ok) {
+      setReviewedBookings(result.data);
+    } else {
+      notify.error(result.error);
+    }
+    setReviewedBookingsLoaded(true);
+  }, [notify]);
+
   const reloadAll = useCallback(async () => {
     const vehiclesResult = await listLogisticsVehiclesAction();
     if (vehiclesResult.ok) {
@@ -168,14 +224,24 @@ export function useLogisticsData({
       }),
       reloadShipmentsAndAddresses(),
       reloadRouteCatalog(),
+      reloadPendingBookings(),
+      reloadReviewedBookings(),
     ]);
     if (routesResult.ok) {
       setRoutes(routesResult.data);
       setHasMore(routesResult.data.length === LOGISTICS_ROUTES_PAGE_SIZE);
+      markRoutesFiltersApplied(routeFiltersRef.current);
     } else {
       notify.error(routesResult.error);
     }
-  }, [notify, reloadRouteCatalog, reloadShipmentsAndAddresses]);
+  }, [
+    markRoutesFiltersApplied,
+    notify,
+    reloadPendingBookings,
+    reloadReviewedBookings,
+    reloadRouteCatalog,
+    reloadShipmentsAndAddresses,
+  ]);
 
   useEffect(() => {
     queueMicrotask(() => {
@@ -197,7 +263,7 @@ export function useLogisticsData({
 
     queueMicrotask(() => {
       void (async () => {
-        const shipmentsResult = await listShipmentsAction();
+        const shipmentsResult = await listShipmentsAction({ limit: SHIPMENTS_BOARD_LIMIT, offset: 0 });
         const shipments = shipmentsResult.ok ? shipmentsResult.data : [];
         if (shipmentsResult.ok) {
           setShipments(shipments);
@@ -212,6 +278,8 @@ export function useLogisticsData({
           addressesResult,
           vehiclesResult,
           catalogResult,
+          bookingsResult,
+          reviewedBookingsResult,
         ] = await Promise.all([
           listRouteMembersAction(),
           listWarehousesAction(),
@@ -223,6 +291,8 @@ export function useLogisticsData({
           listLogisticsTaskAddressesAction({ shipments }),
           listLogisticsVehiclesAction(),
           listLogisticsRouteCatalogAction(),
+          listPendingCustomerRouteAssignmentRequestsAction(),
+          listReviewedCustomerRouteAssignmentRequestsAction(),
         ]);
 
         if (membersResult.ok) {
@@ -236,6 +306,7 @@ export function useLogisticsData({
         if (routesResult.ok) {
           setRoutes(routesResult.data);
           setHasMore(routesResult.data.length === LOGISTICS_ROUTES_PAGE_SIZE);
+          markRoutesFiltersApplied(routeFiltersRef.current);
         }
 
         if (addressesResult.ok) {
@@ -250,6 +321,15 @@ export function useLogisticsData({
           setRouteCatalog(catalogResult.data);
         }
 
+        if (bookingsResult.ok) {
+          setPendingBookings(bookingsResult.data);
+        }
+        setPendingBookingsLoaded(true);
+        if (reviewedBookingsResult.ok) {
+          setReviewedBookings(reviewedBookingsResult.data);
+        }
+        setReviewedBookingsLoaded(true);
+
         setLoaded(true);
       })();
     });
@@ -259,7 +339,39 @@ export function useLogisticsData({
     initialShipments,
     initialTaskAddresses,
     initialWarehouses,
+    markRoutesFiltersApplied,
     notify,
+    supabaseReady,
+  ]);
+
+  useEffect(() => {
+    if (!supabaseReady) {
+      return;
+    }
+
+    if (
+      !(
+        initialShipments &&
+        initialRouteMembers &&
+        initialWarehouses &&
+        initialRoutes &&
+        initialTaskAddresses
+      )
+    ) {
+      return;
+    }
+
+    queueMicrotask(() => {
+      void Promise.all([reloadPendingBookings(), reloadReviewedBookings()]);
+    });
+  }, [
+    initialRouteMembers,
+    initialRoutes,
+    initialShipments,
+    initialTaskAddresses,
+    initialWarehouses,
+    reloadPendingBookings,
+    reloadReviewedBookings,
     supabaseReady,
   ]);
 
@@ -270,7 +382,7 @@ export function useLogisticsData({
 
     const refresh = () => {
       if (shouldRunLogisticsLiveRefresh()) {
-        void reloadAll().then(() => notify.info("Board actualizado"));
+        void reloadAll();
       }
     };
 
@@ -289,12 +401,17 @@ export function useLogisticsData({
     warehouses,
     routes,
     vehicles,
+    pendingBookings,
+    pendingBookingsLoaded,
+    reviewedBookings,
+    reviewedBookingsLoaded,
     taskAddresses,
     routeCatalog,
     loaded,
     page,
     hasMore,
     routesLoading,
+    appliedRoutesFiltersKey,
     setPage,
     reloadRoutes,
     applyRouteFilters,

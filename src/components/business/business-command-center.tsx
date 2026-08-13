@@ -175,7 +175,7 @@ function Agency({ workspace, canManageTeam, canRequest, canCloseDay }: { workspa
           <Link className={secondaryButtonClass} href="/agencia#cuenta-matriz">Mi cuenta con la matriz</Link>
         </div>
       </Panel>
-      <AgencyOperationsPanel canRequest={canRequest} />
+      <AgencyOperationsPanel canRequest={canRequest} organizationId={workspace.context.organizationId} />
     </div>
   );
 }

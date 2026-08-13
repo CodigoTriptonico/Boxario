@@ -27,6 +27,13 @@ export type LogisticsRouteStopAddress = {
   placeId: string;
   lat: number | null;
   lng: number | null;
+  addressLat?: number | null;
+  addressLng?: number | null;
+  exactEntranceConfirmed?: boolean;
+  exactEntranceNote?: string;
+  exactEntrancePanoId?: string;
+  exactEntranceHeading?: number | null;
+  exactEntrancePitch?: number | null;
 };
 
 export type LogisticsTaskAddressRow = {
@@ -62,6 +69,11 @@ export type LogisticsRouteStopRow = {
   lng: number | null;
   postalCode: string;
   city: string;
+  shipmentCode?: string;
+  customerName?: string;
+  taskType?: LogisticsTaskType;
+  boxCount?: number;
+  boxSummary?: string;
   outcome?: LogisticsRouteStopOutcome | null;
   outcomeAt?: string | null;
   releasedAt?: string | null;
@@ -80,6 +92,8 @@ export type LogisticsRouteRow = {
   zoneKey: string;
   notes: string;
   routeTemplateId?: string | null;
+  routeDefinitionId?: string | null;
+  routeScheduleId?: string | null;
   publishedAt?: string | null;
   startedAt?: string | null;
   completedAt?: string | null;

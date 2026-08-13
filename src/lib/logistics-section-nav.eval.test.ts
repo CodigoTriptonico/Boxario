@@ -10,17 +10,17 @@ const source = readFileSync(
 );
 
 describe("logistics section nav eval", () => {
-  it("keeps conductores, vehiculos and rutas in a fixed order", () => {
-    const conductoresIndex = source.indexOf('href="/logistica/conductores"');
-    const vehiculosIndex = source.indexOf('href="/logistica/vehiculos"');
-    const rutasIndex = source.indexOf("<Route", vehiculosIndex);
+  it("keeps conductores, vehiculos and the shared Rutas access in one nav", () => {
+    const conductoresIndex = source.indexOf('"/logistica/conductores"');
+    const vehiculosIndex = source.indexOf('"/logistica/vehiculos"');
 
     assert.ok(conductoresIndex >= 0);
     assert.ok(vehiculosIndex > conductoresIndex);
-    assert.ok(rutasIndex > vehiculosIndex);
-    assert.equal(source.includes('routesHref = "/logistica?view=rutas"'), true);
-    assert.match(source, /!h-9/);
-    assert.match(source, /<details className="group relative lg:hidden">/);
-    assert.match(source, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
+    const rutasIndex = source.indexOf('href: "/logistica?view=rutas"');
+
+    assert.ok(rutasIndex >= 0);
+    assert.match(source, /label: "Rutas"/);
+    assert.match(source, /rounded-lg border border-black bg-surface-inset/);
+    assert.match(source, /<AnchoredMenu ariaLabel="Abrir secciones de logística"/);
   });
 });

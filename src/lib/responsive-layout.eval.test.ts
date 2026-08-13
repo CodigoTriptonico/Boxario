@@ -43,14 +43,20 @@ describe("responsive layout eval", () => {
 
   it("does not treat clipped navigation and date picker width as a mobile layout strategy", () => {
     const nav = source("src/components/logistica/logistics-section-nav.tsx");
-    const metrics = source("src/components/estadisticas/ventas-panel.tsx");
+    const anchoredMenu = source("src/components/anchored-menu.tsx");
+    const metrics = source("src/components/estadisticas/statistics-kpis.tsx");
+    const table = source("src/components/estadisticas/statistics-detail-tables.tsx");
     const datePicker = source("src/components/date-picker-calendar.tsx");
 
-    assert.match(nav, /<details className="group relative lg:hidden">/);
-    assert.match(nav, /absolute right-0 top-full/);
-    assert.match(nav, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
-    assert.match(metrics, /grid-cols-4/);
-    assert.doesNotMatch(metrics, /min-w-\[4\.5rem\] px-3/);
+    assert.match(nav, /<AnchoredMenu ariaLabel="Abrir secciones de logística"/);
+    assert.match(nav, /<AnchoredMenu ariaLabel="Abrir configuración de logística"/);
+    assert.match(anchoredMenu, /createPortal/);
+    assert.match(anchoredMenu, /className=\{`fixed z-\[280\]/);
+    assert.match(nav, /hidden h-9 shrink-0 items-center gap-0\.5[\s\S]*lg:inline-flex/);
+    assert.match(metrics, /grid-cols-2/);
+    assert.match(metrics, /sm:grid-cols-4/);
+    assert.match(table, /xl:hidden/);
+    assert.doesNotMatch(table, /overflow-x-auto/);
     assert.match(datePicker, /w-\[17\.5rem\]/);
   });
 });

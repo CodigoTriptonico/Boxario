@@ -15,7 +15,8 @@ describe("logistics ops eval", () => {
     assert.match(enviosSource, /buildLogisticaShipmentDeepLink/);
     assert.match(conductorSource, /buildMapsNavigationUrl/);
     assert.match(logisticaSource, /LOGISTICS_LIVE_REFRESH_MS/);
-    assert.match(logisticaSource, /Board actualizado/);
+    assert.doesNotMatch(logisticaSource, /Board actualizado/);
+    assert.match(logisticaSource, /void reloadAll\(\)/);
     assert.match(conductorActionsSource, /pickup_full_box/);
     assert.match(conductorActionsSource, /hasPickupReturnEventForTaskLine/);
     assert.match(conductorActionsSource, /insertFullBoxCollectionEvent/);

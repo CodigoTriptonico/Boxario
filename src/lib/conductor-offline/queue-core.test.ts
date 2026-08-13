@@ -81,7 +81,7 @@ describe("conductor offline queue core", () => {
     );
   });
 
-  it("retries only transient HTTP outcomes", () => {
+  it("retries only transient HTTP outcomes when retryable flag is absent", () => {
     assert.equal(isRetryableConductorSyncStatus(408), true);
     assert.equal(isRetryableConductorSyncStatus(429), true);
     assert.equal(isRetryableConductorSyncStatus(503), true);

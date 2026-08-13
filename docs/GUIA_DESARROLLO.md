@@ -41,6 +41,7 @@ Estándares para código nuevo. Complementa `docs/ARQUITECTURA.md` y `AGENTS.md`
 ### UI
 
 - Seguir `docs/GUIA_ESTILO_UI.md` (densidad, sin intros permanentes, `CompactInfoDisclosure`).
+- Seguir `docs/GUIA_INTERACCION_Y_ACCIONES_CRITICAS.md` (confirmaciones, riesgo, deshacer, carga, errores de interacción).
 - Preferencias rechazadas documentadas: no reintroducirlas.
 - La UI **no** es fuente de verdad de saldo, stock ni permisos.
 
@@ -63,7 +64,7 @@ No compares mensajes humanos para ramificar lógica. No expongas SQL ni stacks.
 npm run quality:gate
 ```
 
-Si tocaste schema, RPC, RLS o integridad de datos:
+En cada PR / push a `main`, GitHub Actions ejecuta el mismo comando (`.github/workflows/quality-gate.yml`). Si tocaste schema, RPC, RLS o integridad de datos, corre además en local:
 
 ```bash
 npm run quality:db
@@ -72,7 +73,7 @@ npm run quality:db
 Además:
 
 - Tests focalizados del módulo.
-- Actualiza `REGLAS_…` / `DECISIONES_…` / `GUIA_ESTILO_UI` solo si hay decisión que deba perdurar.
+- Actualiza `REGLAS_…` / `DECISIONES_…` / `GUIA_ESTILO_UI` / `GUIA_INTERACCION_…` solo si hay decisión que deba perdurar.
 - No commits con secretos, `.env`, ni `.jscpd-report/`.
 
 ## Ejemplos del repo

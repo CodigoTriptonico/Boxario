@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { listShipmentActivityHistoryAction } from "@/app/actions/history";
 import { listShipmentsAction } from "@/app/actions/shipments";
 import type { ShipmentRow } from "@/lib/shipment-types";
+import { SHIPMENTS_BOARD_LIMIT } from "@/lib/shipments-pagination";
 import type { ActivityHistoryRow } from "@/lib/activity-history-types";
 import { AuditHistoryEntry } from "@/components/audit-history-entry";
 import { PageLoading } from "@/components/page-loading";
@@ -48,7 +49,7 @@ export function EstadisticasAuditoriaPanel({
 
     void (async () => {
       setLoadingShipments(true);
-      const result = await listShipmentsAction();
+      const result = await listShipmentsAction({ limit: SHIPMENTS_BOARD_LIMIT, offset: 0 });
 
       if (cancelled) {
         return;
@@ -161,7 +162,19 @@ export function EstadisticasAuditoriaPanel({
   }, [selectedId]);
 
   if (loadingShipments) {
-    return <PageLoading inline />;
+    return (
+      <div className="grid min-h-0 gap-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
+        <section className={`${cardClass} flex min-h-0 flex-col p-3`}>
+          <div className="h-9 rounded-lg border border-black bg-surface-inset" />
+          <div className="mt-2 min-h-0 flex-1">
+            <PageLoading inline />
+          </div>
+        </section>
+        <section className={`${cardClass} flex min-h-0 flex-col p-3`}>
+          <PageLoading inline />
+        </section>
+      </div>
+    );
   }
 
   return (

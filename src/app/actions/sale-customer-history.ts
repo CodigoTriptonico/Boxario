@@ -2,6 +2,11 @@
 
 import { requireAppSession } from "@/lib/auth/session";
 import { sessionHasPermission } from "@/lib/auth/permissions";
+import {
+  collectCustomerLogisticsChargeHistoryFromPlans,
+  emptyCustomerLogisticsChargeHistory,
+  type CustomerLogisticsChargeHistory,
+} from "@/lib/logistics-charge-history";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
 
@@ -35,6 +40,10 @@ type ShipmentHistoryDbRow = {
     firstName?: string;
     lastName?: string;
   } | null;
+};
+
+type ShipmentLogisticsPlanDbRow = {
+  logistics_plan?: unknown;
 };
 
 function canViewCustomerHistory(session: Awaited<ReturnType<typeof requireAppSession>>) {
@@ -126,6 +135,49 @@ export async function listCustomerSaleHistoryAction(input: {
         recipientName: recipientNameFromSnapshot(row.recipient_snapshot),
       })),
     );
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function listCustomerLogisticsChargeHistoryAction(input: {
+  customerId?: string;
+  limit?: number;
+}): Promise<ActionResult<CustomerLogisticsChargeHistory>> {
+  try {
+    const session = await requireAppSession();
+
+    if (!canViewCustomerHistory(session)) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const customerId = String(input.customerId || "").trim();
+    if (!customerId || customerId.startsWith("local-")) {
+      return ok(emptyCustomerLogisticsChargeHistory());
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return fail("Supabase no configurado");
+    }
+
+    const { data, error } = await supabase
+      .from("shipments")
+      .select("logistics_plan")
+      .eq("organization_id", session.organizationId)
+      .eq("customer_id", customerId)
+      .order("created_at", { ascending: false })
+      .limit(Math.min(Math.max(input.limit ?? 40, 1), 80));
+
+    if (error) {
+      if (error.code === "42P01" || error.code === "42703") {
+        return ok(emptyCustomerLogisticsChargeHistory());
+      }
+      return fail(error.message);
+    }
+
+    const plans = ((data || []) as ShipmentLogisticsPlanDbRow[]).map((row) => row.logistics_plan);
+    return ok(collectCustomerLogisticsChargeHistoryFromPlans(plans));
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

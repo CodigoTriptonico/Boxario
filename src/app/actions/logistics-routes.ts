@@ -1,13 +1,39 @@
 export {
+  activateLogisticsRouteWeekdayAction,
   createLogisticsRouteTemplateAction,
   deleteLogisticsRouteTemplateAction,
-  listLogisticsRouteCatalogAction,
   setLogisticsRouteWeekdayEnabledAction,
+  setLogisticsRouteTemplateDefaultDriverAction,
   setLogisticsWeekdayDefaultDriverAction,
   setLogisticsWeekdayScheduleAction,
+  setLogisticsWeekdayCapacityAction,
   updateLogisticsRouteTemplateAction,
 } from "@/app/actions/logistics-route-catalog-actions";
+export { listLogisticsRouteCatalogAction } from "@/app/actions/logistics-route-catalog-read";
 export { confirmLogisticsTaskScheduleAction } from "@/app/actions/logistics-route-schedule-actions";
+export {
+  confirmOperationalRouteFromBookingsAction,
+  createOperationalRouteFromBookingsAction,
+  updatePublishedRouteFromBookingsAction,
+} from "@/app/actions/logistics-route-booking-actions";
+export {
+  archiveGeographicRouteDefinitionAction,
+  createGeographicRouteDefinitionAction,
+  listCoveragePlaceChildrenAction,
+  loadCensusPlaceGeometryAction,
+  loadCensusPlacesCatalogAction,
+  loadZctaGeometryAction,
+  resolveCompatibleGeographicRoutesAction,
+  resolveCoveragePlaceAtMapClickAction,
+  resolveCoveragePlaceDetailsAction,
+  resolveCoveragePlaceFromCensusPolygonAction,
+  saveSystemDayRouteCoverageAction,
+  searchCoveragePlacesAction,
+  updateGeographicRouteDefinitionAction,
+  type CensusPlaceGeometry,
+  type CompatibleGeographicRoute,
+  type ZctaGeometry,
+} from "@/app/actions/logistics-geographic-route-actions";
 export {
   listLogisticsRoutesAction,
   listLogisticsTaskAddressesAction,
@@ -16,6 +42,7 @@ export {
   addLogisticsRouteStopAction,
   assignLogisticsTaskToRouteFromPickerAction,
   removeLogisticsRouteStopAction,
+  removeLogisticsRouteStopWithDispositionAction,
   reorderLogisticsRouteStopsAction,
 } from "@/app/actions/logistics-route-stop-actions";
 export {
@@ -23,7 +50,10 @@ export {
   assignLogisticsRouteVehicleAction,
   cancelLogisticsRouteAction,
 } from "@/app/actions/logistics-route-management-actions";
-export { publishLogisticsRouteAction } from "@/app/actions/logistics-route-publish-actions";
+export {
+  closeLogisticsRouteAction,
+  publishLogisticsRouteAction,
+} from "@/app/actions/logistics-route-publish-actions";
 export {
   addLogisticsRouteStopWithReasonAction,
   cancelLogisticsRoutePendingStopAction,
@@ -32,6 +62,10 @@ export {
 
 export type {
   LogisticsRouteCatalog,
+  LogisticsRouteCoveragePlaceRow,
+  LogisticsRouteDefinitionRow,
+  LogisticsRouteScheduleRow,
+  LogisticsRouteCoverageMode,
   LogisticsRouteTemplateRow,
   LogisticsWeekdaySchedule,
 } from "@/app/actions/logistics-routes-shared";

@@ -30,6 +30,7 @@ const publicActions = [
   "reactivateLogisticsTaskAction",
   "updateShipmentLogisticsPlanAction",
   "markFullBoxReceivedAtOfficeAction",
+  "revertFullBoxOfficeReceptionAction",
   "updateShipmentStatusAction",
 ] as const;
 const serverActionFiles = [
@@ -81,5 +82,13 @@ describe("shipment action module boundaries", () => {
         `${file} imports the public facade`,
       );
     }
+  });
+
+  it("cancels Seguimiento plan tasks through atomic stop release", () => {
+    const source = readActionFile("shipments-state.ts");
+    assert.match(source, /releaseActiveStopsForTask/);
+    assert.match(source, /task_cancelled_from_plan/);
+    assert.match(source, /task_reactivated/);
+    assert.match(source, /logistics_route_stops/);
   });
 });

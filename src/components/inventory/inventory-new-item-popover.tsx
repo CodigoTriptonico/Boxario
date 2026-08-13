@@ -104,7 +104,7 @@ export function InventoryNewItemPopover({
       style={{
         top: position.top,
         left: position.left,
-        width: STRUCTURE_MENU_WIDTH,
+        width: Math.min(STRUCTURE_MENU_WIDTH, document.documentElement.clientWidth - 16),
       }}
     >
       <p className="px-1 text-[11px] font-black uppercase tracking-wide text-emerald-300">

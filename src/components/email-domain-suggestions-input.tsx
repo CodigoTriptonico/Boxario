@@ -40,7 +40,7 @@ function renderSuggestionLabel(currentValue: string, suggestion: string, highlig
       </span>
       {completion ? (
         <span
-          className={`font-black ${highlighted ? "text-[#34D399]" : "text-emerald-400/90"}`}
+          className={`font-black ${highlighted ? "text-[#34D399]" : "text-emerald-400"}`}
         >
           {completion}
         </span>
@@ -197,7 +197,7 @@ export function EmailDomainSuggestionsInput({
               tabIndex={-1}
               aria-label="Agregar arroba al correo"
               title="Agregar @"
-              className="pointer-events-auto text-slate-400/70 hover:text-emerald-300"
+              className="pointer-events-auto text-slate-400 hover:text-emerald-300"
               onMouseDown={(event) => event.preventDefault()}
               onClick={appendAtAndOpenDomainSuggestions}
             >

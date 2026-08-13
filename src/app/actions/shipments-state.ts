@@ -5,8 +5,14 @@ import { describeLogisticsAuditChange, describeLogisticsTaskOrdered, logisticsLe
 import { applyScheduleChangeMetadata, describeScheduleAuditChange, detectLegScheduleChanges, hasLogisticsPlanChangeBesidesSchedule, scheduleAuditMetadata, scheduleAuditTitle, SHIPMENT_SCHEDULE_UPDATED_ACTION } from "@/lib/shipment-schedule-history";
 import { shipmentMilestoneAuditPayload, type ShipmentMilestoneKey, type ShipmentMilestoneSource } from "@/lib/shipment-milestones";
 import { buildUpdatedLogisticsPlan, logisticsTaskSyncPlan, type UpdateShipmentLogisticsPlanInput } from "@/lib/shipment-logistics-edit";
-import { isLogisticsTaskReactivation, logisticsTaskCancelPatch, logisticsTaskOrderInsertPatch, logisticsTaskReactivatePatch } from "@/lib/shipment-logistics-task-timestamps";
+import {
+  isLogisticsTaskReactivation,
+  logisticsTaskCancelPatch,
+  logisticsTaskOrderInsertPatch,
+  logisticsTaskReactivatePatch,
+} from "@/lib/shipment-logistics-task-timestamps";
 import { syncShipmentStatusPatch } from "@/lib/shipment-display";
+import { scheduledAtToLocalDateInput } from "@/lib/schedule-date";
 import type { AppSession } from "@/lib/auth/types";
 import type { ShipmentRow } from "@/lib/shipment-types";
 
@@ -17,7 +23,59 @@ import {
   type ShipmentDbRow,
 } from "@/app/actions/shipments-data";
 
-export async function recordShipmentMilestoneAudits(
+function planTaskMutationError(message: string) {
+  const text = String(message || "").trim();
+  if (/FORBIDDEN/i.test(text)) return "No tienes permiso para esta accion";
+  if (/UNAUTHORIZED/i.test(text)) return "Sesion requerida";
+  if (/TASK_TRANSITION_NOT_ALLOWED/i.test(text)) {
+    return "No se puede cancelar o reprogramar esta tarea en su estado actual";
+  }
+  if (/violates|permission denied|PGRST|SQLSTATE|postgres/i.test(text)) {
+    return "No se pudo actualizar la tarea de logistica";
+  }
+  return text || "No se pudo actualizar la tarea de logistica";
+}
+
+async function releaseActiveStopsForTask(
+  supabase: NonNullable<Awaited<ReturnType<typeof createScopedSupabase>>>,
+  session: AppSession,
+  taskId: string,
+  releaseReason: string,
+) {
+  const nowIso = new Date().toISOString();
+  const { data: stops, error: listError } = await supabase
+    .from("logistics_route_stops")
+    .select("id, outcome")
+    .eq("organization_id", session.organizationId)
+    .eq("task_id", taskId)
+    .is("released_at", null);
+
+  if (listError) {
+    return listError.message;
+  }
+
+  const releasableIds = (stops || [])
+    .filter((stop) => stop.outcome !== "completed" && stop.outcome !== "failed")
+    .map((stop) => stop.id);
+
+  if (!releasableIds.length) {
+    return null;
+  }
+
+  const { error } = await supabase
+    .from("logistics_route_stops")
+    .update({
+      released_at: nowIso,
+      release_reason: releaseReason,
+      outcome: "cancelled",
+      outcome_at: nowIso,
+    })
+    .eq("organization_id", session.organizationId)
+    .in("id", releasableIds)
+    .is("released_at", null);
+
+  return error?.message || null;
+}export async function recordShipmentMilestoneAudits(
   supabase: NonNullable<Awaited<ReturnType<typeof createScopedSupabase>>>,
   session: AppSession,
   shipment: Pick<ShipmentRow, "id" | "code" | "customer_name" | "country">,
@@ -145,19 +203,49 @@ export async function persistShipmentLogisticsPlanUpdate(
 
     if (!spec.needed) {
       if (spec.existing.status !== "completed" && spec.existing.status !== "cancelled") {
+        const releaseError = await releaseActiveStopsForTask(
+          supabase,
+          session,
+          spec.existing.id,
+          "task_cancelled_from_plan",
+        );
+        if (releaseError) {
+          return { ok: false, error: planTaskMutationError(releaseError) };
+        }
+
         const { error } = await supabase
           .from("shipment_logistics_tasks")
           .update({
             status: "cancelled",
+            assigned_to: null,
             updated_at: new Date().toISOString(),
             ...logisticsTaskCancelPatch(),
+            ...logisticsScheduleWindowPatch(null),
           })
           .eq("id", spec.existing.id)
           .eq("organization_id", session.organizationId);
 
         if (error) {
-          return { ok: false, error: error.message };
+          return { ok: false, error: planTaskMutationError(error.message) };
         }
+      }
+
+      const nowIso = new Date().toISOString();
+      const { error: rejectBookingError } = await supabase
+        .from("customer_route_assignment_requests")
+        .update({
+          status: "rejected",
+          review_note: "Tarea cancelada desde Seguimiento",
+          reviewed_at: nowIso,
+          reviewed_by: session.userId,
+          updated_at: nowIso,
+        })
+        .eq("organization_id", session.organizationId)
+        .eq("task_id", spec.existing.id)
+        .eq("status", "pending");
+
+      if (rejectBookingError) {
+        return { ok: false, error: planTaskMutationError(rejectBookingError.message) };
       }
 
       continue;
@@ -171,11 +259,28 @@ export async function persistShipmentLogisticsPlanUpdate(
       spec.scheduleMode === "scheduled" && spec.scheduleAt ? "scheduled" : "pending";
     const reactivating = isLogisticsTaskReactivation(spec.existing);
     const orderedAt = reactivating ? new Date().toISOString() : spec.existing.orderedAt;
+    const previousDate = scheduledAtToLocalDateInput(spec.existing.scheduledAt);
+    const nextDate = scheduledAtToLocalDateInput(spec.scheduleAt);
+    const dateChanged = Boolean(previousDate && nextDate && previousDate !== nextDate);
+    const shouldReleaseStops = reactivating || dateChanged;
+
+    if (shouldReleaseStops) {
+      const releaseError = await releaseActiveStopsForTask(
+        supabase,
+        session,
+        spec.existing.id,
+        reactivating ? "task_reactivated" : "task_date_changed",
+      );
+      if (releaseError) {
+        return { ok: false, error: planTaskMutationError(releaseError) };
+      }
+    }
 
     const { error } = await supabase
       .from("shipment_logistics_tasks")
       .update({
         status: nextStatus,
+        ...(shouldReleaseStops ? { assigned_to: null } : {}),
         ...logisticsScheduleWindowPatch(spec.scheduleAt),
         updated_at: new Date().toISOString(),
         ...(reactivating ? logisticsTaskReactivatePatch(orderedAt as string) : {}),
@@ -184,7 +289,7 @@ export async function persistShipmentLogisticsPlanUpdate(
       .eq("organization_id", session.organizationId);
 
     if (error) {
-      return { ok: false, error: error.message };
+      return { ok: false, error: planTaskMutationError(error.message) };
     }
 
     if (reactivating && orderedAt) {
@@ -197,17 +302,27 @@ export async function persistShipmentLogisticsPlanUpdate(
     }
   }
 
-  const { error: updateError } = await supabase
-    .from("shipments")
-    .update({
-      logistics_plan: logisticsPlan,
-      delivery_notes: deliveryNotes,
-    })
-    .eq("id", shipment.id)
-    .eq("organization_id", session.organizationId);
+  const { error: updateError } = await supabase.rpc("update_shipment_logistics_plan_atomic", {
+    p_shipment_id: shipment.id,
+    p_logistics_plan: logisticsPlan,
+    p_delivery_notes: deliveryNotes,
+  });
 
   if (updateError) {
     return { ok: false, error: updateError.message };
+  }
+
+  const pickupRequested = taskSync.some(
+    (spec) => spec.taskType === "pickup_full_box" && spec.needed,
+  );
+  if (pickupRequested) {
+    const { error: latePickupError } = await supabase.rpc("apply_late_pickup_fee", {
+      p_shipment_id: shipment.id,
+    });
+
+    if (latePickupError) {
+      return { ok: false, error: latePickupError.message };
+    }
   }
 
   if (nonScheduleChange) {

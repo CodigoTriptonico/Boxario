@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { AlertTriangle, Boxes, CheckCircle2, ChevronRight, ListTodo, Truck } from "lucide-react";
+import { AlertTriangle, CheckCircle2, ChevronRight, ListTodo, Truck } from "lucide-react";
 import type { ConductorHomeVehicleStatus } from "@/app/actions/conductor-tasks";
 import { ConductorRouteNotificationsPanel } from "@/components/conductor/conductor-route-notifications-panel";
 import { BigAction, labelMutedClass, Panel, StatCard, textMutedClass } from "@/components/ui-blocks";
@@ -24,7 +24,7 @@ function DeliverBoxesCard({
   const toLoad = truckSummary?.shortageTotal ?? 0;
   const needsLoading = toLoad > 0;
   const truckEmpty = onTruck === 0;
-  const inventoryHref = needsLoading ? "/conductor/inventario-camion?subir=1" : "/conductor/inventario-camion";
+  const inventoryHref = "/conductor/tareas?view=carga";
 
   return (
     <div className="overflow-hidden rounded-lg border border-black bg-surface-card shadow-[0_6px_20px_rgba(0,0,0,0.18)]">
@@ -48,7 +48,7 @@ function DeliverBoxesCard({
               Ya tienes <span className="font-black text-slate-200">{onTruck}</span> en el camión. Te faltan{" "}
               <span className="font-black text-rose-200">{toLoad}</span> por subir.
             </span>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-emerald-300/80" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
           </Link>
         ) : truckEmpty && needsLoading ? (
           <Link
@@ -58,12 +58,12 @@ function DeliverBoxesCard({
             <span>
               <span className="font-black text-rose-200">{toLoad}</span> pendientes por subir al camión
             </span>
-            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-emerald-300/80" />
+            <ChevronRight className="h-3.5 w-3.5 shrink-0 text-emerald-300" />
           </Link>
         ) : onTruck > 0 && !needsLoading ? (
           <Link
             href={inventoryHref}
-            className="mt-1.5 inline-flex max-w-full items-center gap-1 text-left text-xs font-bold text-emerald-300/80 transition hover:text-emerald-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
+            className="mt-1.5 inline-flex max-w-full items-center gap-1 text-left text-xs font-bold text-emerald-300 transition hover:text-emerald-200 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
           >
             <span>
               {onTruck} en el camión · Carga lista
@@ -76,7 +76,7 @@ function DeliverBoxesCard({
 
         {needsLoading ? (
           <Link
-            href="/conductor/inventario-camion?subir=1"
+            href="/conductor/tareas?view=carga"
             className="mt-2.5 inline-flex items-center gap-1 rounded-md border border-emerald-700/60 bg-emerald-950/35 px-2.5 py-1.5 text-[11px] font-black text-emerald-200 transition hover:bg-emerald-950/55 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-300"
           >
             Ver cajas por subir
@@ -112,7 +112,7 @@ export function ConductorHomePanel({
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         <div className="min-w-0">
           <p className={labelMutedClass}>Ruta del día</p>
-          <h3 className="truncate text-2xl font-black text-[#f8fafc]">Hola, {driverLabel}</h3>
+          <h3 className="break-words text-2xl font-black text-[#f8fafc] sm:truncate">Hola, {driverLabel}</h3>
           <p className={`mt-1 ${textMutedClass}`}>
             {hasWork
               ? "Resumen de lo que tienes pendiente en calle."
@@ -142,10 +142,10 @@ export function ConductorHomePanel({
         </span>
         <div className="min-w-0 flex-1">
           <p className={labelMutedClass}>Vehículo de hoy</p>
-          <p className="truncate text-base font-black text-[#f8fafc]">
+          <p className="break-words text-base font-black text-[#f8fafc] sm:truncate">
             {vehicleStatus?.vehicleLabel || "Sin vehículo asignado"}
           </p>
-          <p className="truncate text-xs font-bold text-slate-400">
+          <p className="break-words text-xs font-bold text-slate-400 sm:truncate">
             {vehicleStatus?.routeName || "No tienes una ruta asignada hoy."}
           </p>
         </div>
@@ -159,17 +159,10 @@ export function ConductorHomePanel({
         </span>
       </section>
 
-      <div className="grid gap-3 sm:grid-cols-2">
+      <div className="grid gap-3">
         <BigAction
-          title="Inventario camion"
-          text="Carga cajas antes de iniciar ruta."
-          icon={Boxes}
-          color="bg-emerald-400"
-          href="/conductor/inventario-camion"
-        />
-        <BigAction
-          title="Ver mis tareas"
-          text="Direcciones, horarios y estados de tu ruta."
+          title="Abrir mi ruta"
+          text="Prepara la carga, revisa paradas y registra resultados."
           icon={ListTodo}
           color="bg-emerald-400"
           href="/conductor/tareas"

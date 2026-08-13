@@ -174,7 +174,7 @@ function resolvePricingGuide(
     {
       label: "Ir a Configuración",
       title: "Abre Configuración",
-      body: "Los precios por país se configuran en Configuración → Costos.",
+      body: "Los precios por país se configuran en Configuración → Ventas.",
       actionHref: "/configuracion?view=prices",
       actionLabel: "Ir a Costos",
     },
