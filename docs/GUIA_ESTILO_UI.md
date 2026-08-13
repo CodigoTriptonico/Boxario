@@ -2829,6 +2829,6 @@ En `Paradas`, cada fila o tarjeta identifica claramente entrega o recolección, 
 
 **No repetir:** dibujar un marco blanco o gris claro alrededor del panel lateral y la superficie principal de la aplicación.
 
-**Motivo:** el contorno reapareció en Logística y compite visualmente con el contenido; los bordes exteriores no son parte de la jerarquía visual aprobada.
+**Motivo:** el contorno reapareció en Logística y en la navegación porque una utilidad de color de borde no estaba resolviendo su variable y caía en `currentColor` (blanco); los bordes exteriores no son parte de la jerarquía visual aprobada.
 
 **Preferir:** mantener las superficies principales sin borde exterior; conservar únicamente divisores internos y estados de foco/selección necesarios para orientar la interacción.

@@ -68,6 +68,19 @@ html {
   --font-mono: Consolas, "Courier New", monospace;
 }
 
+/*
+  Tailwind no siempre emite utilidades para colores definidos mediante una
+  variable CSS anidada. Declaramos explícitamente estos dos colores para que
+  `border-app-border-*` nunca caiga en `currentColor` (blanco en la interfaz).
+*/
+.border-app-border-control {
+  border-color: var(--app-border-control);
+}
+
+.border-app-border-divider {
+  border-color: var(--app-border-divider);
+}
+
 body {
   background: var(--background);
   color: var(--foreground);
