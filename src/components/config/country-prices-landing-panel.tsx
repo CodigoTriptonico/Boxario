@@ -1,13 +1,13 @@
 "use client";
 
-import { Box, ChevronRight, Clock, Globe2, Plus, Search, X } from "lucide-react";
-import type { LogisticsAxisSettings } from "@/app/actions/axis-settings";
+import { CostosDepositPanel } from "@/components/config/costos-deposit-panel";
+import { VentasRutasPanel } from "@/components/config/ventas-rutas-panel";
 import { countryOptionKey } from "@/components/config/config-pricing-helpers";
 import type { CostosPanel } from "@/components/config/config-url";
-import { LogisticsSettingsPanel } from "@/components/settings/logistics-settings-panel";
 import { AppTabs, type AppTabDefinition } from "@/components/app-tabs";
 import { CountryFlag } from "@/components/country-flag";
 import { InlineSearchCombobox } from "@/components/inline-search-picker";
+import { LoadingButton } from "@/components/loading-button";
 import { flowToolbarCreateButtonClass } from "@/components/flow-form-styles";
 import { iconWellEmerald, Panel } from "@/components/ui-blocks";
 import { CONFIG_SECTION_LABELS } from "@/lib/config-section-labels";
@@ -15,6 +15,7 @@ import { resolveCountryCode, type CountryOption } from "@/lib/country-options";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding/coach-targets";
 import type { PricingCountryConfig } from "@/lib/pricing/types";
 import type { Dispatch, HTMLAttributes, SetStateAction } from "react";
+import { Box, ChevronRight, Clock, Globe2, Plus, Search, X } from "lucide-react";
 
 type CountryPricesLandingPanelProps = {
   showSidebarNav: boolean;
@@ -22,7 +23,6 @@ type CountryPricesLandingPanelProps = {
   costosPanel: CostosPanel;
   costosPanelTabs: AppTabDefinition<CostosPanel>[];
   onOpenCostosPanel: (panel: CostosPanel) => void;
-  initialLogisticsSettings?: LogisticsAxisSettings;
   countries: PricingCountryConfig[];
   sortedCountries: PricingCountryConfig[];
   showCountryPicker: boolean;
@@ -36,9 +36,11 @@ type CountryPricesLandingPanelProps = {
   setPendingCountryToAdd: Dispatch<SetStateAction<CountryOption | null>>;
   onOpenConfiguredCountry: (name: string) => void;
   onAddCountry: (country: CountryOption) => void;
+  countryMutationBusy?: string | null;
   onCloseCountryPicker: () => void;
   onSelectCountry: (name: string) => void;
   countryContextMenuProps: (countryName: string) => HTMLAttributes<HTMLElement>;
+  canManageRoutes?: boolean;
 };
 
 export function CountryPricesLandingPanel({
@@ -47,7 +49,6 @@ export function CountryPricesLandingPanel({
   costosPanel,
   costosPanelTabs,
   onOpenCostosPanel,
-  initialLogisticsSettings,
   countries,
   sortedCountries,
   showCountryPicker,
@@ -61,21 +62,26 @@ export function CountryPricesLandingPanel({
   setPendingCountryToAdd,
   onOpenConfiguredCountry,
   onAddCountry,
+  countryMutationBusy = null,
   onCloseCountryPicker,
   onSelectCountry,
   countryContextMenuProps,
+  canManageRoutes = false,
 }: CountryPricesLandingPanelProps) {
+  const showCountries = costosPanel === "paises";
+  const fillHeight = showCountries && (showCountryPicker || countries.length === 0);
+
   return (
   <Panel
     title={CONFIG_SECTION_LABELS.prices.title}
     hideHeader={showSidebarNav}
     className={
-      costosPanel === "paises" && (showCountryPicker || countries.length === 0)
+      fillHeight
         ? `${nestedPanelShell.className ?? ""} flex min-h-[calc(100dvh-8.5rem)] flex-col`.trim()
         : nestedPanelShell.className
     }
     contentClassName={
-      costosPanel === "paises" && (showCountryPicker || countries.length === 0)
+      fillHeight
         ? "flex min-h-0 flex-1 flex-col p-0"
         : nestedPanelShell.contentClassName
     }
@@ -83,26 +89,30 @@ export function CountryPricesLandingPanel({
     {costosPanelTabs.length > 1 ? (
       <AppTabs
         className={
-          costosPanel === "paises" && (showCountryPicker || countries.length === 0)
+          fillHeight
             ? "mb-0 shrink-0 px-3 pt-3 sm:px-4"
             : "mb-4"
         }
         tabs={costosPanelTabs}
         value={costosPanel}
         onChange={onOpenCostosPanel}
-        ariaLabel="Secciones de costos"
+        ariaLabel="Secciones de ventas"
       />
     ) : null}
 
-    {costosPanel === "operativos" ? (
-      initialLogisticsSettings ? (
-        <LogisticsSettingsPanel initialSettings={initialLogisticsSettings} />
-      ) : (
-        <p className="rounded-lg border border-amber-700 bg-amber-950/40 px-3 py-2 text-sm font-bold text-amber-200">
-          No se pudieron cargar los cargos operativos. Revisa la conexión e inténtalo de nuevo.
-        </p>
-      )
-    ) : (
+    {costosPanel === "deposito" ? (
+      <div className="px-1 pb-2 pt-1 sm:px-0">
+        <CostosDepositPanel />
+      </div>
+    ) : null}
+
+    {costosPanel === "rutas" ? (
+      <div className="px-1 pb-2 pt-1 sm:px-0">
+        <VentasRutasPanel canManage={canManageRoutes} />
+      </div>
+    ) : null}
+
+    {showCountries ? (
     <div
       className={`flex min-h-0 flex-1 flex-col ${
         countries.length > 0 && !showCountryPicker ? "gap-4" : "gap-0"
@@ -218,52 +228,49 @@ export function CountryPricesLandingPanel({
                     const isPending =
                       pendingCountryToAdd !== null &&
                       countryOptionKey(pendingCountryToAdd) === countryOptionKey(country);
+                    const addBusyKey = `add:${country.code || country.name}`;
+                    const isAdding = countryMutationBusy === addBusyKey;
 
                     return (
                       <div
                         key={country.code || country.name}
-                        role="button"
-                        tabIndex={0}
-                        onClick={() =>
-                          setPendingCountryToAdd((current) =>
-                            current &&
-                            countryOptionKey(current) === countryOptionKey(country)
-                              ? null
-                              : country,
-                          )
-                        }
-                        onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
+                        className={`flex h-full min-h-[6.5rem] w-full flex-col items-center justify-center gap-2 rounded-xl border px-3 py-3 text-center transition ${
+                          isPending || isAdding
+                            ? "border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/35"
+                            : "border-black bg-[#3a4842] hover:bg-[#425048]"
+                        } ${countryMutationBusy && !isAdding ? "saturate-[0.8]" : ""}`}
+                      >
+                        <button
+                          type="button"
+                          disabled={Boolean(countryMutationBusy)}
+                          aria-pressed={isPending}
+                          onClick={() =>
                             setPendingCountryToAdd((current) =>
                               current &&
                               countryOptionKey(current) === countryOptionKey(country)
                                 ? null
                                 : country,
-                            );
+                            )
                           }
-                        }}
-                        className={`flex h-full min-h-[6.5rem] w-full cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border px-3 py-4 text-center transition ${
-                          isPending
-                            ? "border-emerald-500 bg-emerald-950/30 ring-1 ring-emerald-500/35"
-                            : "border-black bg-[#3a4842] hover:bg-[#425048]"
-                        }`}
-                      >
-                        <CountryFlag code={resolveCountryCode(country)} size="md" />
-                        <span className="line-clamp-2 min-w-0 text-sm font-black leading-snug text-[#f8fafc]">
-                          {country.name}
-                        </span>
-                        {isPending ? (
-                          <button
-                            type="button"
+                          className="flex w-full flex-1 flex-col items-center justify-center gap-2 rounded-lg py-1 text-center focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-200 disabled:cursor-not-allowed"
+                        >
+                          <CountryFlag code={resolveCountryCode(country)} size="md" />
+                          <span className="line-clamp-2 min-w-0 text-sm font-black leading-snug text-[#f8fafc]">
+                            {country.name}
+                          </span>
+                        </button>
+                        {isPending || isAdding ? (
+                          <LoadingButton
+                            loading={isAdding}
+                            loadingLabel="Agregando..."
                             onClick={(event) => {
                               event.stopPropagation();
-                              onAddCountry(country);
+                              void onAddCountry(country);
                             }}
-                            className="mt-0.5 inline-flex h-8 items-center justify-center rounded-lg border border-emerald-600 bg-emerald-400 px-4 text-xs font-black text-slate-950 transition hover:bg-emerald-300"
+                            className="mt-0.5 inline-flex h-8 min-w-[6.5rem] items-center justify-center rounded-lg border border-emerald-600 bg-emerald-400 px-4 text-xs font-black text-slate-950 transition hover:bg-emerald-300 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-emerald-200 disabled:cursor-not-allowed disabled:opacity-70"
                           >
                             Agregar
-                          </button>
+                          </LoadingButton>
                         ) : null}
                       </div>
                     );
@@ -326,7 +333,7 @@ export function CountryPricesLandingPanel({
       </div>
       ) : null}
     </div>
-    )}
+    ) : null}
   </Panel>
   );
 }

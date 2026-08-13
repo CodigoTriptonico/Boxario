@@ -18,6 +18,7 @@ export {
 } from "@/app/actions/shipments-logistics-tasks";
 export {
   markFullBoxReceivedAtOfficeAction,
+  revertFullBoxOfficeReceptionAction,
   updateShipmentLogisticsPlanAction,
   updateShipmentStatusAction,
 } from "@/app/actions/shipments-logistics";

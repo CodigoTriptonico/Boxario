@@ -7,7 +7,7 @@ export type WarehousePalletStatus = "open" | "closed";
 
 const ROUTE_TRANSITIONS: Record<LogisticsRouteStatus, readonly LogisticsRouteStatus[]> = {
   draft: ["planned", "cancelled"],
-  planned: ["in_progress", "cancelled", "draft"],
+  planned: ["in_progress", "cancelled"],
   in_progress: ["completed", "cancelled"],
   completed: [],
   cancelled: [],
@@ -115,6 +115,10 @@ export function routeAllowsOperationalTaskCompletion(status: LogisticsRouteStatu
 }
 
 export function routeAllowsNormalStopEdits(status: LogisticsRouteStatus) {
+  return status === "draft";
+}
+
+export function routeAllowsPreDepartureStopReorder(status: LogisticsRouteStatus) {
   return status === "draft" || status === "planned";
 }
 
@@ -140,8 +144,6 @@ export function taskRequiresActiveRouteToComplete(taskType: LogisticsTaskType) {
 
 export function publishRouteValidationErrors(input: {
   status: LogisticsRouteStatus;
-  assignedTo: string | null;
-  vehicleId: string | null;
   stopCount: number;
   stopsWithoutGeo: number;
   tasksWithoutConfirmedDate: number;
@@ -150,16 +152,10 @@ export function publishRouteValidationErrors(input: {
   const errors: string[] = [];
 
   if (input.status !== "draft") {
-    errors.push("Solo puedes publicar rutas en borrador");
-  }
-  if (!input.assignedTo) {
-    errors.push("Asigna un conductor antes de publicar");
-  }
-  if (!input.vehicleId) {
-    errors.push("Asigna un vehiculo antes de publicar");
+    errors.push("Solo puedes cerrar rutas en preparacion");
   }
   if (input.stopCount < 1) {
-    errors.push("Agrega al menos una parada antes de publicar");
+    errors.push("Agrega al menos una parada antes de cerrar");
   }
   if (input.stopsWithoutGeo > 0) {
     errors.push("Hay paradas sin ubicacion verificada");

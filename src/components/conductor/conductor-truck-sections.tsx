@@ -137,7 +137,7 @@ export function RouteDeliverySection({
                 key={boardLine.key}
                 className={`flex flex-col gap-3 rounded-lg border px-4 py-3 ${
                   isPending && !isLoaded
-                    ? "border-black/80 bg-surface-card/40 opacity-80"
+                    ? "border-app-border-divider bg-surface-card/40"
                     : isPending
                       ? "border-black bg-surface-inset"
                       : "border-black bg-surface-inset"

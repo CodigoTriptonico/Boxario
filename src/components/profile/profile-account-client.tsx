@@ -131,7 +131,7 @@ export function ProfileAccountClient({ initialAvatarUrl, session }: ProfileAccou
       : ["Acceso según las tareas asignadas"];
 
   return (
-    <div className="mx-auto w-full max-w-5xl p-3 sm:p-5 lg:p-6">
+    <div className="mx-auto min-w-0 w-full max-w-5xl p-3 sm:p-5 lg:p-6">
       <header className={`${cardClass} overflow-hidden bg-surface-card shadow-[0_8px_24px_rgba(0,0,0,0.22)]`}>
         <div className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:p-5">
           <div className="relative mx-auto shrink-0 sm:mx-0">
@@ -167,8 +167,8 @@ export function ProfileAccountClient({ initialAvatarUrl, session }: ProfileAccou
           </div>
           <div className="min-w-0 flex-1 text-center sm:text-left">
             <p className="text-xs font-black uppercase tracking-[0.12em] text-emerald-300">Cuenta personal</p>
-            <h1 className="mt-1 truncate text-2xl font-black tracking-tight text-[#f8fafc] sm:text-3xl">{shownName}</h1>
-            <p className="mt-1 flex items-center justify-center gap-1.5 truncate text-sm font-bold text-slate-400 sm:justify-start">
+            <h1 className="mt-1 break-words text-2xl font-black tracking-tight text-[#f8fafc] sm:truncate sm:text-3xl">{shownName}</h1>
+            <p className="mt-1 flex min-w-0 flex-wrap items-center justify-center gap-1.5 break-all text-sm font-bold text-slate-400 sm:flex-nowrap sm:justify-start sm:truncate">
               <Mail className="h-4 w-4 shrink-0" />{session.email}
             </p>
           </div>
@@ -184,8 +184,8 @@ export function ProfileAccountClient({ initialAvatarUrl, session }: ProfileAccou
         </div>
       </header>
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]">
-        <div className="grid gap-4">
+      <div className="mt-4 grid min-w-0 gap-4 lg:grid-cols-[minmax(0,1.15fr)_minmax(19rem,0.85fr)]">
+        <div className="grid min-w-0 gap-4">
           <section className={`${cardClass} bg-surface-card p-4 shadow-[0_6px_20px_rgba(0,0,0,0.18)] sm:p-5`}>
             <div className="flex items-center gap-3 border-b border-black pb-3">
               <span className={`h-10 w-10 ${iconWellEmerald}`}><UserRound className="h-5 w-5" /></span>
@@ -193,7 +193,7 @@ export function ProfileAccountClient({ initialAvatarUrl, session }: ProfileAccou
             </div>
             <form className="mt-4 grid gap-4" onSubmit={(event) => void saveProfile(event)}>
               <label className="grid gap-1.5"><span className={labelMutedClass}>Nombre</span><input className={inputClass} value={fullName} onChange={(event) => setFullName(formatPersonNameInput(event.target.value))} maxLength={120} autoComplete="name" required /></label>
-              <label className="grid gap-1.5"><span className={labelMutedClass}>Correo de acceso</span><span className={`${inputClass} flex items-center text-slate-400`}>{session.email}</span><span className="text-xs font-bold text-slate-500">El correo lo gestiona el administrador de la empresa.</span></label>
+              <label className="grid min-w-0 gap-1.5"><span className={labelMutedClass}>Correo de acceso</span><span className={`${inputClass} flex min-w-0 items-center break-all text-slate-400`}>{session.email}</span><span className="text-xs font-bold text-slate-500">El correo lo gestiona el administrador de la empresa.</span></label>
               <div className="flex justify-end"><button type="submit" className={primaryButtonClass} disabled={savingProfile || fullName.trim() === savedName.trim()}>{savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}{savingProfile ? "Guardando..." : "Guardar nombre"}</button></div>
             </form>
           </section>
@@ -208,7 +208,7 @@ export function ProfileAccountClient({ initialAvatarUrl, session }: ProfileAccou
           </section>
         </div>
 
-        <aside className="grid content-start gap-4">
+        <aside className="grid min-w-0 content-start gap-4">
           <section className={`${cardClass} overflow-hidden bg-surface-card shadow-[0_6px_20px_rgba(0,0,0,0.18)]`}>
             <div className="flex items-center gap-3 border-b border-black bg-surface-card-header p-4"><span className={`h-10 w-10 ${iconWellEmerald}`}><BadgeCheck className="h-5 w-5" /></span><div><h2 className="text-lg font-black text-[#f8fafc]">Tu acceso</h2><p className="text-sm font-bold text-slate-400">Información asignada por la empresa.</p></div></div>
             <dl className="grid gap-3 p-4"><div className="rounded-lg border border-black bg-surface-inset p-3"><dt className={labelMutedClass}>Empresa</dt><dd className="mt-1 text-base font-black text-slate-100">{session.organizationName}</dd></div><div className="rounded-lg border border-black bg-surface-inset p-3"><dt className={labelMutedClass}>Rol</dt><dd className="mt-1 inline-flex items-center gap-1.5 text-base font-black text-emerald-200"><ShieldCheck className="h-4 w-4" />{session.roleName}</dd></div></dl>

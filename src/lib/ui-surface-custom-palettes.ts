@@ -6,7 +6,11 @@ import {
   normalizeHex,
   randomCustomPaletteId,
 } from "@/lib/ui-surface-color-math";
-import type { UiSurfacePalette, UiSurfacePaletteId } from "@/lib/ui-surface-palettes";
+import {
+  buildUiSurfaceListRowTokens,
+  type UiSurfacePalette,
+  type UiSurfacePaletteId,
+} from "@/lib/ui-surface-palettes";
 
 const CUSTOM_PALETTE_ID_PREFIX = "custom:";
 
@@ -25,14 +29,14 @@ export function isCustomPaletteId(id: string): boolean {
 export function buildCustomUiSurfacePalette(custom: UiSurfaceCustomPalette): UiSurfacePalette {
   const base = normalizeHex(custom.baseHex) ?? "#2c3440";
   const hover = normalizeHex(custom.hoverHex) ?? defaultHoverHex(base);
+  const listRow = buildUiSurfaceListRowTokens(base, hover);
   return {
     id: custom.id,
     label: custom.label,
     tag: "★",
     swatchClass: `bg-[${base}]`,
     listRow: {
-      hex: base,
-      hoverHex: hover,
+      ...listRow,
       rowClass: "bg-surface-list-row",
       hoverClass: "hover:bg-surface-list-row-hover",
     },

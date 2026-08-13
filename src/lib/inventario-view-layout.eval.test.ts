@@ -22,12 +22,18 @@ describe("inventario view layout eval", () => {
     assert.equal(structureSource.includes("Ver lista"), false);
   });
 
-  it("keeps inventario toolbar controls left and metrics on the right in one row", () => {
-    assert.equal(
-      embeddedShellSource.includes(
-        'className="flex shrink-0 overflow-hidden rounded-xl border border-black bg-[#17201d]"',
-      ),
-      true,
+  it("keeps inventario toolbar controls and metrics inside the panel without page sideways scroll", () => {
+    assert.match(
+      embeddedShellSource,
+      /overflow-x-hidden border-b border-black\/70/,
+    );
+    assert.doesNotMatch(
+      embeddedShellSource,
+      /overflow-x-auto border-b border-black\/70/,
+    );
+    assert.match(
+      embeddedShellSource,
+      /flex min-w-0 max-w-full flex-wrap overflow-hidden rounded-xl border border-black bg-\[#17201d\]/,
     );
     assert.match(embeddedShellSource, /inventoryToolbarRowClass/);
     assert.match(embeddedShellSource, /inventoryToolbarCatalogGroupClass/);

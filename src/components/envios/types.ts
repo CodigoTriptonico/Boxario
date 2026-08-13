@@ -83,6 +83,7 @@ export type EnviosShipmentListsSharedProps = {
     audit: ShipmentAuditContext,
   ) => Promise<void>;
   onFullBoxReceivedAtOffice: (row: ShipmentRow, audit: ShipmentAuditContext) => Promise<void>;
+  onRevertFullBoxOfficeReception: (row: ShipmentRow, audit: ShipmentAuditContext) => Promise<void>;
   onProgramRoute?: (row: ShipmentRow, kind: "empty_box" | "full_box") => void;
   pendingRouteTaskIds?: Set<string>;
   onLockedLeg: (message: string) => void;
@@ -100,6 +101,11 @@ export type EnviosShipmentRowsListProps = EnviosShipmentListsSharedProps & {
 };
 
 export type EnviosShipmentCardsGridProps = Omit<EnviosShipmentListsSharedProps, "cardClass"> & {
+  ownerBusyId: string | null;
+  onUpdateSalesOwner: (row: ShipmentRow, salesOwnerId: string) => Promise<void>;
+};
+
+export type EnviosShipmentExcelTableProps = Omit<EnviosShipmentListsSharedProps, "cardClass"> & {
   ownerBusyId: string | null;
   onUpdateSalesOwner: (row: ShipmentRow, salesOwnerId: string) => Promise<void>;
 };

@@ -74,7 +74,7 @@ export function canChangeTaskRoute({
     return false;
   }
 
-  if (routeInfo && routeInfo.route.status !== "draft" && routeInfo.route.status !== "planned") {
+  if (routeInfo && routeInfo.route.status !== "draft") {
     return false;
   }
 

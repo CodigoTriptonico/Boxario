@@ -297,7 +297,7 @@ export function TimeClockAdminClient({
                 Abrir pantalla de reloj
               </a>
             </div>
-            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-emerald-100/80 sm:px-5">
+            <div className="flex flex-wrap items-center justify-between gap-3 px-4 py-3 text-xs font-bold text-emerald-100 sm:px-5">
               <span>Ruta directa: <code className="rounded bg-black/30 px-1.5 py-0.5 text-emerald-200">/reloj</code></span>
               <span>El empleado entra con Employee ID y PIN.</span>
             </div>
@@ -332,7 +332,7 @@ export function TimeClockAdminClient({
                       <article key={alert.id} className="flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                         <div className="min-w-0">
                           <p className="text-sm font-black text-slate-100">{alert.title}</p>
-                          <p className="mt-1 text-xs font-bold text-amber-100/80">{alert.description}</p>
+                          <p className="mt-1 text-xs font-bold text-amber-100">{alert.description}</p>
                           <p className="mt-1 text-[10px] font-black uppercase text-slate-500">{employee?.employeeId || "Empleado"} · {alert.status}</p>
                         </div>
                         {canManage && alert.status === "open" ? (

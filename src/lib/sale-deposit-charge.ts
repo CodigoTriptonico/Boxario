@@ -2,10 +2,23 @@ import { formatMoneyValue, parseMoneyValue } from "@/lib/logistics-fees";
 
 export type SaleDepositChargeMode = "deposit" | "full";
 
+export function minimumDepositForBoxCount(input: {
+  minimumDeposit: string | number;
+  boxCount?: number;
+  quotedTotal: string | number;
+}): number {
+  const quotedTotal = Math.max(parseMoneyValue(String(input.quotedTotal)), 0);
+  const boxCount = Math.max(Math.floor(Number(input.boxCount) || 1), 1);
+  const configuredPerBox = Math.max(parseMoneyValue(String(input.minimumDeposit)), 0);
+
+  return Math.min(configuredPerBox * boxCount, quotedTotal);
+}
+
 export function resolveSaleDepositChargeAmount(input: {
   mode: SaleDepositChargeMode;
   depositDraft: string;
   minimumDeposit: string | number;
+  boxCount?: number;
   quotedTotal: string | number;
 }): number {
   const quotedTotal = Math.max(parseMoneyValue(String(input.quotedTotal)), 0);
@@ -17,7 +30,7 @@ export function resolveSaleDepositChargeAmount(input: {
     return quotedTotal;
   }
 
-  const minimumDeposit = Math.min(parseMoneyValue(String(input.minimumDeposit)), quotedTotal);
+  const minimumDeposit = minimumDepositForBoxCount(input);
   const draft = input.depositDraft.trim();
   if (!draft) {
     return minimumDeposit;
@@ -30,6 +43,7 @@ export function saleDepositChargeAmountDigits(input: {
   mode: SaleDepositChargeMode;
   depositDraft: string;
   minimumDeposit: string | number;
+  boxCount?: number;
   quotedTotal: string | number;
 }): string {
   const amount = resolveSaleDepositChargeAmount(input);
@@ -39,8 +53,8 @@ export function saleDepositChargeAmountDigits(input: {
 export function defaultSaleDepositDraft(
   minimumDeposit: string | number,
   quotedTotal: string | number,
+  boxCount = 1,
 ): string {
-  const quoted = Math.max(parseMoneyValue(String(quotedTotal)), 0);
-  const minimum = Math.min(parseMoneyValue(String(minimumDeposit)), quoted);
+  const minimum = minimumDepositForBoxCount({ minimumDeposit, quotedTotal, boxCount });
   return formatMoneyValue(minimum).replace(/^\$/, "");
 }

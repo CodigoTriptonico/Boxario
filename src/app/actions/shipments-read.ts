@@ -9,6 +9,11 @@ import { canChangeShipmentSalesOwner, shipmentVisibilityScope } from "@/lib/ship
 import { isSalesOwnerRole } from "@/lib/shipment-sales-owner";
 import type { AppSession, RoleSlug } from "@/lib/auth/types";
 import type { RouteMemberRow, SalesOwnerRow, ShipmentRow } from "@/lib/shipment-types";
+import {
+  SHIPMENTS_MAX_PAGE_SIZE,
+  clampShipmentsLimit,
+  clampShipmentsOffset,
+} from "@/lib/shipments-pagination";
 
 import {
   SHIPMENT_SELECT,
@@ -113,8 +118,8 @@ export async function listShipmentsAction(options?: {
       return fail("Supabase no configurado");
     }
 
-    const limit = Math.min(Math.max(options?.limit ?? 500, 1), 1000);
-    const offset = Math.max(options?.offset ?? 0, 0);
+    const limit = clampShipmentsLimit(options?.limit, SHIPMENTS_MAX_PAGE_SIZE);
+    const offset = clampShipmentsOffset(options?.offset);
 
     let query = shipmentListQuery(supabase, session, limit, offset);
 
@@ -147,8 +152,8 @@ export async function listShipmentsForRouteBoardAction(options?: {
       return fail("Supabase no configurado");
     }
 
-    const limit = Math.min(Math.max(options?.limit ?? 500, 1), 500);
-    const offset = Math.max(options?.offset ?? 0, 0);
+    const limit = clampShipmentsLimit(options?.limit, SHIPMENTS_MAX_PAGE_SIZE);
+    const offset = clampShipmentsOffset(options?.offset);
 
     const result = await mapShipmentListResult(
       supabase,

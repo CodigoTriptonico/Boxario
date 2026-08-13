@@ -102,10 +102,10 @@ export function InventoryTruckPanel({
                       <Truck className="h-4 w-4" />
                     </span>
                     <div className="min-w-0">
-                      <h3 className="truncate text-sm font-black text-[#f8fafc]">
+                      <h3 className="break-words text-sm font-black text-[#f8fafc] sm:truncate">
                         {truckBalanceTitle(balance)}
                       </h3>
-                      <p className="truncate text-xs font-bold text-slate-500">
+                      <p className="break-words text-xs font-bold text-slate-500 sm:truncate">
                         {balance.assignedDriverName
                           ? `Conductor: ${balance.assignedDriverName} · ${balance.totalQty} ${balance.totalQty === 1 ? "caja" : "cajas"}`
                           : `Sin conductor asignado · ${balance.totalQty} ${balance.totalQty === 1 ? "caja" : "cajas"}`}
@@ -114,7 +114,7 @@ export function InventoryTruckPanel({
                   </div>
                   {balance.assignedDriverId ? (
                     <Link
-                      href={`/conductor/inventario-camion?conductor=${encodeURIComponent(balance.assignedDriverId)}`}
+                      href={`/conductor/tareas?view=carga&conductor=${encodeURIComponent(balance.assignedDriverId)}`}
                       className="inline-flex h-8 shrink-0 items-center gap-1 rounded-lg border border-black bg-surface-inset px-2 text-[10px] font-black text-sky-200 hover:text-white"
                     >
                       Ver
@@ -134,7 +134,7 @@ export function InventoryTruckPanel({
                       >
                         <div className="flex min-w-0 items-center gap-2">
                           <Package className="h-4 w-4 shrink-0 text-slate-500" />
-                          <span className="truncate text-xs font-black text-slate-200">
+                          <span className="break-words text-xs font-black text-slate-200 sm:truncate">
                             {line.label}
                           </span>
                         </div>

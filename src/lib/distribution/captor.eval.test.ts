@@ -13,8 +13,7 @@ test("captor ownership and sale snapshot are durable database contracts", () => 
   assert.match(migration, /distribution_assign_acquisition_owner/);
 });
 
-test("statistics expose sellers and distributors as separate tabs", () => {
-  assert.match(stats, />Vendedores</);
-  assert.match(stats, />Distribuidores</);
-  assert.match(stats, /DistribuidoresPanel/);
+test("statistics no longer depend on the legacy distributor metrics panel", () => {
+  assert.doesNotMatch(stats, /DistribuidoresPanel/);
+  assert.match(stats, /StatisticsAgenciesSection/);
 });

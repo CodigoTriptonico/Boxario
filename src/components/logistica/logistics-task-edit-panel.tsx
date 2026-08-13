@@ -146,7 +146,7 @@ export function LogisticsTaskEditPanel({
             disabled={saving}
             className="mt-3 h-11 w-full rounded-lg border border-amber-700/60 bg-amber-950/40 text-sm font-black text-amber-100 hover:bg-amber-900/40 disabled:opacity-40"
           >
-            Excepcion administrativa…
+            Completar fuera del flujo…
           </button>
         ) : null}
       </div>

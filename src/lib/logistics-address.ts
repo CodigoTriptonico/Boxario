@@ -18,6 +18,13 @@ export type LogisticsCustomerAddressRow = {
   formatted_address?: string | null;
   lat?: number | string | null;
   lng?: number | string | null;
+  exact_entrance_lat?: number | string | null;
+  exact_entrance_lng?: number | string | null;
+  exact_entrance_confirmed_at?: string | null;
+  exact_entrance_note?: string | null;
+  exact_entrance_pano_id?: string | null;
+  exact_entrance_heading?: number | string | null;
+  exact_entrance_pitch?: number | string | null;
 };
 
 export type LogisticsShipmentAddressSource = {
@@ -75,6 +82,9 @@ export function routeAddressFromCustomer(
   const formattedAddress =
     clean(row.formatted_address) ||
     formattedAddressFromParts({ street, houseNumber, neighborhood, city, state, postalCode, country });
+  const exactEntranceConfirmed = Boolean(clean(row.exact_entrance_confirmed_at));
+  const exactEntranceLat = readNumber(row.exact_entrance_lat);
+  const exactEntranceLng = readNumber(row.exact_entrance_lng);
 
   return {
     source: "customer",
@@ -90,8 +100,15 @@ export function routeAddressFromCustomer(
     country,
     formattedAddress,
     placeId: clean(row.place_id),
-    lat: readNumber(row.lat),
-    lng: readNumber(row.lng),
+    lat: exactEntranceConfirmed && exactEntranceLat !== null ? exactEntranceLat : readNumber(row.lat),
+    lng: exactEntranceConfirmed && exactEntranceLng !== null ? exactEntranceLng : readNumber(row.lng),
+    addressLat: readNumber(row.lat),
+    addressLng: readNumber(row.lng),
+    exactEntranceConfirmed,
+    exactEntranceNote: clean(row.exact_entrance_note),
+    exactEntrancePanoId: clean(row.exact_entrance_pano_id),
+    exactEntranceHeading: readNumber(row.exact_entrance_heading),
+    exactEntrancePitch: readNumber(row.exact_entrance_pitch),
   };
 }
 
@@ -110,6 +127,9 @@ export function routeAddressFromRecipientSnapshot(
   const formattedAddress =
     clean(snapshot?.formattedAddress) ||
     formattedAddressFromParts({ street, houseNumber, neighborhood, city, state, postalCode, country });
+  const exactEntranceConfirmed = Boolean(clean(snapshot?.exactEntranceConfirmedAt));
+  const exactEntranceLat = readNumber(snapshot?.exactEntranceLat);
+  const exactEntranceLng = readNumber(snapshot?.exactEntranceLng);
 
   return {
     source: snapshot ? "recipient_snapshot" : "unknown",
@@ -127,8 +147,15 @@ export function routeAddressFromRecipientSnapshot(
     country,
     formattedAddress,
     placeId: clean(snapshot?.placeId),
-    lat: readNumber(snapshot?.lat),
-    lng: readNumber(snapshot?.lng),
+    lat: exactEntranceConfirmed && exactEntranceLat !== null ? exactEntranceLat : readNumber(snapshot?.lat),
+    lng: exactEntranceConfirmed && exactEntranceLng !== null ? exactEntranceLng : readNumber(snapshot?.lng),
+    addressLat: readNumber(snapshot?.lat),
+    addressLng: readNumber(snapshot?.lng),
+    exactEntranceConfirmed,
+    exactEntranceNote: clean(snapshot?.exactEntranceNote),
+    exactEntrancePanoId: clean(snapshot?.exactEntrancePanoId),
+    exactEntranceHeading: readNumber(snapshot?.exactEntranceHeading),
+    exactEntrancePitch: readNumber(snapshot?.exactEntrancePitch),
   };
 }
 

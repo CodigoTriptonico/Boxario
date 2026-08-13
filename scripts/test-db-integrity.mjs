@@ -65,6 +65,12 @@ const report = {
   activityInsertDenied: false,
   warehouseDefaultDeny: false,
   paymentRecalc: false,
+  paymentIdempotency: false,
+  agencyAssignIdempotency: false,
+  pricingCountryUniqueness: false,
+  stockDeductedConsistency: false,
+  routeCancelAtomic: false,
+  truckMoveAtomic: false,
   overloads: false,
   daysWrite: false,
   crossTenant: false,
@@ -102,10 +108,13 @@ try {
     where n.nspname = 'public'
       and p.proname in (
         'complete_conductor_task_atomic',
+        'fail_conductor_task_atomic',
         'notify_logistics_route_change',
         'collect_shipment_invoice_payment',
         'record_activity_history',
         'start_logistics_route_atomic',
+        'cancel_logistics_route_atomic',
+        'conductor_truck_inventory_move_atomic',
         'user_can_access_warehouse',
         'update_logistics_task_atomic',
         'mark_logistics_task_loaded_with_stock_atomic',
@@ -130,6 +139,39 @@ try {
   const warehouseId = orgA.warehouseId;
   const conductorId = orgA.conductorId;
   const logisticsId = orgA.logisticsId;
+
+  // Migration 181: country identity is unique after trim/case normalization.
+  const countrySuffix = randomUUID().replaceAll("-", "").slice(0, 8);
+  const countryCode = `Q${countrySuffix}`;
+  const countryName = `País QA ${countrySuffix}`;
+  await client.query(
+    `insert into public.pricing_countries (organization_id, code, name)
+     values ($1, $2, $3)`,
+    [orgId, countryCode, countryName],
+  );
+  await expectDatabaseError(
+    "pricing_country_code_duplicate",
+    /duplicate key|pricing_countries_org_code_normalized_uidx/i,
+    async () => {
+      await client.query(
+        `insert into public.pricing_countries (organization_id, code, name)
+         values ($1, $2, $3)`,
+        [orgId, ` ${countryCode.toLowerCase()} `, `${countryName} alterno`],
+      );
+    },
+  );
+  await expectDatabaseError(
+    "pricing_country_name_duplicate",
+    /duplicate key|pricing_countries_org_name_normalized_uidx/i,
+    async () => {
+      await client.query(
+        `insert into public.pricing_countries (organization_id, code, name)
+         values ($1, $2, $3)`,
+        [orgId, `${countryCode}B`, ` ${countryName.toUpperCase()} `],
+      );
+    },
+  );
+  report.pricingCountryUniqueness = true;
 
   const crossTenant = {
     aCannotReadBRoute: false,
@@ -158,6 +200,13 @@ try {
     )`, [orgId, randomUUID(), conductorId, randomUUID(), adminId]);
   });
   report.completeAuth = true;
+
+  await expectDatabaseError("no_auth_fail", /UNAUTHORIZED|permission denied|42501/i, async () => {
+    await client.query(`select public.fail_conductor_task_atomic(
+      $1, $2, $3, 'nota', 'Cliente no contesto', '', $4, now(), false, $5
+    )`, [orgId, randomUUID(), conductorId, randomUUID(), adminId]);
+  });
+  report.failAuth = true;
 
   // --- Mandatory cross-tenant isolation (never SKIP) ---
   await authenticated(orgA.adminId, async () => {
@@ -361,7 +410,7 @@ try {
           await client.query(`
             select public.collect_shipment_invoice_payment(
               $1, $2, 0, 0, 'full', 'open', 'not_exportable', null,
-              $3::jsonb, $4, 'efectivo', 'balance', 'test overpay', $5
+              $3::jsonb, $4, 'cash', 'balance', 'test overpay', $5
             )
           `, [shipment.rows[0].id, orgId, JSON.stringify(shipment.rows[0].logistics_plan), balance + 50, adminId]);
         });
@@ -373,6 +422,155 @@ try {
   } else {
     report.paymentRecalc = true;
   }
+
+  // Migration 170/175: office payment idempotency (same client_payment_id → one row + jsonb replay)
+  const paymentCol = await client.query(`
+    select 1
+    from information_schema.columns
+    where table_schema = 'public'
+      and table_name = 'shipment_payments'
+      and column_name = 'client_payment_id'
+  `);
+  assert.equal(paymentCol.rowCount, 1, "shipment_payments.client_payment_id missing (migration 170)");
+
+  if (shipment.rowCount) {
+    await authenticated(adminId, async () => {
+      const quoted = Number(String(shipment.rows[0].logistics_plan?.billing?.quotedTotal || "0").replace(/[^0-9.-]/g, "")) || 0;
+      const paidBefore = Number(
+        (await client.query(`select paid from public.shipments where id = $1`, [shipment.rows[0].id])).rows[0].paid,
+      ) || 0;
+      const balance = Math.max(quoted - paidBefore, 0);
+      if (balance >= 1) {
+        const opKey = `test-pay-idem-${Date.now()}`;
+        const amount = Math.min(1, balance);
+        const first = await client.query(`
+          select public.collect_shipment_invoice_payment(
+            $1, $2, 0, 0, 'full', 'open', 'not_exportable', null,
+            $3::jsonb, $4, 'cash', 'balance', 'idempotency test', $5, $6
+          ) as result
+        `, [shipment.rows[0].id, orgId, JSON.stringify(shipment.rows[0].logistics_plan), amount, adminId, opKey]);
+        assert.equal(first.rows[0].result?.replayed, false);
+        const second = await client.query(`
+          select public.collect_shipment_invoice_payment(
+            $1, $2, 0, 0, 'full', 'open', 'not_exportable', null,
+            $3::jsonb, $4, 'cash', 'balance', 'idempotency test', $5, $6
+          ) as result
+        `, [shipment.rows[0].id, orgId, JSON.stringify(shipment.rows[0].logistics_plan), amount, adminId, opKey]);
+        assert.equal(second.rows[0].result?.replayed, true);
+        const paymentCount = await client.query(`
+          select count(*)::int as n
+          from public.shipment_payments
+          where organization_id = $1 and client_payment_id = $2
+        `, [orgId, opKey]);
+        const paidAfter = Number(
+          (await client.query(`select paid from public.shipments where id = $1`, [shipment.rows[0].id])).rows[0].paid,
+        ) || 0;
+        assert.equal(paymentCount.rows[0].n, 1, "idempotent collect must insert one payment row");
+        assert.ok(
+          Math.abs(paidAfter - (paidBefore + amount)) < 0.02,
+          "idempotent retry must not double paid",
+        );
+        await expectDatabaseError("payment_conflict", /PAYMENT_IDEMPOTENCY_CONFLICT/i, async () => {
+          await client.query(`
+            select public.collect_shipment_invoice_payment(
+              $1, $2, 0, 0, 'full', 'open', 'not_exportable', null,
+              $3::jsonb, $4, 'card', 'balance', 'idempotency conflict', $5, $6
+            )
+          `, [shipment.rows[0].id, orgId, JSON.stringify(shipment.rows[0].logistics_plan), amount, adminId, opKey]);
+        });
+        report.paymentIdempotency = true;
+      } else {
+        report.paymentIdempotency = true;
+      }
+    });
+  } else {
+    report.paymentIdempotency = true;
+  }
+
+  // Migration 171/179: assign_agency_request_to_route must not duplicate visits
+  const assignFn = await client.query(`
+    select pg_get_functiondef(p.oid) as def
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'assign_agency_request_to_route'
+  `);
+  assert.ok(assignFn.rowCount > 0, "assign_agency_request_to_route missing");
+  assert.match(assignFn.rows[0].def, /REQUEST_ALREADY_ASSIGNED/i);
+  assert.match(assignFn.rows[0].def, /AGENCY_IDEMPOTENCY_CONFLICT/i);
+  assert.match(assignFn.rows[0].def, /replayed/i);
+  assert.match(assignFn.rows[0].def, /request_hash/i);
+  assert.match(assignFn.rows[0].def, /'assigned'/);
+
+  const createFn = await client.query(`
+    select pg_get_functiondef(p.oid) as def
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'create_agency_service_request'
+  `);
+  assert.ok(createFn.rowCount > 0, "create_agency_service_request missing");
+  assert.match(createFn.rows[0].def, /AGENCY_IDEMPOTENCY_CONFLICT/i);
+  assert.match(createFn.rows[0].def, /request_hash/i);
+
+  const visitLineUnique = await client.query(`
+    select 1 from pg_indexes
+    where schemaname = 'public' and indexname = 'agency_visit_lines_request_line_uidx'
+  `);
+  assert.equal(visitLineUnique.rowCount, 1, "agency_visit_lines_request_line_uidx missing");
+
+  const hashCol = await client.query(`
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'idempotency_operations'
+      and column_name = 'request_hash'
+  `);
+  assert.equal(hashCol.rowCount, 1, "idempotency_operations.request_hash missing");
+  report.agencyAssignIdempotency = true;
+  report.agencyCreateIdempotency = true;
+
+  // Migration 172: stock_deducted_at must not be invented on complete/start
+  const completeFn = await client.query(`
+    select pg_get_functiondef(p.oid) as def
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'complete_conductor_task_atomic'
+  `);
+  const startFn = await client.query(`
+    select pg_get_functiondef(p.oid) as def
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'start_logistics_route_atomic'
+  `);
+  assert.ok(completeFn.rowCount > 0, "complete_conductor_task_atomic missing");
+  assert.ok(startFn.rowCount > 0, "start_logistics_route_atomic missing");
+  assert.doesNotMatch(
+    completeFn.rows[0].def,
+    /when task_row\.task_type = 'deliver_empty_box' then coalesce\(stock_deducted_at/i,
+  );
+  assert.doesNotMatch(startFn.rows[0].def, /stock_deducted_at = coalesce\(task\.stock_deducted_at,\s*now_ts\)/i);
+  report.stockDeductedConsistency = true;
+
+  const cancelFn = await client.query(`
+    select pg_get_functiondef(p.oid) as def
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'cancel_logistics_route_atomic'
+  `);
+  assert.ok(cancelFn.rowCount > 0, "cancel_logistics_route_atomic missing");
+  assert.match(cancelFn.rows[0].def, /ROUTE_NOT_CANCELLABLE/);
+  assert.match(cancelFn.rows[0].def, /route_cancelled/);
+  assert.match(cancelFn.rows[0].def, /record_activity_history/);
+  report.routeCancelAtomic = true;
+
+  const truckMoveFn = await client.query(`
+    select pg_get_functiondef(p.oid) as def
+    from pg_proc p
+    join pg_namespace n on n.oid = p.pronamespace
+    where n.nspname = 'public' and p.proname = 'conductor_truck_inventory_move_atomic'
+  `);
+  assert.ok(truckMoveFn.rowCount > 0, "conductor_truck_inventory_move_atomic missing");
+  assert.match(truckMoveFn.rows[0].def, /record_inventory_movement_atomic/);
+  assert.match(truckMoveFn.rows[0].def, /logistics_truck_inventory_events/);
+  assert.match(truckMoveFn.rows[0].def, /transfer_vehicle/);
+  report.truckMoveAtomic = true;
 
   // ---------------------------------------------------------------------------
   // Migration 165: update_logistics_task_atomic

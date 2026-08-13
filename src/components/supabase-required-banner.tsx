@@ -12,7 +12,7 @@ export function SupabaseRequiredBanner({
   return (
     <div className="mb-4 rounded-lg border border-amber-700/60 bg-amber-950/40 px-4 py-3">
       <p className="text-sm font-black text-amber-100">{title}</p>
-      <p className="mt-1 text-xs font-bold text-amber-200/90">{detail}</p>
+      <p className="mt-1 text-xs font-bold text-amber-200">{detail}</p>
       <p className="mt-2 text-xs font-bold text-slate-400">
         Guía:{" "}
         <Link href="/login" className="text-emerald-300 underline">

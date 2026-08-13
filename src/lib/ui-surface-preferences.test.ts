@@ -8,7 +8,11 @@ import {
   paletteIdForContext,
   resetAllContextPalettes,
   resetPaletteForContext,
+  readUiSurfacePreferences,
   setPaletteForContext,
+  setViewLayoutForContext,
+  toggleViewLayoutForContext,
+  viewLayoutForContext,
   UI_SURFACE_PREFERENCES_STORAGE_KEY,
 } from "./ui-surface-preferences.ts";
 
@@ -83,5 +87,78 @@ describe("ui surface preferences", () => {
       paletteIdForContext(reset, "shipments.tracking"),
       defaultPaletteIdForContext("shipments.tracking"),
     );
+  });
+
+  it("cycles Excel for operational invoice surfaces", () => {
+    const base = defaultUiSurfacePreferences();
+    const cards = setViewLayoutForContext(base, "shipments.tracking", "cards");
+    const excel = toggleViewLayoutForContext(cards, "shipments.tracking");
+
+    assert.equal(viewLayoutForContext(excel, "shipments.tracking"), "excel");
+
+    const logisticsExcel = setViewLayoutForContext(base, "logistics.tasks", "excel");
+    assert.equal(viewLayoutForContext(logisticsExcel, "logistics.tasks"), "excel");
+    assert.equal(viewLayoutForContext(base, "conductor.tasks"), "rows");
+  });
+
+  it("shares one view mode across compatible surfaces", () => {
+    const base = defaultUiSurfacePreferences();
+    const cards = setViewLayoutForContext(base, "shipments.tracking", "cards");
+
+    assert.equal(viewLayoutForContext(cards, "shipments.tracking"), "cards");
+    assert.equal(viewLayoutForContext(cards, "logistics.tasks"), "cards");
+    assert.equal(viewLayoutForContext(cards, "sale.senderCard"), "cards");
+    assert.equal(viewLayoutForContext(cards, "sale.recipientCard"), "cards");
+
+    const logisticsCards = setViewLayoutForContext(cards, "logistics.routes", "cards");
+    const excel = toggleViewLayoutForContext(logisticsCards, "logistics.routes");
+    assert.equal(viewLayoutForContext(excel, "logistics.routes"), "excel");
+    assert.equal(viewLayoutForContext(excel, "shipments.tracking"), "excel");
+    assert.equal(viewLayoutForContext(excel, "sale.senderCard"), "excel");
+    assert.equal(viewLayoutForContext(excel, "sale.recipientCard"), "excel");
+    assert.equal(viewLayoutForContext(excel, "conductor.tasks"), "rows");
+    assert.equal(viewLayoutForContext(excel, "warehouse.inventory"), "rows");
+    assert.deepEqual(excel.viewLayoutByContext, {});
+  });
+
+  it("migrates old per-page values to one global mode", () => {
+    const previousWindow = globalThis.window;
+    const data = new Map<string, string>([
+      [
+        UI_SURFACE_PREFERENCES_STORAGE_KEY,
+        JSON.stringify({
+          version: 2,
+          byContext: {},
+          customPalettes: [],
+          viewLayoutByContext: {
+            "shipments.tracking": "cards",
+          },
+        }),
+      ],
+    ]);
+
+    Object.defineProperty(globalThis, "window", {
+      configurable: true,
+      value: {
+        localStorage: {
+          getItem: (key: string) => data.get(key) ?? null,
+          setItem: (key: string, value: string) => data.set(key, value),
+        },
+      },
+    });
+
+    try {
+      const migrated = readUiSurfacePreferences();
+      assert.equal(migrated.viewLayout, "cards");
+      assert.equal(viewLayoutForContext(migrated, "logistics.tasks"), "cards");
+      assert.deepEqual(migrated.viewLayoutByContext, {
+        "shipments.tracking": "cards",
+      });
+    } finally {
+      Object.defineProperty(globalThis, "window", {
+        configurable: true,
+        value: previousWindow,
+      });
+    }
   });
 });

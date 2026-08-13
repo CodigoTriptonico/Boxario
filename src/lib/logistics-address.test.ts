@@ -61,6 +61,27 @@ describe("logistics-address", () => {
     assert.equal(customer?.lng, 2);
   });
 
+  it("uses the confirmed entrance for navigation and retains the geocoded address point", () => {
+    const customer = routeAddressFromCustomer({
+      id: "cust-entrance",
+      formatted_address: "12 Oak, LA",
+      lat: 34.05,
+      lng: -118.25,
+      exact_entrance_lat: 34.0507,
+      exact_entrance_lng: -118.2512,
+      exact_entrance_confirmed_at: "2026-08-13T12:00:00.000Z",
+      exact_entrance_note: "Portón negro",
+      exact_entrance_pano_id: "pano-1",
+    });
+
+    assert.equal(customer?.lat, 34.0507);
+    assert.equal(customer?.lng, -118.2512);
+    assert.equal(customer?.addressLat, 34.05);
+    assert.equal(customer?.addressLng, -118.25);
+    assert.equal(customer?.exactEntranceConfirmed, true);
+    assert.equal(customer?.exactEntranceNote, "Portón negro");
+  });
+
   it("keeps the corrected geo address aligned in the stop and recipient snapshot", () => {
     const patch = buildLogisticsGeoAddressPatch({
       customerId: "cust-1",

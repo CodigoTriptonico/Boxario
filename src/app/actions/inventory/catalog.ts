@@ -512,25 +512,30 @@ async function ensureItemsForWarehouse(
           organizationId,
         )
       : "";
-    const unit =
-      normalizeInventoryUnit(stockItem?.unit) ||
-      DEFAULT_INVENTORY_UNIT;
-    const itemUpdates: { photo_url?: string; unit: string } = {
-      unit,
-    };
+    const itemUpdates: { photo_url?: string; unit?: string } = {};
+
+    // Stock is paginated. An absent `stockItem` means this leaf is outside the
+    // current page, not that its metadata should fall back to defaults.
+    if (stockItem) {
+      itemUpdates.unit =
+        normalizeInventoryUnit(stockItem.unit) ||
+        DEFAULT_INVENTORY_UNIT;
+    }
 
     if (photoPath) {
       itemUpdates.photo_url = photoPath;
     }
 
-    const { error: itemUpdateError } = await supabase
-      .from("inventory_items")
-      .update(itemUpdates)
-      .eq("id", itemId)
-      .eq("organization_id", organizationId);
+    if (Object.keys(itemUpdates).length) {
+      const { error: itemUpdateError } = await supabase
+        .from("inventory_items")
+        .update(itemUpdates)
+        .eq("id", itemId)
+        .eq("organization_id", organizationId);
 
-    if (itemUpdateError) {
-      throw new Error(itemUpdateError.message);
+      if (itemUpdateError) {
+        throw new Error(itemUpdateError.message);
+      }
     }
 
     const { data: stockRow } = await supabase
@@ -549,6 +554,7 @@ async function ensureItemsForWarehouse(
       // reservation commands; catalog editing cannot inject a balance.
       reserved: 0,
       min_stock: stockItem?.minStock ?? 2,
+      max_stock: stockItem?.maxStock ?? null,
     };
 
     // Paginated stock loads only send the current page. Never treat a missing
@@ -560,9 +566,18 @@ async function ensureItemsForWarehouse(
 
     if (stockRow?.id) {
       if (clientOwnsBalance) {
+        const thresholdPatch: {
+          min_stock: number;
+          max_stock?: number | null;
+        } = { min_stock: stockPayload.min_stock };
+
+        if (stockItem?.maxStock !== undefined) {
+          thresholdPatch.max_stock = stockItem.maxStock;
+        }
+
         await supabase
           .from("inventory_stock")
-          .update({ min_stock: stockPayload.min_stock })
+          .update(thresholdPatch)
           .eq("id", stockRow.id);
       }
     } else {

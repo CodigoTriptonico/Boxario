@@ -17,7 +17,7 @@ export const CONFIG_MENU_GROUPS: ConfigMenuGroup[] = [
   {
     id: "operation",
     title: "Operación",
-    description: "Precios por país y cargos de entrega o recolección.",
+    description: "Precios, depósito y rutas semanales.",
     sectionIds: ["prices"],
   },
   {

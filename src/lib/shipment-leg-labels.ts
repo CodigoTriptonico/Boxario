@@ -25,19 +25,21 @@ export const FULL_BOX_LEG_LABELS = {
 export function logisticsLegRouteActionCopy(
   kind: "empty_box" | "full_box",
   hasExistingProgramming: boolean,
+  routeConfirmed = false,
 ) {
   if (hasExistingProgramming) {
     return {
       title: kind === "empty_box" ? "Editar entrega" : "Editar recolección",
-      description:
-        "Ya está programada. Cambia la ruta (día) o la hora solo si hace falta.",
+      description: routeConfirmed
+        ? "Ya está en una ruta. Cambia el día o la hora solo si hace falta."
+        : "Pedido enviado a Logística. Cambia el día o la hora si hace falta.",
     };
   }
 
   return {
     title: kind === "empty_box" ? EMPTY_BOX_LEG_LABELS.ready : FULL_BOX_LEG_LABELS.ready,
     description:
-      "Elige la ruta (día) y la hora. Si no la sabes, déjala pendiente de ruta.",
+      "Elige el día y la hora. Se envía a Logística para confirmar; si no sabes la ruta, déjala pendiente.",
   };
 }
 
@@ -57,13 +59,18 @@ export function weekdayLabelFromSchedule(
   return label ? label.toLowerCase() : "";
 }
 
-/** Etiqueta del chip de progreso en Seguimiento según programación. */
+/** Etiqueta del chip de progreso en Seguimiento según programación.
+ * Criterio alineado al filtro Estado: `ordered === false` → pendiente;
+ * `ordered === true` → en logística (`solicitada` sin ruta operativa, o `para el día` / `programada` con ruta).
+ */
 export function logisticsLegCompactLabel(
   kind: "empty_box" | "full_box",
   input: {
     active: boolean;
     ordered: boolean;
     scheduledAt?: string | null;
+    /** True solo cuando la tarea ya está en una ruta operativa de Logística. */
+    routeConfirmed?: boolean;
   },
 ) {
   if (!input.active) {
@@ -73,13 +80,17 @@ export function logisticsLegCompactLabel(
   const noun = logisticsLegNoun(kind);
 
   if (!input.ordered) {
-    return `${noun} por asignar`;
+    return `${noun} pendiente`;
   }
 
   const weekday = weekdayLabelFromSchedule(input.scheduledAt);
+  const confirmed = input.routeConfirmed === true;
+
   if (weekday) {
-    return `${noun} para el ${weekday}`;
+    return confirmed
+      ? `${noun} para el ${weekday}`
+      : `${noun} solicitada para el ${weekday}`;
   }
 
-  return `${noun} programada`;
+  return confirmed ? `${noun} programada` : `${noun} solicitada`;
 }

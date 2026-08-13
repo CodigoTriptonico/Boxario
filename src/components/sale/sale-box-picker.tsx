@@ -49,6 +49,8 @@ function boxInteractionProps(
 
   return {
     type: "button" as const,
+    disabled: stock.available <= 0,
+    "aria-disabled": stock.available <= 0,
     onClick: () => onChoose(box),
     onMouseDown: (event: MouseEvent<HTMLElement>) => {
       // Evita que el clic deje el foco (y el caret parpadeante) en la fila.
@@ -70,6 +72,12 @@ function boxInteractionProps(
     },
     title: `${box[0]}: ${stockHint}. Clic izquierdo agrega, clic derecho quita`,
   };
+}
+
+function boxAvailabilityClass(stock: SaleBoxStockSnapshot) {
+  return stock.available <= 0
+    ? "cursor-not-allowed opacity-55 grayscale hover:translate-y-0 hover:bg-[#3f4b46]"
+    : "";
 }
 
 function SaleBoxStockBadge({ stock }: { stock: SaleBoxStockSnapshot }) {
@@ -125,7 +133,7 @@ function SaleBoxCard({
     <button
       {...boxInteractionProps(box, stock, onChoose, onRemove)}
       data-onboarding-target={coachTarget}
-      className={`group flex w-full select-none flex-col gap-3 rounded-xl border border-black bg-[#3f4b46] p-4 text-center shadow-[0_8px_18px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5 hover:bg-[#46544e] ${className}`}
+      className={`group flex w-full select-none flex-col gap-3 rounded-xl border border-black bg-[#3f4b46] p-4 text-center shadow-[0_8px_18px_rgba(0,0,0,0.26)] transition hover:-translate-y-0.5 hover:bg-[#46544e] ${boxAvailabilityClass(stock)} ${className}`}
     >
       <div className="flex min-w-0 flex-col items-center gap-2">
         <div className="relative">
@@ -185,7 +193,7 @@ function SaleBoxRow({
     <button
       {...boxInteractionProps(box, stock, onChoose, onRemove)}
       data-onboarding-target={coachTarget}
-      className={`${listRowBaseClass} group relative flex w-full items-center gap-x-3 overflow-hidden px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_3px_10px_rgba(0,0,0,0.12)] outline-none select-none hover:border-emerald-950 focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202926] sm:px-4 ${listRowHoverClass}${className ? ` ${className}` : ""}`}
+      className={`${listRowBaseClass} group relative flex w-full items-center gap-x-3 overflow-hidden px-3 py-3 text-left shadow-[inset_0_1px_0_rgba(255,255,255,0.035),0_3px_10px_rgba(0,0,0,0.12)] outline-none select-none hover:border-emerald-950 focus-visible:ring-2 focus-visible:ring-emerald-400/60 focus-visible:ring-offset-2 focus-visible:ring-offset-[#202926] sm:px-4 ${listRowHoverClass} ${boxAvailabilityClass(stock)}${className ? ` ${className}` : ""}`}
     >
       <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-300/40 bg-emerald-400 text-slate-950 shadow-[0_5px_12px_rgba(16,185,129,0.18)] transition-transform motion-safe:group-hover:scale-105">
         <Package className="h-4 w-4" aria-hidden />

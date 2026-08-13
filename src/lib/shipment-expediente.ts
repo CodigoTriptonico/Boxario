@@ -10,9 +10,11 @@ import type { PhysicalPackageStatus } from "@/lib/physical-packages";
 import type {
   InvoiceStatus,
   ShipmentLogisticsTaskRow,
+  ShipmentProgressStep,
   ShipmentSaleKind,
   ShipmentStatus,
 } from "@/lib/shipment-types";
+import type { ShipmentTimings } from "@/lib/shipment-timing";
 import type { ActivityHistoryRow } from "@/lib/activity-history-types";
 
 export type ExpedientePartySource =
@@ -89,6 +91,11 @@ export type ExpedienteFinancialView = {
   payments: ExpedienteFinancialPayment[];
 };
 
+export type ShipmentExpedienteTimeline = {
+  steps: ShipmentProgressStep[];
+  timings: ShipmentTimings;
+};
+
 export type ExpedienteDocumentView = {
   billing: InvoiceBillingSnapshot | null;
   boxLines: Array<{ label: string; quantity: number }>;
@@ -118,6 +125,8 @@ export type ShipmentExpedientePayload = {
   salesOwnerName: string;
   boxCount: number;
   permissions: ExpedienteSectionPermissions;
+  edit: ShipmentExpedienteEditData;
+  timeline: ShipmentExpedienteTimeline;
   sender: ExpedienteParty;
   recipient: ExpedienteParty | null;
   documents: ExpedienteDocumentView;
@@ -130,6 +139,34 @@ export type ShipmentExpedientePayload = {
   packages: ExpedientePackageRow[] | null;
   audit: ActivityHistoryRow[] | null;
   sectionErrors: Partial<Record<"audit" | "packages" | "routes", string>>;
+};
+
+export type ShipmentExpedienteEditParty = {
+  firstName: string;
+  lastName: string;
+  phones: string[];
+  phone: string;
+  emails: string[];
+  country: string;
+  street: string;
+  houseNumber: string;
+  neighborhood: string;
+  city: string;
+  state: string;
+  postalCode: string;
+  addressReference: string;
+};
+
+export type ShipmentExpedienteEditData = {
+  canEdit: boolean;
+  blockedReason: string;
+  customerId: string | null;
+  recipientId: string | null;
+  sender: ShipmentExpedienteEditParty;
+  recipient: ShipmentExpedienteEditParty | null;
+  country: string;
+  carrier: string;
+  deliveryNotes: string;
 };
 
 function clean(value: unknown) {
@@ -171,6 +208,71 @@ function readEmails(value: unknown, fallback?: string) {
 
   const single = clean(fallback);
   return single ? [single] : [];
+}
+
+export function buildExpedienteEditParty(input: {
+  customer?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    phones?: string[] | null;
+    email?: string | null;
+    emails?: string[] | null;
+    country?: string | null;
+    street?: string | null;
+    house_number?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    address_reference?: string | null;
+  } | null;
+  recipient?: {
+    first_name?: string | null;
+    last_name?: string | null;
+    phone?: string | null;
+    email?: string | null;
+    emails?: string[] | null;
+    country?: string | null;
+    street?: string | null;
+    house_number?: string | null;
+    neighborhood?: string | null;
+    city?: string | null;
+    state?: string | null;
+    postal_code?: string | null;
+    address_reference?: string | null;
+  } | null;
+  snapshot?: Record<string, unknown> | null;
+  fallbackName?: string;
+  fallbackCountry?: string;
+}): ShipmentExpedienteEditParty {
+  const snapshot = input.snapshot && typeof input.snapshot === "object" ? input.snapshot : null;
+  const isCustomer = Boolean(input.customer);
+  const fallback = splitCustomerName(input.fallbackName || "");
+  const source = input.customer || input.recipient;
+  const snapshotValue = (key: string) => clean(snapshot?.[key]);
+  const sourceValue = (key: string) => clean((source as Record<string, unknown> | null | undefined)?.[key]);
+
+  return {
+    firstName: (isCustomer ? sourceValue("first_name") : snapshotValue("firstName") || sourceValue("first_name")) || fallback.firstName,
+    lastName: (isCustomer ? sourceValue("last_name") : snapshotValue("lastName") || sourceValue("last_name")) || fallback.lastName,
+    phones: isCustomer
+      ? readPhones(input.customer?.phones)
+      : [],
+    phone: isCustomer ? "" : snapshotValue("phone") || sourceValue("phone"),
+    emails: readEmails(
+      isCustomer ? source?.emails : snapshot?.emails || source?.emails,
+      isCustomer ? sourceValue("email") : snapshotValue("email") || sourceValue("email"),
+    ),
+    country:
+      (isCustomer ? sourceValue("country") : snapshotValue("country") || sourceValue("country")) || clean(input.fallbackCountry),
+    street: isCustomer ? sourceValue("street") : snapshotValue("street") || sourceValue("street"),
+    houseNumber: isCustomer ? sourceValue("house_number") : snapshotValue("houseNumber") || sourceValue("house_number"),
+    neighborhood: isCustomer ? sourceValue("neighborhood") : snapshotValue("neighborhood") || sourceValue("neighborhood"),
+    city: isCustomer ? sourceValue("city") : snapshotValue("city") || sourceValue("city"),
+    state: isCustomer ? sourceValue("state") : snapshotValue("state") || sourceValue("state"),
+    postalCode: isCustomer ? sourceValue("postal_code") : snapshotValue("postalCode") || sourceValue("postal_code"),
+    addressReference: isCustomer ? sourceValue("address_reference") : snapshotValue("addressReference") || sourceValue("address_reference"),
+  };
 }
 
 function addressFields(input: {
@@ -411,6 +513,18 @@ export function snapshotToSaleRecipient(
     addressVerified: Boolean(snapshot.addressVerified),
     lat: typeof snapshot.lat === "number" ? snapshot.lat : null,
     lng: typeof snapshot.lng === "number" ? snapshot.lng : null,
+    exactEntranceLat:
+      typeof snapshot.exactEntranceLat === "number" ? snapshot.exactEntranceLat : null,
+    exactEntranceLng:
+      typeof snapshot.exactEntranceLng === "number" ? snapshot.exactEntranceLng : null,
+    exactEntranceConfirmedAt: clean(snapshot.exactEntranceConfirmedAt),
+    exactEntranceNote: clean(snapshot.exactEntranceNote),
+    exactEntrancePanoId: clean(snapshot.exactEntrancePanoId),
+    exactEntranceHeading:
+      typeof snapshot.exactEntranceHeading === "number" ? snapshot.exactEntranceHeading : null,
+    exactEntrancePitch:
+      typeof snapshot.exactEntrancePitch === "number" ? snapshot.exactEntrancePitch : null,
+    createdAt: "",
   };
 }
 
@@ -438,6 +552,14 @@ export function recipientRowToSaleRecipient(
     addressVerified: false,
     lat: null,
     lng: null,
+    exactEntranceLat: null,
+    exactEntranceLng: null,
+    exactEntranceConfirmedAt: "",
+    exactEntranceNote: "",
+    exactEntrancePanoId: "",
+    exactEntranceHeading: null,
+    exactEntrancePitch: null,
+    createdAt: "",
   };
 }
 
@@ -469,6 +591,14 @@ export function buildExpedienteSaleSender(input: {
     addressVerified: false,
     lat: null,
     lng: null,
+    exactEntranceLat: null,
+    exactEntranceLng: null,
+    exactEntranceConfirmedAt: "",
+    exactEntranceNote: "",
+    exactEntrancePanoId: "",
+    exactEntranceHeading: null,
+    exactEntrancePitch: null,
+    createdAt: "",
     recipients: [],
   };
 }

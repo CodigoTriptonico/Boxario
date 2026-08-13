@@ -27,9 +27,9 @@ export const taskActionVerb: Record<LogisticsTaskType, string> = {
 };
 
 export const routeStatusLabel: Record<LogisticsRouteStatus, string> = {
-  draft: "Draft",
-  planned: "Planeada",
+  draft: "En preparacion",
+  planned: "Cerrada",
   in_progress: "En curso",
   cancelled: "Cancelada",
-  completed: "Completada",
+  completed: "Terminada",
 };

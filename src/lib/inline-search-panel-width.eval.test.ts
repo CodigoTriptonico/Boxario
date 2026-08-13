@@ -28,8 +28,13 @@ describe("inline search picker panel eval", () => {
   });
 
   it("gives envios status filter enough room for bucket labels", () => {
+    const toolbarSource = readFileSync(
+      join(process.cwd(), "src/components/envios/envios-filters-toolbar.tsx"),
+      "utf8",
+    );
     assert.match(enviosSource, /ENVIOS_STATUS_FILTER_OPTIONS/);
     assert.match(enviosSource, /matchesEnviosStatusFilter/);
-    assert.match(enviosSource, /sm:min-w-\[11rem\] sm:w-\[13rem\]/);
+    assert.match(toolbarSource, /sm:min-w-\[11rem\] sm:w-\[13rem\]/);
+    assert.match(toolbarSource, /enviosStatusFilterDisplayLabel/);
   });
 });

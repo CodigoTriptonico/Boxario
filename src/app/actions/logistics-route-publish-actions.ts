@@ -18,13 +18,9 @@ function publishErrorMessage(code: string) {
     case "ROUTE_NOT_FOUND":
       return "Ruta no encontrada";
     case "ROUTE_NOT_DRAFT":
-      return "Solo puedes publicar rutas en borrador";
-    case "ROUTE_MISSING_DRIVER":
-      return "Asigna un conductor antes de publicar";
-    case "ROUTE_MISSING_VEHICLE":
-      return "Asigna un vehiculo antes de publicar";
+      return "Solo puedes cerrar rutas en preparacion";
     case "ROUTE_WITHOUT_STOPS":
-      return "Agrega al menos una parada antes de publicar";
+      return "Agrega al menos una parada antes de cerrar";
     case "ROUTE_STOPS_WITHOUT_GEO":
       return "Hay paradas sin ubicacion verificada";
     case "ROUTE_TASKS_WITHOUT_CONFIRMED_DATE":
@@ -34,13 +30,13 @@ function publishErrorMessage(code: string) {
     case "ROUTE_WAREHOUSE_INVALID":
       return "La bodega de la ruta no es valida";
     case "FORBIDDEN":
-      return "No tienes permiso para publicar rutas";
+      return "No tienes permiso para cerrar rutas";
     default:
-      return code || "No se pudo publicar la ruta";
+      return code || "No se pudo cerrar la ruta";
   }
 }
 
-export async function publishLogisticsRouteAction(
+export async function closeLogisticsRouteAction(
   routeId: string,
 ): Promise<ActionResult<LogisticsRouteRow>> {
   try {
@@ -89,8 +85,6 @@ export async function publishLogisticsRouteAction(
 
     const validationErrors = publishRouteValidationErrors({
       status: route.status,
-      assignedTo: route.assignedTo,
-      vehicleId: route.vehicleId,
       stopCount,
       stopsWithoutGeo,
       tasksWithoutConfirmedDate,
@@ -112,10 +106,10 @@ export async function publishLogisticsRouteAction(
     const published = await loadRouteById(supabase, session, routeId);
 
     await recordActivityHistory(supabase, session, {
-      action: "logistics.route_published",
+      action: "logistics.route_closed",
       entityType: "logistics_route",
       entityId: published.id,
-      title: `Ruta publicada: ${published.name}`,
+      title: `Ruta cerrada: ${published.name}`,
       description: `${published.routeDate} · ${published.stops.length} paradas`,
       metadata: {
         routeId: published.id,
@@ -129,4 +123,11 @@ export async function publishLogisticsRouteAction(
   } catch (error) {
     return fail(actionErrorMessage(error));
   }
+}
+
+/** @deprecated Use closeLogisticsRouteAction. Kept for older clients during rollout. */
+export async function publishLogisticsRouteAction(
+  routeId: string,
+): Promise<ActionResult<LogisticsRouteRow>> {
+  return closeLogisticsRouteAction(routeId);
 }

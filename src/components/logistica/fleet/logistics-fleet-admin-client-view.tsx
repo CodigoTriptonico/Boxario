@@ -34,7 +34,7 @@ import {
   type LogisticsVehicleRow,
 } from "@/app/actions/logistics-fleet";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
-import { LogisticsSectionNav } from "@/components/logistica/logistics-section-nav";
+import { LogisticsConfigurationMenu, LogisticsOperationsNav } from "@/components/logistica/logistics-section-nav";
 import { PageLoading } from "@/components/page-loading";
 import { SupabaseRequiredBanner } from "@/components/supabase-required-banner";
 import {
@@ -42,6 +42,7 @@ import {
   insetShellClass,
   inputClass,
   Panel,
+  panelToolbarClass,
   primaryButtonClass,
   secondaryButtonClass,
 } from "@/components/ui-blocks";
@@ -288,25 +289,51 @@ export function LogisticsFleetAdminClient({
 
   if (!loaded) {
     void reload();
-    return <PageLoading inline />;
+    return (
+      <Panel
+        title={view === "drivers" ? "Conductores" : "Vehiculos"}
+        hideHeader
+        clipContent={false}
+        className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
+        contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
+      >
+        <div className={`${panelToolbarClass} mb-2 pb-2`}>
+          <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-2">
+            <LogisticsOperationsNav />
+            <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-black text-slate-100">
+              {view === "drivers" ? <><Users className="h-4 w-4 text-emerald-300" /> Conductores</> : <><Truck className="h-4 w-4 text-emerald-300" /> Vehículos</>}
+            </span>
+            <div className="h-9 min-w-0 flex-[1_1_14rem] rounded-lg border border-black bg-surface-inset lg:min-w-[14rem] lg:flex-[1_1_24rem]" />
+            <LogisticsConfigurationMenu active={view === "drivers" ? "drivers" : "vehicles"} className="ml-auto" />
+          </div>
+        </div>
+        <PageLoading inline />
+      </Panel>
+    );
   }
 
-  const activeCount = view === "drivers" ? drivers.length : vehicles.length;
-
   return (
-    <Panel title={view === "drivers" ? "Conductores" : "Vehiculos"} hideHeader clipContent={false}>
+    <Panel
+      title={view === "drivers" ? "Conductores" : "Vehiculos"}
+      hideHeader
+      clipContent={false}
+      className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
+      contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
+    >
       {!supabaseReady ? (
         <SupabaseRequiredBanner detail="Conductores y vehiculos se guardan en Supabase." />
       ) : null}
 
-      <div className="grid gap-4">
-        <div className={`${cardClass} overflow-visible p-2`}>
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="inline-flex h-9 shrink-0 items-center rounded-lg border border-black bg-surface-inset px-2.5 text-sm font-black text-slate-300">
-              {activeCount} activos
+      <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+        <div className={`${panelToolbarClass} pb-2 lg:pb-3`}>
+          <div className="flex min-h-9 min-w-0 flex-wrap items-center gap-2">
+            <LogisticsOperationsNav />
+            <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-black text-slate-100">
+              {view === "drivers" ? <Users className="h-4 w-4 text-emerald-300" /> : <Truck className="h-4 w-4 text-emerald-300" />}
+              {view === "drivers" ? "Conductores" : "Vehículos"}
             </span>
 
-            <label className={`${insetShellClass} flex h-9 min-w-[14rem] flex-[1_1_18rem] items-center gap-2 rounded-lg border border-black bg-surface-inset px-3`}>
+            <label className={`${insetShellClass} flex h-9 min-w-0 flex-[1_1_14rem] items-center gap-2 rounded-lg border border-black bg-surface-inset px-3 lg:min-w-[14rem] lg:flex-[1_1_24rem]`}>
               <Search className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
               <input
                 className="min-w-0 flex-1 bg-transparent text-sm font-bold text-[#f8fafc] outline-none placeholder:text-slate-500"
@@ -325,11 +352,11 @@ export function LogisticsFleetAdminClient({
               <PlusCircle className="h-4 w-4" />
               Nuevo
             </button>
-
-            <LogisticsSectionNav active={view === "drivers" ? "drivers" : "vehicles"} className="ml-auto" />
+            <LogisticsConfigurationMenu active={view === "drivers" ? "drivers" : "vehicles"} className="ml-auto" />
           </div>
         </div>
 
+        <div className="mt-4 grid min-h-0 flex-1 gap-4 content-start overflow-y-auto">
         {view === "drivers" ? (
           <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
             {filteredDrivers.length ? (
@@ -338,10 +365,10 @@ export function LogisticsFleetAdminClient({
                   <div className="border-b border-black bg-surface-card-header p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
-                        <p className="truncate text-lg font-black text-[#f8fafc]">{driverName(driver)}</p>
-                        <p className="mt-1 flex items-center gap-1.5 truncate text-sm font-bold text-slate-400">
+                        <p className="break-words text-lg font-black text-[#f8fafc] sm:truncate">{driverName(driver)}</p>
+                        <p className="mt-1 flex min-w-0 flex-wrap items-center gap-1.5 break-all text-sm font-bold text-slate-400 sm:flex-nowrap sm:truncate">
                           <Mail className="h-3.5 w-3.5 shrink-0" />
-                          <span className="truncate">{driver.email}</span>
+                          <span className="break-all sm:truncate">{driver.email}</span>
                         </p>
                       </div>
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-emerald-400 text-slate-950">
@@ -494,6 +521,7 @@ export function LogisticsFleetAdminClient({
             )}
           </section>
         ) : null}
+        </div>
       </div>
 
       {driverForm ? (

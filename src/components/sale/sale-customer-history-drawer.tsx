@@ -2,7 +2,7 @@
 
 import { ArrowLeft, BookOpen, ChevronRight, ExternalLink, X } from "lucide-react";
 import Link from "next/link";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import {
   listCustomerSaleHistoryAction,
@@ -20,6 +20,17 @@ import type { ShipmentExpedientePayload } from "@/lib/shipment-expediente";
 import { isPaymentMethod } from "@/lib/payment-methods";
 import type { SalePaymentSelection } from "@/lib/sale-payment-choice";
 import type { ShipmentCollectMode } from "@/lib/shipment-collect";
+import {
+  isDefinitiveOfficePaymentClientError,
+  isPaymentIdempotencyConflict,
+  paymentIdempotencyConflictUserMessage,
+} from "@/lib/office-payment-idempotency";
+import {
+  beginOfficePaymentIntention,
+  clearPendingOfficePaymentIntention,
+  resolveOfficePaymentIntentionOnOpen,
+} from "@/lib/office-payment-pending";
+import { resolveShipmentCollectAmount } from "@/lib/shipment-collect";
 
 type SaleCustomerHistoryDrawerProps = {
   open: boolean;
@@ -282,7 +293,10 @@ function SaleHistoryDetailPanel({
   const [paymentMethod, setPaymentMethod] = useState<SalePaymentSelection>("cash");
   const [paymentNote, setPaymentNote] = useState("");
   const [collecting, setCollecting] = useState(false);
+  const collectingRef = useRef(false);
+  const clientPaymentIdRef = useRef<string | null>(null);
   const [paymentError, setPaymentError] = useState("");
+  const [pendingReconcileHint, setPendingReconcileHint] = useState(false);
   const seguimientoHref = buildSeguimientoShipmentDeepLink({
     code: row.code,
     shipmentId: row.id,
@@ -310,11 +324,59 @@ function SaleHistoryDetailPanel({
   const collectionTotal = moneyValue(financial?.quotedTotal);
   const collectionBalance = moneyValue(financial?.balanceDue);
 
+  function openCollect() {
+    const resolved = resolveOfficePaymentIntentionOnOpen({
+      shipmentId: row.id,
+      mintId: () =>
+        globalThis.crypto?.randomUUID?.() || `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`,
+    });
+    clientPaymentIdRef.current = resolved.clientPaymentId;
+    setPendingReconcileHint(resolved.restored);
+    setPaymentError("");
+    if (resolved.restored && resolved.pending) {
+      setPaymentMethod(resolved.pending.method);
+      if (resolved.pending.amount !== null) {
+        setCollectMode("partial");
+        setPartialAmount(String(resolved.pending.amount));
+      } else {
+        setCollectMode("choose");
+        setPartialAmount("");
+      }
+    } else {
+      setCollectMode("choose");
+      setPartialAmount("");
+      setPaymentNote("");
+    }
+    setCollectOpen(true);
+  }
+
   async function confirmCollection() {
+    if (collectingRef.current) {
+      return;
+    }
     if (!isPaymentMethod(paymentMethod)) {
       setPaymentError("Elige un método de pago para registrar el abono.");
       return;
     }
+    const amountInput = collectMode === "partial" ? partialAmount : undefined;
+    const resolvedAmount = resolveShipmentCollectAmount(amountInput, collectionBalance);
+    if (!resolvedAmount.ok) {
+      setPaymentError(resolvedAmount.error);
+      return;
+    }
+    if (!clientPaymentIdRef.current) {
+      clientPaymentIdRef.current =
+        globalThis.crypto?.randomUUID?.() || `pay-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+    }
+
+    beginOfficePaymentIntention({
+      shipmentId: row.id,
+      clientPaymentId: clientPaymentIdRef.current,
+      amount: collectMode === "partial" ? resolvedAmount.amount : null,
+      method: paymentMethod,
+    });
+
+    collectingRef.current = true;
     setCollecting(true);
     setPaymentError("");
     try {
@@ -323,18 +385,41 @@ function SaleHistoryDetailPanel({
         amount: collectMode === "partial" ? partialAmount : undefined,
         paymentMethod,
         paymentNote,
+        clientPaymentId: clientPaymentIdRef.current,
       });
       if (!result.ok) {
+        if (isPaymentIdempotencyConflict(result.error)) {
+          clearPendingOfficePaymentIntention(row.id);
+          clientPaymentIdRef.current = null;
+          setPendingReconcileHint(false);
+          setPaymentError(paymentIdempotencyConflictUserMessage());
+          return;
+        }
+        if (isDefinitiveOfficePaymentClientError(result.error)) {
+          clearPendingOfficePaymentIntention(row.id);
+          clientPaymentIdRef.current = null;
+          setPendingReconcileHint(false);
+          setPaymentError(result.error);
+          return;
+        }
+        setPendingReconcileHint(true);
         setPaymentError(result.error);
         return;
       }
+      clearPendingOfficePaymentIntention(row.id);
+      clientPaymentIdRef.current = null;
+      setPendingReconcileHint(false);
       const refreshed = await loadShipmentExpedienteAction(row.id);
       if (refreshed.ok) setDetails(refreshed.data);
       setCollectOpen(false);
       setCollectMode("choose");
       setPartialAmount("");
       setPaymentNote("");
+    } catch (error) {
+      setPendingReconcileHint(true);
+      setPaymentError(error instanceof Error ? error.message : "No se pudo completar la operacion");
     } finally {
+      collectingRef.current = false;
       setCollecting(false);
     }
   }
@@ -374,7 +459,7 @@ function SaleHistoryDetailPanel({
               const detail = timelineDetail(step.detail);
               const routeLabel = task?.routeLabel || detail.routeLabel;
               const routePending = /pendiente|asignar|sin ruta/i.test(routeLabel || "");
-              return <li key={step.title} className={`relative flex gap-3 pb-5 last:pb-0 ${step.blocked ? "opacity-45" : ""}`}>
+              return <li key={step.title} className={`relative flex gap-3 pb-5 last:pb-0 ${step.blocked ? "border-l-2 border-app-border-divider pl-2" : ""}`}>
                 {index < logisticsSteps.length - 1 ? <span className="absolute left-[15px] top-8 h-[calc(100%-20px)] w-px bg-black" aria-hidden="true" /> : null}
                 <span className={`relative z-10 flex h-8 w-8 shrink-0 items-center justify-center rounded-full border text-sm font-black ${step.complete ? "border-emerald-600/60 bg-emerald-400/15 text-emerald-200" : step.blocked ? "border-slate-700 bg-slate-900/30 text-slate-400" : "border-amber-600/60 bg-amber-400/10 text-amber-200"}`}>{index + 1}</span>
                 <div className="min-w-0 pt-0.5"><div className="flex flex-wrap items-center gap-x-2 gap-y-1"><p className="font-black text-slate-100">{step.title}</p><span className={`rounded-full px-1.5 py-0.5 text-[10px] font-black uppercase tracking-wide ${step.complete ? "bg-emerald-400/15 text-emerald-300" : step.blocked ? "bg-slate-700/40 text-slate-400" : "bg-amber-400/10 text-amber-200"}`}>{stateLabel}</span></div>{routeLabel || task?.scheduleLabel || detail.scheduleLabel ? <div className="mt-1.5 flex flex-wrap items-center gap-2">{routeLabel ? <span className={`rounded-md border px-2 py-0.5 text-[10px] font-black ${routePending ? "border-amber-700/50 bg-amber-950/30 text-amber-200" : "border-emerald-700/50 bg-emerald-950/30 text-emerald-200"}`}>{routeLabel}</span> : null}{task?.scheduleLabel || detail.scheduleLabel ? <p className="text-xs font-bold leading-relaxed text-slate-400">{task?.scheduleLabel || detail.scheduleLabel}</p> : null}</div> : null}</div>
@@ -409,7 +494,7 @@ function SaleHistoryDetailPanel({
                   {financial.depositRequired ? <FinancialSummaryRow label="Abono" value={financial.depositRequired} emphasis={financial.depositStatus !== "paid"} /> : null}
                   <FinancialSummaryRow label="Saldo pendiente" value={financial.balanceDue} emphasis={collectionBalance > 0} total />
                 </div>
-                {collectionBalance > 0 ? <button type="button" onClick={() => { setCollectMode("partial"); setPartialAmount(String(collectionBalance)); setCollectOpen(true); }} className="mt-3 inline-flex h-10 items-center rounded-lg border border-emerald-700/50 bg-emerald-950/35 px-3 text-xs font-black text-emerald-100">Registrar abono</button> : null}
+                {collectionBalance > 0 ? <button type="button" onClick={() => { openCollect(); setCollectMode("partial"); setPartialAmount(String(collectionBalance)); }} className="mt-3 inline-flex h-10 items-center rounded-lg border border-emerald-700/50 bg-emerald-950/35 px-3 text-xs font-black text-emerald-100">Registrar abono</button> : null}
                 <div className="mt-3 border-t border-black/70 pt-3">
                   <p className="text-[10px] font-black uppercase tracking-wider text-slate-500">Historial de abonos</p>
                   {financial.payments.length ? <ul className="mt-2 divide-y divide-black/70">{financial.payments.map((payment) => <li key={payment.id} className="flex items-start justify-between gap-3 py-2 text-xs"><span className="min-w-0 font-bold text-slate-300">{payment.method}{payment.note ? <span className="mt-0.5 block text-slate-500">{payment.note}</span> : null}</span><span className="shrink-0 text-right font-black text-emerald-200">${payment.amount.toFixed(2)}<span className="mt-0.5 block text-[10px] text-slate-500">{historyDateLabel(payment.createdAt)}</span></span></li>)}</ul> : <p className="mt-2 text-xs font-bold text-slate-500">Sin abonos registrados.</p>}
@@ -420,7 +505,39 @@ function SaleHistoryDetailPanel({
           </div>
         ) : null}
       </section>
-      {financial ? <ShipmentCollectDialog open={collectOpen} invoiceCode={row.code} customerName={row.recipientName || "Cliente"} total={collectionTotal} deposit={financial.paid} depositRequired={moneyValue(financial.depositRequired)} balanceDue={collectionBalance} mode={collectMode} partialAmount={partialAmount} paymentMethod={paymentMethod} paymentNote={paymentNote} confirming={collecting} onModeChange={setCollectMode} onPartialAmountChange={setPartialAmount} onPaymentMethodChange={setPaymentMethod} onPaymentNoteChange={setPaymentNote} onCancel={() => { if (!collecting) setCollectOpen(false); }} onConfirm={confirmCollection} /> : null}
+      {financial ? (
+        <ShipmentCollectDialog
+          open={collectOpen}
+          invoiceCode={row.code}
+          customerName={row.recipientName || "Cliente"}
+          total={collectionTotal}
+          deposit={financial.paid}
+          depositRequired={moneyValue(financial.depositRequired)}
+          balanceDue={collectionBalance}
+          mode={collectMode}
+          partialAmount={partialAmount}
+          paymentMethod={paymentMethod}
+          paymentNote={paymentNote}
+          confirming={collecting}
+          reconcileNotice={
+            pendingReconcileHint
+              ? "Hay un cobro anterior sin confirmar. Se reutilizará la misma operación al continuar."
+              : paymentError || undefined
+          }
+          onModeChange={setCollectMode}
+          onPartialAmountChange={setPartialAmount}
+          onPaymentMethodChange={setPaymentMethod}
+          onPaymentNoteChange={setPaymentNote}
+          onCancel={() => {
+            if (!collecting) {
+              setCollectOpen(false);
+              setPendingReconcileHint(false);
+              clientPaymentIdRef.current = null;
+            }
+          }}
+          onConfirm={confirmCollection}
+        />
+      ) : null}
     </div>
   );
 }

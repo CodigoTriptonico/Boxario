@@ -11,6 +11,7 @@ const ENVIOS_CLIENT_SOURCE_FILES = [
   "src/components/envios/envios-bulk-selection-bar.tsx",
   "src/components/envios/envios-shipment-rows-list.tsx",
   "src/components/envios/envios-shipment-cards-grid.tsx",
+  "src/components/envios/envios-shipment-excel-table.tsx",
   "src/components/envios/use-envios-billing.ts",
   "src/components/envios/use-envios-logistics.ts",
   "src/components/envios/envios-client-dialogs.tsx",

@@ -105,8 +105,35 @@ export function genericLogisticsRouteName(weekday: number) {
   return name ? `Ruta del ${name}` : "";
 }
 
+export function normalizeGenericLogisticsRouteName(name: string, weekday: number) {
+  const normalizedName = String(name || "")
+    .normalize("NFD")
+    .replace(/\p{Diacritic}/gu, "")
+    .trim()
+    .toLowerCase();
+  const weekdayKey = (logisticsWeekdayKeys[weekday as 0 | 1 | 2 | 3 | 4 | 5 | 6] || "").toLocaleLowerCase();
+  const shortWeekday = weekdayKey.slice(0, 3);
+  const aliases = new Set([
+    `ruta del ${weekdayKey}`,
+    `ruta del ${shortWeekday}`,
+    `ruta general de ${weekdayKey}`,
+    `ruta general del ${weekdayKey}`,
+    `ruta general de ${shortWeekday}`,
+    `ruta general del ${shortWeekday}`,
+  ]);
+
+  return aliases.has(normalizedName) ? genericLogisticsRouteName(weekday) : name;
+}
+
 export function isDayAsRouteTemplateId(value: string | null | undefined) {
   return String(value || "").trim() === DAY_AS_ROUTE_TEMPLATE_ID;
+}
+
+/** General system routes are the implicit route of a day, not named subroutes. */
+export function namedLogisticsRouteTemplates<T extends { isSystemGeneral?: boolean }>(
+  templates: ReadonlyArray<T>,
+) {
+  return templates.filter((template) => template.isSystemGeneral !== true);
 }
 
 /** Monday-based indexes (0–6) for catalog-enabled weekdays. */

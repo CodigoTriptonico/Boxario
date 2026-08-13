@@ -23,10 +23,9 @@ describe("L-H1 conductor complete wiring", () => {
       /L-H1: do NOT insert shipment_logistics_task_attempts before the RPC[\s\S]*await completeTask\(/,
     );
     const completeCall = resultsSource.indexOf("await completeTask(");
-    const lastAttemptBeforeComplete = resultsSource.lastIndexOf("recordTaskAttempt", completeCall);
     const between = resultsSource.slice(Math.max(0, completeCall - 400), completeCall);
     assert.doesNotMatch(between, /recordTaskAttempt/);
-    assert.ok(lastAttemptBeforeComplete >= 0, "failed path still records attempts");
+    assert.doesNotMatch(resultsSource, /await recordTaskAttempt\(/);
   });
 
   it("verifies persisted task status after the atomic RPC before success side-effects", () => {

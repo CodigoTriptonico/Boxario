@@ -1,6 +1,7 @@
 "use server";
 
 import { randomBytes } from "node:crypto";
+import { revalidatePath } from "next/cache";
 import { requireAppSession } from "@/lib/auth/session";
 import { normalizePersonName, normalizePersonNameSnapshot } from "@/lib/person-name";
 import { sessionHasPermission } from "@/lib/auth/permissions";
@@ -11,11 +12,13 @@ import { recordActivityHistory } from "@/lib/activity-history";
 import { logisticsRequestedRouteDayPatch, logisticsScheduleWindowPatch } from "@/lib/logistics-schedule-window";
 import { readBillingFromPlan } from "@/lib/invoice-billing";
 import { type PaymentMethod } from "@/lib/payment-methods";
+import { assertPaymentMethodAllowed } from "@/lib/payment-method-policy";
 import { resolveInitialShipmentStatus } from "@/lib/shipment-display";
+import { saleDeliveryCommitmentError } from "@/lib/sale-delivery-commitment";
 import { invoiceBoxCode } from "@/lib/invoice-child-codes";
 import { physicalPackageCodesForShipment } from "@/lib/physical-packages";
 import { assertSameOrgCustomerIds, assertSameOrgRecipientIds, assertSameOrgWarehouseIds } from "@/lib/security/org-scope";
-import { matchEmptyBoxQuoteLinesToStock, readEmptyBoxQuoteLinesFromPlan, shouldReserveEmptyBoxStockOnSale, emptyBoxStockReserved } from "@/lib/inventory-empty-box-stock";
+import { matchEmptyBoxQuoteLinesToStock, readEmptyBoxQuoteLinesFromPlan } from "@/lib/inventory-empty-box-stock";
 import type { AppSession } from "@/lib/auth/types";
 import type { AccountingStatus, CreateLogisticsTaskInput, CreateShipmentResult, InvoiceStatus, ShipmentSaleKind } from "@/lib/shipment-types";
 
@@ -58,15 +61,10 @@ async function atomicSaleInventoryCommand(
   plan: Record<string, unknown>,
   tasks: CreateLogisticsTaskInput[],
 ) {
-  const reserve = shouldReserveEmptyBoxStockOnSale(plan) && !emptyBoxStockReserved(plan);
   const deduct = shouldDeductCounterHandingStock(plan);
-  if (!reserve && !deduct) {
-    return null;
-  }
-
   const quoteLines = readEmptyBoxQuoteLinesFromPlan(plan);
   if (!quoteLines.length) {
-    return null;
+    throw new Error("Selecciona al menos una caja para completar la venta");
   }
 
   const { admin, warehouseId } = await resolveTaskWarehouse(
@@ -82,24 +80,17 @@ async function atomicSaleInventoryCommand(
     throw new Error(error.message);
   }
 
-  try {
-    return {
-      mode: deduct ? "deduct" : "reserve",
-      lines: matchEmptyBoxQuoteLinesToStock(quoteLines, stockRows || []).map((line) => ({
-        warehouseId,
-        itemId: line.itemId,
-        itemName: line.itemName,
-        qty: line.quantity,
-      })),
-    };
-  } catch (error) {
-    const reason = error instanceof Error ? error.message : "No hay stock suficiente";
-    return {
-      mode: "skip" as const,
-      lines: [],
-      warning: `${reason}. La venta quedó pendiente de inventario.`,
-    };
-  }
+  return {
+    mode: deduct ? "deduct" : "reserve",
+    lines: matchEmptyBoxQuoteLinesToStock(quoteLines, stockRows || [], {
+      validateAvailability: false,
+    }).map((line) => ({
+      warehouseId,
+      itemId: line.itemId,
+      itemName: line.itemName,
+      qty: line.quantity,
+    })),
+  };
 }
 
 export async function createShipmentAction(
@@ -134,9 +125,24 @@ export async function createShipmentAction(
       input.logisticsPlan || {},
       session,
     );
+    const deliveryCommitmentError = saleDeliveryCommitmentError(quote.plan, tasks);
+    if (deliveryCommitmentError) {
+      return fail(deliveryCommitmentError);
+    }
     const paid = parseMoney(input.paid);
     if (paid < 0 || paid > quote.total) {
       return fail("El pago no coincide con el total vigente");
+    }
+    const paymentMethod = readPaymentMethod(input.paymentMethod);
+    const paymentNote = cleanPaymentNote(input.paymentNote);
+    if (paid > 0) {
+      await assertPaymentMethodAllowed({
+        supabase,
+        organizationId: session.organizationId,
+        method: paymentMethod,
+        note: paymentNote,
+        scope: "office",
+      });
     }
 
     const saleKind = input.saleKind || (input.recipientId ? "full" : "empty_box_deposit");
@@ -220,8 +226,8 @@ export async function createShipmentAction(
           logisticsPlan: quote.plan,
           invoiceStatus,
           status: initialStatus,
-          paymentMethod: readPaymentMethod(input.paymentMethod),
-          paymentNote: cleanPaymentNote(input.paymentNote),
+          paymentMethod,
+          paymentNote,
           packages,
           logisticsTasks,
           inventory,
@@ -231,6 +237,9 @@ export async function createShipmentAction(
       },
     );
     if (commandError || !commandResult) {
+      if (/SALE_COMMAND_INVENTORY_INSUFFICIENT/i.test(commandError?.message || "")) {
+        return fail("El stock cambió y ya no alcanza para completar la venta. Revisa las cantidades e intenta de nuevo.");
+      }
       return fail(commandError?.message || "No se pudo registrar el envio");
     }
 
@@ -290,46 +299,10 @@ export async function createShipmentAction(
       }
     }
 
-    const stockWarning = result.replayed ? undefined : inventory?.warning;
-    if (!result.replayed && stockWarning) {
-      const nowIso = new Date().toISOString();
-      const details = {
-        shipmentCode: shipment.code,
-        warning: stockWarning,
-      };
-      try {
-        await admin.from("shipment_journal_entries").insert({
-          organization_id: session.organizationId,
-          shipment_id: shipment.id,
-          category: "sales",
-          body: stockWarning,
-          details,
-          follow_up_at: nowIso,
-          assigned_to: session.userId,
-          reminder_status: "pending",
-          source: "inventory_pending",
-          source_id: shipment.id,
-          created_by: session.userId,
-          updated_by: session.userId,
-        });
-        await recordActivityHistory(admin, session, {
-          action: "shipment.inventory_pending",
-          entityType: "shipment",
-          entityId: shipment.id,
-          title: `Pendiente de inventario · ${shipment.code}`,
-          description: stockWarning,
-          metadata: details,
-        });
-      } catch {
-        // The sale is already committed. Journal/audit recovery can be retried
-        // independently and must never make the seller submit it twice.
-      }
-    }
+    revalidatePath("/seguimiento");
+    revalidatePath("/logistica");
 
-    return ok({
-      ...shipment,
-      stockWarning,
-    });
+    return ok(shipment);
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

@@ -1,10 +1,20 @@
 import type { SalePersonCardVariantId } from "@/lib/sale-person-card-variants";
+import {
+  pickReadableTextColor,
+  readableMutedTextColor,
+} from "@/lib/ui-surface-color-math";
 
 export type UiSurfacePaletteId = string;
 
 type UiSurfaceListRowTokens = {
   hex: string;
   hoverHex: string;
+  foregroundHex: string;
+  mutedForegroundHex: string;
+  hoverForegroundHex: string;
+  hoverMutedForegroundHex: string;
+  borderHex: string;
+  hoverBorderHex: string;
   rowClass: string;
   hoverClass: string;
 };
@@ -19,14 +29,24 @@ export type UiSurfacePalette = {
   personCardId?: SalePersonCardVariantId;
 };
 
-function listRow(bg: string, hover: string): UiSurfaceListRowTokens {
+export function buildUiSurfaceListRowTokens(bg: string, hover: string): UiSurfaceListRowTokens {
+  const foregroundHex = pickReadableTextColor(bg);
+  const hoverForegroundHex = pickReadableTextColor(hover);
   return {
     hex: bg,
     hoverHex: hover,
+    foregroundHex,
+    mutedForegroundHex: readableMutedTextColor(bg, foregroundHex),
+    hoverForegroundHex,
+    hoverMutedForegroundHex: readableMutedTextColor(hover, hoverForegroundHex),
+    borderHex: pickReadableTextColor(bg, ["#94a3b8", "#64748b", "#f8fafc", "#0f172a"], 3),
+    hoverBorderHex: pickReadableTextColor(hover, ["#94a3b8", "#64748b", "#f8fafc", "#0f172a"], 3),
     rowClass: `bg-[${bg}]`,
     hoverClass: `hover:bg-[${hover}]`,
   };
 }
+
+const listRow = buildUiSurfaceListRowTokens;
 
 /** Catálogo unificado: filas vivas + variantes de venta enlazadas. */
 export const UI_SURFACE_PALETTES: UiSurfacePalette[] = [
@@ -249,4 +269,19 @@ export function uiSurfacePalettesForKind(kind: "listRow" | "personCard") {
 export function applyListRowCssVariables(palette: UiSurfacePalette, root: HTMLElement = document.documentElement) {
   root.style.setProperty("--surface-list-row", palette.listRow.hex);
   root.style.setProperty("--surface-list-row-hover", palette.listRow.hoverHex);
+  root.style.setProperty("--surface-list-row-foreground", palette.listRow.foregroundHex);
+  root.style.setProperty(
+    "--surface-list-row-muted-foreground",
+    palette.listRow.mutedForegroundHex,
+  );
+  root.style.setProperty(
+    "--surface-list-row-hover-foreground",
+    palette.listRow.hoverForegroundHex,
+  );
+  root.style.setProperty(
+    "--surface-list-row-hover-muted-foreground",
+    palette.listRow.hoverMutedForegroundHex,
+  );
+  root.style.setProperty("--surface-list-row-border", palette.listRow.borderHex);
+  root.style.setProperty("--surface-list-row-hover-border", palette.listRow.hoverBorderHex);
 }

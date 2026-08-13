@@ -1,12 +1,12 @@
 /**
  * Inserta remitentes de prueba para la org SCGS (desarrollo local).
- * Siembra los primeros `SCGS_DEMO_SENDERS` del catálogo (5 por defecto).
+ * Siembra los primeros `SCGS_DEMO_SENDERS` del catálogo (15 por defecto).
  * Uso: node scripts/seed-scgs-senders.mjs
  */
 import { connectPg } from "./lib/db-connection.mjs";
 import { resolveScgsOrgId } from "./lib/scgs-demo-recipients.mjs";
 
-const DEFAULT_SENDER_COUNT = 5;
+const DEFAULT_SENDER_COUNT = 15;
 
 const SENDER_CATALOG = [
   {
@@ -128,6 +128,66 @@ const SENDER_CATALOG = [
     city: "Santa Clarita",
     state: "CA",
     postal_code: "91387",
+  },
+  {
+    first_name: "Daniel",
+    last_name: "Castillo",
+    phones: ["+1-661-251-1101"],
+    email: "daniel.castillo@boxario.local",
+    street: "Canyon View Dr",
+    house_number: "26201",
+    neighborhood: "Canyon Country",
+    city: "Santa Clarita",
+    state: "CA",
+    postal_code: "91351",
+  },
+  {
+    first_name: "Elena",
+    last_name: "Vega",
+    phones: ["+1-661-252-2202"],
+    email: "elena.vega@boxario.local",
+    street: "Copper Hill Dr",
+    house_number: "28140",
+    neighborhood: "Valencia",
+    city: "Santa Clarita",
+    state: "CA",
+    postal_code: "91354",
+  },
+  {
+    first_name: "Gabriel",
+    last_name: "Paredes",
+    phones: ["+1-661-253-3303"],
+    email: "gabriel.paredes@boxario.local",
+    street: "Decoro Dr",
+    house_number: "27550",
+    neighborhood: "Saugus",
+    city: "Santa Clarita",
+    state: "CA",
+    postal_code: "91350",
+  },
+  {
+    first_name: "Helena",
+    last_name: "Delgado",
+    phones: ["+1-661-254-4404"],
+    email: "helena.delgado@boxario.local",
+    street: "Davenport Rd",
+    house_number: "22980",
+    neighborhood: "Newhall",
+    city: "Santa Clarita",
+    state: "CA",
+    postal_code: "91321",
+  },
+  {
+    first_name: "Iván",
+    last_name: "Acosta",
+    phones: ["+1-661-255-5505"],
+    email: "ivan.acosta@boxario.local",
+    street: "Hasley Canyon Rd",
+    house_number: "25100",
+    neighborhood: "Castaic",
+    city: "Santa Clarita",
+    state: "CA",
+    postal_code: "91384",
   },
 ];
 

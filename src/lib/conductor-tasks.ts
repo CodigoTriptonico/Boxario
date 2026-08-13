@@ -47,6 +47,11 @@ export type ConductorDriverTask = {
   lng: number | null;
   addressLine: string | null;
   zoneLabel: string | null;
+  exactEntranceConfirmed: boolean;
+  exactEntranceNote: string;
+  exactEntrancePanoId: string;
+  exactEntranceHeading: number | null;
+  exactEntrancePitch: number | null;
   boxLines: ConductorTruckBoxLine[];
   boxSummary: string;
   boxDisplayLines: ShipmentBoxLine[];
@@ -301,6 +306,11 @@ export function buildConductorDriverTasks(input: {
               .join(" · ")
           : null,
         zoneLabel: address?.zoneLabel || null,
+        exactEntranceConfirmed: Boolean(address?.address.exactEntranceConfirmed),
+        exactEntranceNote: address?.address.exactEntranceNote || "",
+        exactEntrancePanoId: address?.address.exactEntrancePanoId || "",
+        exactEntranceHeading: address?.address.exactEntranceHeading ?? null,
+        exactEntrancePitch: address?.address.exactEntrancePitch ?? null,
         boxLines,
         boxSummary: shipmentBoxLinesTriggerLabel(displayBoxLines) || quote?.label || "",
         boxDisplayLines: displayBoxLines,

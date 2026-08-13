@@ -15,6 +15,12 @@ import {
 } from "@/lib/sale-recipient-save";
 import { SaleAddressGooglePanel } from "@/components/sale/sale-address-google-panel";
 import {
+  openExactEntranceBrowserWindow,
+  SaleExactEntranceWindow,
+  type ExactEntranceDraft,
+  type MapResolvedAddress,
+} from "@/components/sale/sale-exact-entrance-step";
+import {
   type AddressSuggestion,
   type AddressValidation,
   clientFormInputClass,
@@ -78,7 +84,10 @@ type SaleRecipientFormProps = {
   };
   actions: {
     onCancel: () => void;
-    onSubmit: (options?: { skipAddressVerification?: boolean }) => void;
+    onSubmit: (options?: {
+      skipAddressVerification?: boolean;
+      exactEntrance?: ExactEntranceDraft | null;
+    }) => void | Promise<void>;
     onAddEmail: () => void;
     onUpdateEmail: (index: number, value: string) => void;
     onRemoveEmail: (index: number) => void;
@@ -86,6 +95,7 @@ type SaleRecipientFormProps = {
   meta: {
     countries: string[];
     duplicateRecipient: Recipient | null;
+    initialExactEntrance?: ExactEntranceDraft | null;
   };
   /** En modal de documentos: apila paneles a ancho completo para que no se corte la dirección. */
   layout?: "split" | "stack";
@@ -113,6 +123,12 @@ export function SaleRecipientForm({
   const [contactMenuOpen, setContactMenuOpen] = useState(false);
   const [addressUnverifiedAccepted, setAddressUnverifiedAccepted] = useState(false);
   const [showUnverifiedConfirm, setShowUnverifiedConfirm] = useState(false);
+  const [mapOpen, setMapOpen] = useState(false);
+  const [mapHostWindow, setMapHostWindow] = useState<Window | null>(null);
+  const [mapPopupError, setMapPopupError] = useState("");
+  const [exactEntranceDraft, setExactEntranceDraft] = useState<ExactEntranceDraft | null>(
+    meta.initialExactEntrance || null,
+  );
   const hasCountry = Boolean(form.country.trim());
   const hasRequiredAddress = recipientHasRequiredAddress({
     street: form.street,
@@ -124,6 +140,26 @@ export function SaleRecipientForm({
     () => getPhoneDialCodeForCountryName(form.country),
     [form.country],
   );
+
+  function openMapWindow() {
+    const popup = openExactEntranceBrowserWindow();
+    if (!popup) {
+      setMapPopupError("Chrome bloqueó la ventana del mapa. Permite ventanas emergentes para Boxario.");
+      return;
+    }
+    setMapPopupError("");
+    setMapHostWindow(popup);
+    setMapOpen(true);
+  }
+
+  function dismissMapWindow() {
+    setMapOpen(false);
+    setMapHostWindow(null);
+  }
+
+  useEffect(() => () => {
+    if (mapHostWindow && !mapHostWindow.closed) mapHostWindow.close();
+  }, [mapHostWindow]);
 
   useEffect(() => {
     if (!contactMenuOpen) {
@@ -177,6 +213,7 @@ export function SaleRecipientForm({
 
   function touchAddressField(update: () => void) {
     setAddressUnverifiedAccepted(false);
+    setExactEntranceDraft(null);
     address.touchField(update);
   }
 
@@ -189,6 +226,8 @@ export function SaleRecipientForm({
     address.setValidation({ status: "idle", message: "" });
     address.setSearch("");
     setAddressUnverifiedAccepted(false);
+    setExactEntranceDraft(null);
+    dismissMapWindow();
     clearRecipientAddress(form);
 
     const { nationalDigits } = splitPhoneNumber(form.phone, previousDial || nextDial || "1");
@@ -222,13 +261,13 @@ export function SaleRecipientForm({
 
   const fullAddress = [
     [form.street, form.house].filter(Boolean).join(" "),
+    form.neighborhood,
     [form.city, form.state, form.postalCode].filter(Boolean).join(" "),
     form.country,
   ]
     .filter(Boolean)
     .join(", ");
-
-  const lockedClass = "pointer-events-none opacity-45";
+  const lockedClass = "pointer-events-none saturate-[0.8]";
 
   const addressUi = resolveAddressValidationUi({
     enabled: hasCountry,
@@ -252,9 +291,36 @@ export function SaleRecipientForm({
     unverified: "border-amber-600 bg-amber-400 text-slate-950",
   };
 
+  function submitDetails() {
+    void actions.onSubmit({
+      ...(addressUnverifiedAccepted ? { skipAddressVerification: true } : {}),
+      exactEntrance: exactEntranceDraft,
+    });
+  }
+
+  function useMapAddress(resolved: MapResolvedAddress) {
+    form.setStreet(resolved.street);
+    form.setHouse(resolved.houseNumber);
+    form.setNeighborhood(resolved.neighborhood);
+    form.setCity(resolved.city);
+    form.setState(resolved.state);
+    form.setPostalCode(resolved.postalCode);
+    address.setSearch(resolved.formattedAddress);
+    address.setSuggestions([]);
+    address.setValidation({
+      status: "valid",
+      message: "Dirección elegida en el mapa",
+      formattedAddress: resolved.formattedAddress,
+      placeId: resolved.placeId,
+      lat: resolved.lat,
+      lng: resolved.lng,
+    });
+    setAddressUnverifiedAccepted(false);
+  }
+
   return (
     <>
-      <div className="mb-3 flex flex-wrap items-center justify-start gap-2 border-b border-white/10 pb-3">
+      <div className="mb-4 flex flex-wrap items-center justify-start gap-2 border-b border-white/10 pb-4">
         <button
           type="button"
           onClick={actions.onCancel}
@@ -264,15 +330,13 @@ export function SaleRecipientForm({
         </button>
         <button
           type="button"
-          onClick={() =>
-            actions.onSubmit(
-              addressUnverifiedAccepted ? { skipAddressVerification: true } : undefined,
-            )
-          }
+          onClick={submitDetails}
           disabled={saveDisabled}
           className="h-10 rounded-md bg-emerald-400 px-5 text-sm font-black text-slate-950 disabled:cursor-not-allowed disabled:opacity-40"
         >
-          {meta.duplicateRecipient ? "Usar existente" : "Guardar destinatario"}
+          {meta.duplicateRecipient
+            ? "Usar existente"
+            : "Guardar destinatario"}
         </button>
         <span
           className={`rounded-lg border px-2.5 py-1 text-[11px] font-black uppercase ${addressBadgeClass[addressUi.tone]}`}
@@ -284,8 +348,8 @@ export function SaleRecipientForm({
       <form
         className={
           layout === "stack"
-            ? "relative grid gap-3"
-            : "relative grid gap-3 lg:grid-cols-2 lg:items-start"
+            ? "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card"
+            : "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card lg:grid-cols-2 lg:items-stretch"
         }
         autoComplete="off"
         onSubmit={(event) => event.preventDefault()}
@@ -298,17 +362,17 @@ export function SaleRecipientForm({
           <input tabIndex={-1} name="fake-city" autoComplete="address-level2" readOnly />
         </div>
 
-        <div className="flex flex-col self-start overflow-visible rounded-lg border border-black bg-surface-card">
-          <div className="flex items-center gap-3 border-b border-emerald-400/25 bg-[#1f2c28] px-4 py-3">
+        <section className="flex min-w-0 flex-col overflow-visible">
+          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950">
               <UserPlus className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-[#f8fafc]">Destinatario</p>
-              <p className="text-xs font-bold text-slate-400">Pais, nombre, correo y telefono</p>
+              <p className="text-sm font-black uppercase text-[#f8fafc]">Quién recibe</p>
+              <p className="text-xs font-bold text-slate-400">País, identidad y contacto</p>
             </div>
           </div>
-          <div className="space-y-3 p-4">
+          <div className="space-y-3 p-5">
             <div className={`${flowFormStackClass} max-w-none`}>
               <label className="grid gap-1.5">
                 <span className={clientFormLabelClass}>Pais</span>
@@ -452,24 +516,28 @@ export function SaleRecipientForm({
               ) : null}
             </div>
           </div>
-        </div>
+        </section>
 
-        <div
-          className={`flex min-w-0 flex-col rounded-lg border border-black bg-surface-card ${hasCountry ? "" : lockedClass}`}
-          aria-disabled={!hasCountry}
+        <section
+          className={`flex min-w-0 flex-col border-t border-white/10 lg:border-l lg:border-t-0 ${hasCountry ? "" : lockedClass}`}
         >
-          <div className="flex items-center gap-3 border-b border-sky-300/25 bg-[#1f2c28] px-4 py-3">
+          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-300 text-slate-950">
               <MapPin className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-[#f8fafc]">Direccion destino</p>
-              <p className="text-xs font-bold text-slate-400">
-                {hasCountry ? addressCardSubtitle(addressUi.tone) : "Disponible al elegir pais"}
-              </p>
+              <p className="text-sm font-black uppercase text-[#f8fafc]">Dónde entregar</p>
+              <p className="text-xs font-bold text-slate-400">Dirección postal del destinatario</p>
             </div>
+            <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${address.validation.status === "valid" ? "border-emerald-400/50 bg-emerald-950/40 text-emerald-200" : "border-slate-600 bg-surface-inset text-slate-400"}`}>
+              {exactEntranceDraft ? "Entrada marcada" : hasCountry ? addressCardSubtitle(addressUi.tone) : "Elige país"}
+            </span>
+            <button type="button" disabled={!hasCountry} onClick={openMapWindow} className="ml-1 inline-flex h-9 items-center gap-2 rounded-md border border-sky-400/50 bg-sky-950/30 px-3 text-xs font-black text-sky-100 hover:border-emerald-300 disabled:opacity-40">
+              <MapPin className="h-4 w-4" /> Cliente verifica mapa
+            </button>
           </div>
-          <div className="space-y-3 p-4">
+          <div className="space-y-3 p-5">
+            {mapPopupError ? <p className="text-xs font-bold text-amber-200">{mapPopupError}</p> : null}
             <label className="grid min-w-0 gap-1.5">
               <span className={clientFormAddressLabelClass(form.street, { enabled: hasCountry })}>
                 Calle
@@ -638,8 +706,38 @@ export function SaleRecipientForm({
               </span>
             </label>
           </div>
-        </div>
+        </section>
       </form>
+
+      {mapOpen && mapHostWindow ? (
+        <SaleExactEntranceWindow
+          open
+          hostWindow={mapHostWindow}
+          personLabel="este destinatario"
+          country={form.country}
+          addressFields={{
+            street: form.street,
+            houseNumber: form.house,
+            neighborhood: form.neighborhood,
+            city: form.city,
+            state: form.state,
+            postalCode: form.postalCode,
+            country: form.country,
+          }}
+          addressLocation={
+            typeof address.validation.lat === "number" && typeof address.validation.lng === "number"
+              ? { lat: address.validation.lat, lng: address.validation.lng }
+              : null
+          }
+          initialEntrance={exactEntranceDraft}
+          onClose={dismissMapWindow}
+          onAddressResolved={useMapAddress}
+          onConfirm={(draft) => {
+            setExactEntranceDraft(draft);
+            dismissMapWindow();
+          }}
+        />
+      ) : null}
 
       <ActionConfirmDialog
         open={showUnverifiedConfirm}

@@ -13,6 +13,7 @@ $preserveKeys = @(
   "PLATFORM_OWNER_EMAIL",
   "PLATFORM_OWNER_PASSWORD",
   "GOOGLE_MAPS_API_KEY",
+  "NEXT_PUBLIC_GOOGLE_MAPS_API_KEY",
   "DEFAULT_PHONE_COUNTRY_CODE"
 )
 $preserved = @{}
@@ -43,6 +44,10 @@ if ($preserved.Count -gt 0) {
     if ($preserved.ContainsKey($key)) {
       $lines += $preserved[$key]
     }
+  }
+  if ($preserved.ContainsKey("GOOGLE_MAPS_API_KEY") -and -not $preserved.ContainsKey("NEXT_PUBLIC_GOOGLE_MAPS_API_KEY")) {
+    $publicLine = $preserved["GOOGLE_MAPS_API_KEY"] -replace '^GOOGLE_MAPS_API_KEY=', 'NEXT_PUBLIC_GOOGLE_MAPS_API_KEY='
+    $lines += $publicLine
   }
 }
 

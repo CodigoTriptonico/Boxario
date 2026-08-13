@@ -23,6 +23,10 @@ const migration = readFileSync(
   join(process.cwd(), "supabase/migrations/150_logistics_route_integrity.sql"),
   "utf8",
 );
+const lifecycleMigration = readFileSync(
+  join(process.cwd(), "supabase/migrations/192_logistics_route_booking_lifecycle.sql"),
+  "utf8",
+);
 const inventorySource = readFileSync(
   join(process.cwd(), "src/app/actions/shipments-inventory.ts"),
   "utf8",
@@ -64,21 +68,20 @@ function route(partial: Partial<LogisticsRouteRow>): LogisticsRouteRow {
 }
 
 describe("logistics route integrity", () => {
-  it("creates routes in draft and publishes only from draft", () => {
+  it("creates routes in draft and closes only from draft", () => {
     assert.equal(isLogisticsRouteTransitionAllowed("draft", "planned"), true);
-    assert.equal(isLogisticsRouteTransitionAllowed("planned", "draft"), true);
+    assert.equal(isLogisticsRouteTransitionAllowed("planned", "draft"), false);
     assert.equal(isLogisticsRouteTransitionAllowed("completed", "planned"), false);
     assert.throws(() => assertLogisticsRouteTransition("completed", "draft"));
-    assert.match(migration, /publish_logistics_route/);
-    assert.match(migration, /status = 'planned'/);
-    assert.match(migration, /published_at = now\(\)/);
+    assert.match(lifecycleMigration, /publish_logistics_route/);
+    assert.match(lifecycleMigration, /status = 'planned'/);
+    assert.match(lifecycleMigration, /published_at = now\(\)/);
+    assert.doesNotMatch(lifecycleMigration, /ROUTE_MISSING_DRIVER/);
   });
 
   it("rejects incomplete publish payloads", () => {
     const errors = publishRouteValidationErrors({
       status: "draft",
-      assignedTo: null,
-      vehicleId: null,
       stopCount: 0,
       stopsWithoutGeo: 1,
       tasksWithoutConfirmedDate: 1,
@@ -201,6 +204,7 @@ describe("logistics route integrity", () => {
 
   it("allows audited live edits only on pending stops", () => {
     assert.equal(routeAllowsNormalStopEdits("draft"), true);
+    assert.equal(routeAllowsNormalStopEdits("planned"), false);
     assert.equal(routeAllowsLivePendingStopEdits("in_progress"), true);
     assert.equal(routeIsClosedForOperationalEdits("completed"), true);
     assert.equal(isStopOutcomeTransitionAllowed("completed", "cancelled"), false);

@@ -36,8 +36,9 @@ describe("inventory custody eval", () => {
     assert.match(custodyLibSource, /atAgencyAvailable/);
     assert.match(custodyLibSource, /onTruck/);
     assert.match(custodyLibSource, /buildInventoryCustodyFullCounts/);
-    assert.match(custodyPanelSource, /Vacías/);
-    assert.match(custodyPanelSource, /Llenas/);
+    assert.match(custodyPanelSource, /Inventario propio/);
+    assert.match(custodyPanelSource, /Paquetes de clientes/);
+    assert.match(custodyActionSource, /warehouseItems/);
     assert.match(custodyActionSource, /agency_box_lot_balances/);
     assert.match(custodyActionSource, /shipment_packages/);
     assert.match(custodyActionSource, /from\("organizations"\)/);

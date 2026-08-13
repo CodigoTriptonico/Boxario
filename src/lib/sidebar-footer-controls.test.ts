@@ -9,9 +9,12 @@ const controlsSource = readFileSync(
 );
 
 describe("sidebar footer controls", () => {
-  it("uses action icons instead of implying a false expansion direction", () => {
-    assert.match(controlsSource, /SlidersHorizontal/);
-    assert.match(controlsSource, /<X className="h-4 w-4 shrink-0"/);
+  it("keeps one arrow trigger in place while opening and closing", () => {
+    assert.match(controlsSource, /ChevronRight/);
+    assert.match(controlsSource, /ChevronLeft/);
+    assert.match(controlsSource, /aria-expanded=\{expanded\}/);
+    assert.doesNotMatch(controlsSource, /SlidersHorizontal/);
+    assert.doesNotMatch(controlsSource, /<X className="h-4 w-4 shrink-0"/);
     assert.doesNotMatch(controlsSource, /ChevronsUp|ChevronsDown/);
     assert.match(controlsSource, /Mostrar opciones de vista y apariencia/);
     assert.match(controlsSource, /Ocultar opciones de vista y apariencia/);

@@ -48,6 +48,12 @@ import {
   type EnviosReadinessFilter,
 } from "@/lib/shipment-display";
 import { ENVIOS_SHIPMENTS_PAGE_SIZE } from "@/lib/envios-pagination";
+import {
+  applyEnviosFiltersToSearchParams,
+  resolveEnviosFiltersOnLoad,
+  writeEnviosFiltersToSession,
+  type EnviosPersistedFilters,
+} from "@/lib/envios-filter-persistence";
 import { LOGISTICS_ROUTES_PAGE_SIZE } from "@/lib/logistics-routes-pagination";
 import type { LogisticsRouteRow } from "@/lib/logistics-routing";
 import { listLogisticsRoutesAction } from "@/app/actions/logistics-routes";
@@ -91,16 +97,15 @@ export function EnviosClient({
   const notify = useNotify();
   const router = useRouter();
   const searchParams = useSearchParams();
-  const appliedQueryFromUrlRef = useRef(false);
   const appliedOpenFromUrlRef = useRef<string | null>(null);
   const supabaseReady = isSupabaseConfigured();
+  const hasServerBootstrap = initialShipments !== undefined && initialRoutes !== undefined;
   const [shipments, setShipments] = useState<ShipmentRow[]>(initialShipments || []);
   const [page, setPage] = useState(0);
   const [shipmentsLoading, setShipmentsLoading] = useState(false);
   const [hasMore, setHasMore] = useState(
     Boolean(initialShipments && initialShipments.length === ENVIOS_SHIPMENTS_PAGE_SIZE),
   );
-  const skipInitialPageFetchRef = useRef(Boolean(initialShipments));
   const [routeMembers, setRouteMembers] = useState<RouteMemberRow[]>(initialRouteMembers || []);
   const [salesOwners, setSalesOwners] = useState<SalesOwnerRow[]>(initialSalesOwners || []);
   const [routes, setRoutes] = useState<LogisticsRouteRow[]>(initialRoutes || []);
@@ -110,9 +115,10 @@ export function EnviosClient({
   const [country, setCountry] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const [salesOwnerFilter, setSalesOwnerFilter] = useState("");
-  const [loaded, setLoaded] = useState(!supabaseReady || Boolean(initialShipments && initialRoutes));
+  const [loaded, setLoaded] = useState(!supabaseReady || hasServerBootstrap);
   const { layout: viewLayout } = usePageViewLayout("shipments.tracking");
   const [readinessFilter, setReadinessFilter] = useState<EnviosReadinessFilter>("all");
+  const [filtersHydrated, setFiltersHydrated] = useState(false);
   const [contactLogShipmentId, setContactLogShipmentId] = useState<string | null>(null);
   const [shipmentMenu, setShipmentMenu] = useState<EnviosShipmentMenuState>(null);
   const [expandedShipmentIds, setExpandedShipmentIds] = useState<Set<string>>(() => new Set());
@@ -202,12 +208,6 @@ export function EnviosClient({
       return;
     }
 
-    if (page === 0 && skipInitialPageFetchRef.current) {
-      skipInitialPageFetchRef.current = false;
-      setHasMore((initialShipments?.length ?? 0) === ENVIOS_SHIPMENTS_PAGE_SIZE);
-      return;
-    }
-
     let cancelled = false;
     queueMicrotask(() => {
       setShipmentsLoading(true);
@@ -245,19 +245,36 @@ export function EnviosClient({
 
     function closeOnEscape(event: KeyboardEvent) {
       if (event.key === "Escape") {
-        const params = new URLSearchParams(searchParams.toString());
+        const params = new URLSearchParams(window.location.search);
         params.delete("audit");
-        const query = params.toString();
-        router.replace(query ? `/seguimiento?${query}` : "/seguimiento", { scroll: false });
+        const nextQuery = params.toString();
+        router.replace(nextQuery ? `/seguimiento?${nextQuery}` : "/seguimiento", { scroll: false });
       }
     }
 
     window.addEventListener("keydown", closeOnEscape);
     return () => window.removeEventListener("keydown", closeOnEscape);
-  }, [router, searchParams, selectedAuditShipmentId]);
+  }, [router, selectedAuditShipmentId]);
+
+  function syncSeguimientoFilterUrl(filters: EnviosPersistedFilters) {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const params = new URLSearchParams(window.location.search);
+    applyEnviosFiltersToSearchParams(params, filters);
+    const nextQuery = params.toString();
+    const nextUrl = nextQuery ? `/seguimiento?${nextQuery}` : "/seguimiento";
+    const currentUrl = `${window.location.pathname}${window.location.search}`;
+    if (currentUrl !== nextUrl) {
+      window.history.replaceState(window.history.state, "", nextUrl);
+    }
+  }
 
   function updateWorkspaceUrl(next: { mode?: EnviosClientMode; audit?: string | null }) {
-    const params = new URLSearchParams(searchParams.toString());
+    const params = new URLSearchParams(
+      typeof window !== "undefined" ? window.location.search : searchParams.toString(),
+    );
 
     if (next.mode) {
       if (next.mode === "history") {
@@ -273,8 +290,16 @@ export function EnviosClient({
       params.delete("audit");
     }
 
-    const query = params.toString();
-    router.replace(query ? `/seguimiento?${query}` : "/seguimiento", { scroll: false });
+    applyEnviosFiltersToSearchParams(params, {
+      query,
+      country,
+      statusFilter,
+      salesOwnerFilter,
+      readinessFilter,
+    });
+
+    const nextQuery = params.toString();
+    router.replace(nextQuery ? `/seguimiento?${nextQuery}` : "/seguimiento", { scroll: false });
   }
 
   function selectWorkspaceMode(nextMode: EnviosClientMode) {
@@ -287,20 +312,45 @@ export function EnviosClient({
   );
 
   useEffect(() => {
-    if (appliedQueryFromUrlRef.current) {
-      return;
-    }
+    let cancelled = false;
+    const resolved = resolveEnviosFiltersOnLoad(
+      new URLSearchParams(window.location.search),
+    );
 
-    const initialQuery = searchParams.get("q")?.trim();
-    if (!initialQuery) {
-      return;
-    }
-
-    appliedQueryFromUrlRef.current = true;
     queueMicrotask(() => {
-      setQuery(initialQuery);
+      if (cancelled) {
+        return;
+      }
+      setQuery(resolved.query);
+      setCountry(resolved.country);
+      setStatusFilter(resolved.statusFilter);
+      setSalesOwnerFilter(resolved.salesOwnerFilter);
+      setReadinessFilter(resolved.readinessFilter);
+      writeEnviosFiltersToSession(resolved);
+      syncSeguimientoFilterUrl(resolved);
+      setFiltersHydrated(true);
     });
-  }, [searchParams]);
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!filtersHydrated) {
+      return;
+    }
+
+    const filters: EnviosPersistedFilters = {
+      query,
+      country,
+      statusFilter,
+      salesOwnerFilter,
+      readinessFilter,
+    };
+    writeEnviosFiltersToSession(filters);
+    syncSeguimientoFilterUrl(filters);
+  }, [country, filtersHydrated, query, readinessFilter, salesOwnerFilter, statusFilter]);
 
   useEffect(() => {
     if (!openShipmentIdFromUrl || !shipments.length) {
@@ -413,6 +463,10 @@ export function EnviosClient({
       ENVIOS_STATUS_FILTER_OPTIONS.map((option) => ({
         value: option.value,
         label: option.label,
+        children: option.children?.map((child) => ({
+          value: child.value,
+          label: child.label,
+        })),
       })),
     [],
   );
@@ -589,6 +643,39 @@ export function EnviosClient({
         className="flex w-full min-h-0 flex-col lg:flex-1 lg:overflow-hidden"
         contentClassName="flex min-h-0 flex-1 flex-col p-3 sm:p-4"
       >
+        <EnviosFiltersToolbar
+          workspaceTabs={
+            unified ? (
+              <EnviosWorkspaceTabs
+                activeMode={activeMode}
+                trackingCount={0}
+                historyCount={0}
+                onModeChange={selectWorkspaceMode}
+              />
+            ) : null
+          }
+          mode={activeMode}
+          readinessFilter={readinessFilter}
+          onReadinessFilterChange={setReadinessFilter}
+          totalCount={0}
+          listosCount={0}
+          pendientesCount={0}
+          query={query}
+          onQueryChange={setQuery}
+          canManageShipmentOwners={canManageShipmentOwners}
+          salesOwnerFilter={salesOwnerFilter}
+          onSalesOwnerFilterChange={setSalesOwnerFilter}
+          salesOwners={salesOwners}
+          country={country}
+          onCountryChange={setCountry}
+          countryFilterOptions={[]}
+          statusFilter={statusFilter}
+          onStatusFilterChange={setStatusFilter}
+          statusFilterOptions={[...ENVIOS_STATUS_FILTER_OPTIONS]}
+          canManageSales={canManageSales}
+          canManageSalesSettings={canManageSalesSettings}
+          isConductor={isConductor}
+        />
         <PageLoading inline />
       </Panel>
     );
@@ -689,6 +776,7 @@ export function EnviosClient({
             onLogisticsPatch={logistics.applyLogisticsPatch}
             onStatusChange={logistics.applyShipmentStatus}
             onFullBoxReceivedAtOffice={logistics.receiveFullBoxAtOffice}
+            onRevertFullBoxOfficeReception={logistics.revertFullBoxOfficeReception}
             onProgramRoute={
               canManageSales && !isHistoryMode
                 ? logistics.openProgramRoute

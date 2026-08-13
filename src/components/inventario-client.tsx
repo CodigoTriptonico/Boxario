@@ -16,12 +16,15 @@ import {
   type CloseAssignmentSubmit,
 } from "@/components/inventory-assignment-modals";
 import { InventoryControlMenu } from "@/components/inventory/inventory-control-menu";
-import { InventoryHistoricalShipmentRefsPanel } from "@/components/inventory/inventory-historical-shipment-refs-panel";
 import {
   InventoryTrackingDrawer,
   type InventoryTrackingTab,
 } from "@/components/inventory/inventory-tracking-drawer";
 import { InventoryTruckPanel } from "@/components/inventory/inventory-truck-panel";
+import {
+  InventoryWorkspaceNav,
+  type InventoryWorkspaceView,
+} from "@/components/inventory/inventory-workspace-nav";
 import { InventoryStructureEditor } from "@/components/inventory-structure-editor";
 import { InventoryWarehouseBar } from "@/components/inventory-warehouse-bar";
 import { WarehousesSettingsPanel } from "@/components/config/warehouses-settings-panel";
@@ -118,6 +121,12 @@ export function InventarioClient({
   const [truckBalances, setTruckBalances] = useState(initialTruckBalances);
   const [trackingOpen, setTrackingOpen] = useState(false);
   const [trackingTab, setTrackingTab] = useState<InventoryTrackingTab>("custody");
+
+  const activeWorkspaceView: InventoryWorkspaceView = trackingOpen
+    ? trackingTab
+    : truckTabOpen
+      ? "trucks"
+      : "articles";
 
   const activeWarehouseName =
     warehouses.find((warehouse) => warehouse.id === warehouseId)?.name || "";
@@ -264,6 +273,24 @@ export function InventarioClient({
     });
   }
 
+  function selectWorkspaceView(view: InventoryWorkspaceView) {
+    if (view === "articles") {
+      setTrackingOpen(false);
+      setTruckTabOpen(false);
+      return;
+    }
+
+    if (view === "trucks") {
+      setTrackingOpen(false);
+      setTruckTabOpen(true);
+      return;
+    }
+
+    setTruckTabOpen(false);
+    setTrackingTab(view);
+    setTrackingOpen(true);
+  }
+
   async function handleCloseAssignment(
     assignmentId: string,
     input: CloseAssignmentSubmit,
@@ -299,7 +326,16 @@ export function InventarioClient({
   }
 
   if (!loaded) {
-    return <PageLoading inline />;
+    return (
+      <div className="flex h-full min-h-0 flex-1 flex-col">
+        <section className="flex min-h-0 flex-1 flex-col overflow-hidden rounded-xl border border-black bg-[#25302c] shadow-[0_10px_26px_rgba(0,0,0,0.22)]">
+          <div className="flex h-12 shrink-0 items-center border-b border-black/70 bg-[#1a2320] px-3 sm:px-4" />
+          <div className="flex min-h-0 flex-1 flex-col p-3 sm:p-4">
+            <PageLoading inline />
+          </div>
+        </section>
+      </div>
+    );
   }
 
   if (!enabled) {
@@ -519,6 +555,14 @@ export function InventarioClient({
             />
           </>
         }
+        workspaceNavSlot={
+          <InventoryWorkspaceNav
+            activeView={activeWorkspaceView}
+            assignmentCount={assignments.length}
+            movementCount={movements.length}
+            onSelectView={selectWorkspaceView}
+          />
+        }
         toolbarEndSlot={
           <InventoryControlMenu
             variant="menu"
@@ -651,11 +695,6 @@ export function InventarioClient({
         onSave={saveProductCountryAssignments}
       />
 
-      {canManageInventory ? (
-        <div className="mt-4">
-          <InventoryHistoricalShipmentRefsPanel canAdjust={canManageInventory} />
-        </div>
-      ) : null}
     </div>
   );
 }

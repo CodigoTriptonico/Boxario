@@ -8,6 +8,7 @@ import {
   UI_SURFACE_PALETTES,
   uiSurfacePalettesForKind,
 } from "./ui-surface-palettes.ts";
+import { contrastRatio } from "./ui-surface-color-math.ts";
 
 describe("ui surface palettes", () => {
   it("exposes list palettes and person-card variants in one catalog", () => {
@@ -32,14 +33,28 @@ describe("ui surface palettes", () => {
   it("writes list row css variables on a root element", () => {
     const palette = resolveUiSurfacePalette("sapphire");
     const root = { style: { setProperty: () => {}, removeProperty: () => {} } } as unknown as HTMLElement;
-    let row = "";
-    let hover = "";
+    const values = new Map<string, string>();
     root.style.setProperty = (name, value) => {
-      if (name === "--surface-list-row") row = value ?? "";
-      if (name === "--surface-list-row-hover") hover = value ?? "";
+      values.set(name, value ?? "");
     };
     applyListRowCssVariables(palette, root);
-    assert.equal(row, "#1e4a9e");
-    assert.equal(hover, "#2563c4");
+    assert.equal(values.get("--surface-list-row"), "#1e4a9e");
+    assert.equal(values.get("--surface-list-row-hover"), "#2563c4");
+    assert.equal(values.get("--surface-list-row-foreground"), palette.listRow.foregroundHex);
+    assert.equal(values.get("--surface-list-row-muted-foreground"), palette.listRow.mutedForegroundHex);
+    assert.equal(values.get("--surface-list-row-hover-foreground"), palette.listRow.hoverForegroundHex);
+    assert.equal(values.get("--surface-list-row-border"), palette.listRow.borderHex);
+  });
+
+  it("derives AA-readable text and control borders for every catalog palette", () => {
+    for (const palette of UI_SURFACE_PALETTES) {
+      const row = palette.listRow;
+      assert.ok(contrastRatio(row.foregroundHex, row.hex) >= 4.5, palette.id);
+      assert.ok(contrastRatio(row.mutedForegroundHex, row.hex) >= 4.5, palette.id);
+      assert.ok(contrastRatio(row.hoverForegroundHex, row.hoverHex) >= 4.5, palette.id);
+      assert.ok(contrastRatio(row.hoverMutedForegroundHex, row.hoverHex) >= 4.5, palette.id);
+      assert.ok(contrastRatio(row.borderHex, row.hex) >= 3, palette.id);
+      assert.ok(contrastRatio(row.hoverBorderHex, row.hoverHex) >= 3, palette.id);
+    }
   });
 });

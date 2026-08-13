@@ -119,8 +119,8 @@ export default async function Home() {
               <primaryAction.icon className="h-6 w-6" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate text-xl font-black text-[#f8fafc]">{primaryAction.title}</span>
-              <span className={`block truncate ${textMutedClass}`}>{primaryAction.text}</span>
+              <span className="block break-words text-xl font-black text-[#f8fafc] sm:truncate">{primaryAction.title}</span>
+              <span className={`block break-words sm:truncate ${textMutedClass}`}>{primaryAction.text}</span>
             </span>
           </Link>
 
@@ -142,8 +142,8 @@ export default async function Home() {
                     <action.icon className="h-5 w-5" />
                   </span>
                   <span className="min-w-0 flex-1">
-                    <span className="block truncate text-base font-black text-[#f8fafc]">{action.title}</span>
-                    <span className={`block truncate ${textMutedClass}`}>{action.text}</span>
+                    <span className="block break-words text-base font-black text-[#f8fafc] sm:truncate">{action.title}</span>
+                    <span className={`block break-words sm:truncate ${textMutedClass}`}>{action.text}</span>
                   </span>
                 </Link>
               ))}

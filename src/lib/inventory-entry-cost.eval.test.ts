@@ -8,7 +8,7 @@ const migrationSource = readFileSync(
   "utf8",
 );
 const movementModalSource = readFileSync(
-  join(process.cwd(), "src/components/inventory/inventory-item-context-menu.tsx"),
+  join(process.cwd(), "src/components/inventory/inventory-item-movement-draft-modal.tsx"),
   "utf8",
 );
 const structureEditorSource = readFileSync(

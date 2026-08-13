@@ -9,7 +9,7 @@ import {
 } from "@/lib/security/api-guards";
 
 type AddressInput = {
-  mode?: "validate" | "suggest" | "details";
+  mode?: "validate" | "suggest" | "details" | "country-center";
   query?: string;
   placeId?: string;
   street?: string;
@@ -151,6 +151,35 @@ export async function POST(request: Request) {
 
     const body = JSON.parse(rawBody || "{}") as AddressInput;
     const countryCode = resolveGoogleCountryCode(body.country);
+
+    if (body.mode === "country-center") {
+      if (!countryCode || !body.country?.trim()) {
+        return Response.json({ ok: false, error: "País no válido" }, { status: 400 });
+      }
+      const params = new URLSearchParams({
+        address: body.country.trim(),
+        components: `country:${countryCode}`,
+        key: apiKey,
+      });
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`,
+        { cache: "no-store" },
+      );
+      const data = (await response.json()) as {
+        status: string;
+        results?: GoogleGeocodeResult[];
+      };
+      const location = data.results?.[0]?.geometry?.location;
+      if (
+        !response.ok ||
+        data.status !== "OK" ||
+        typeof location?.lat !== "number" ||
+        typeof location.lng !== "number"
+      ) {
+        return Response.json({ ok: false, error: "No se pudo ubicar el país" });
+      }
+      return Response.json({ ok: true, center: { lat: location.lat, lng: location.lng } });
+    }
 
     if (body.mode === "suggest") {
       const query = body.query?.trim();

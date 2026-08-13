@@ -1,6 +1,6 @@
 "use client";
 
-import { PhoneCall, Star } from "lucide-react";
+import { Package, PhoneCall, Star } from "lucide-react";
 import { memo } from "react";
 import { CountryName } from "@/components/country-flag";
 import { ShipmentExpedienteLink } from "@/components/expediente/shipment-expediente-link";
@@ -16,6 +16,8 @@ import { paymentMethodLabel } from "@/lib/payment-methods";
 import { CUSTOMER_ROUTE_PENDING_APPROVAL_LABEL } from "@/lib/customer-route-verification";
 import {
   balanceDueFromShipment,
+  enviosActiveLegLogisticsTone,
+  enviosActiveLegLogisticsToneClass,
   quoteFromShipment,
   shipmentLogisticsBridgeLabel,
   shipmentLogisticsSteps,
@@ -48,6 +50,7 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
   onLogisticsPatch,
   onStatusChange,
   onFullBoxReceivedAtOffice,
+  onRevertFullBoxOfficeReception,
   onProgramRoute,
   pendingRouteTaskIds,
   onLockedLeg,
@@ -79,14 +82,19 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
         const timings = buildShipmentTimings(row, progressSteps);
         const latestPayment = row.payments[row.payments.length - 1] || null;
         const isSelected = selectionEnabled && isShipmentSelected(row.id);
+        const logisticsToneClass = enviosActiveLegLogisticsToneClass(
+          enviosActiveLegLogisticsTone(row),
+        );
 
         return (
           <article
             key={row.id}
             role={selectionEnabled ? "checkbox" : undefined}
             className={`${listCardShellClass} flex cursor-pointer flex-col p-2.5${
-              row.invoice_priority ? " bg-amber-950/15" : ""
-            }${isSelected ? " ring-2 ring-emerald-500/70" : ""}`}
+              logisticsToneClass ? ` ${logisticsToneClass}` : ""
+            }${row.invoice_priority ? " bg-amber-950/15" : ""}${
+              isSelected ? " ring-2 ring-emerald-500/70" : ""
+            }`}
             onClick={(event) => onShipmentRowActivate(event, row, index)}
             onKeyDown={(event) => {
               if (event.key === "Enter" || event.key === " ") {
@@ -99,7 +107,7 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
             onContextMenu={(event) => onShipmentContextMenu(event, row)}
           >
             <div className="min-w-0">
-              <p className="truncate text-sm font-black text-[#f8fafc]">
+              <p className="break-words text-sm font-black text-[#f8fafc] sm:truncate">
                 <span>{row.code}</span>
                 <span className="text-slate-500"> · </span>
                 <span>{row.customer_name}</span>
@@ -110,9 +118,18 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
                   size="xs"
                   labelClassName="text-[10px] font-bold text-slate-500"
                 />
+                {row.carrier ? (
+                  <>
+                    <span className="text-slate-600" aria-hidden>·</span>
+                    <span className="inline-flex min-w-0 items-center gap-1 text-[10px] font-bold text-slate-500">
+                      <Package className="h-3 w-3 shrink-0" aria-hidden />
+                      <span className="break-words sm:truncate">{row.carrier}</span>
+                    </span>
+                  </>
+                ) : null}
                 {canManageShipmentOwners ? (
                   <label
-                    className="flex min-w-0 flex-1 items-center gap-1 sm:min-w-[9rem]"
+                    className="flex w-full min-w-0 items-center gap-1 sm:w-auto sm:min-w-[9rem] sm:flex-1"
                     onClick={(event) => event.stopPropagation()}
                     onKeyDown={(event) => event.stopPropagation()}
                   >
@@ -134,7 +151,7 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
                     </select>
                   </label>
                 ) : (
-                  <p className="truncate text-[10px] font-bold text-slate-500">
+                  <p className="break-words text-[10px] font-bold text-slate-500 sm:truncate">
                     Vendedor: {row.salesOwnerName}
                   </p>
                 )}
@@ -150,6 +167,7 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
                 steps={progressSteps}
                 timings={timings}
                 row={row}
+                requestedRouteTaskIds={pendingRouteTaskIds}
                 compact
                 canEdit={canEditProgress}
                 canEditLogistics={!isHistoryMode && canManageSales}
@@ -164,6 +182,11 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
                 onFullBoxReceivedAtOffice={
                   !isHistoryMode && canManageSales
                     ? (audit) => void onFullBoxReceivedAtOffice(row, audit)
+                    : undefined
+                }
+                onRevertFullBoxOfficeReception={
+                  !isHistoryMode && canManageSales
+                    ? (audit) => void onRevertFullBoxOfficeReception(row, audit)
                     : undefined
                 }
                 onProgramRoute={
@@ -201,12 +224,12 @@ export const EnviosShipmentCardsGrid = memo(function EnviosShipmentCardsGrid({
 
             <div className="mt-2 border-t border-black pt-2">
               {row.logisticsTasks.some((task) => pendingRouteTaskIds?.has(task.id)) ? (
-                <p className="mb-2 text-[10px] font-bold leading-snug text-amber-200/90">
+                <p className="mb-2 text-[10px] font-bold leading-snug text-amber-200">
                   {CUSTOMER_ROUTE_PENDING_APPROVAL_LABEL}
                 </p>
               ) : null}
               {logisticsBridgeLabel ? (
-                <p className="mb-1.5 text-[10px] font-bold leading-snug text-amber-200/90">
+                <p className="mb-1.5 text-[10px] font-bold leading-snug text-amber-200">
                   {logisticsBridgeLabel}
                 </p>
               ) : null}

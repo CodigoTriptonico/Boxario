@@ -12,11 +12,13 @@ export function ConfigCountryContextMenus({
   countryProductContextMenu,
   onRemoveCountry,
   onRemoveCountryProduct,
+  removeBusy = false,
 }: {
   countryContextMenu: CountryContextMenu | null;
   countryProductContextMenu: CountryProductContextMenu | null;
   onRemoveCountry: (countryName: string) => void;
   onRemoveCountryProduct: (catalogKey: string) => void;
+  removeBusy?: boolean;
 }) {
   return (
     <>
@@ -68,11 +70,13 @@ export function ConfigCountryContextMenus({
           <button
             type="button"
             role="menuitem"
-            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-black text-rose-200 hover:bg-[#3A1818]"
+            disabled={removeBusy}
+            aria-busy={removeBusy || undefined}
+            className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-black text-rose-200 hover:bg-[#3A1818] focus-visible:bg-[#3A1818] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-[-2px] focus-visible:outline-rose-300 disabled:cursor-not-allowed disabled:opacity-50"
             onClick={() => onRemoveCountry(countryContextMenu.name)}
           >
             <Trash2 className="h-4 w-4" />
-            Eliminar país
+            {removeBusy ? "Eliminando..." : "Eliminar país"}
           </button>
         </div>
       ) : null}

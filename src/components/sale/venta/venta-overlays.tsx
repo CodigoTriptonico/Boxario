@@ -103,6 +103,7 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
     organizationBranding,
     proceedQuickEmptyBox,
     quickCheckoutCompleted,
+    customerLogisticsChargeHistory,
     quickEmptyBoxAdditionalCharge,
     quickEmptyBoxRouteDecision,
     quickInvoiceBilling,
@@ -310,6 +311,19 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
           meta={{
             editingCustomerId,
             duplicateClient: duplicateClient ?? null,
+            initialExactEntrance:
+              selectedSender?.id === editingCustomerId &&
+              selectedSender.exactEntranceLat != null &&
+              selectedSender.exactEntranceLng != null
+                ? {
+                    lat: selectedSender.exactEntranceLat,
+                    lng: selectedSender.exactEntranceLng,
+                    note: selectedSender.exactEntranceNote,
+                    panoId: selectedSender.exactEntrancePanoId || undefined,
+                    heading: selectedSender.exactEntranceHeading,
+                    pitch: selectedSender.exactEntrancePitch,
+                  }
+                : null,
           }}
         />
       </SaleDocumentPartyEditDialog>
@@ -376,6 +390,22 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
           meta={{
             countries,
             duplicateRecipient: duplicateRecipient ?? null,
+            initialExactEntrance: (() => {
+              const recipient = selectedSender?.recipients.find(
+                (item) => item.id === editingRecipientId,
+              );
+              return recipient?.exactEntranceLat != null &&
+                recipient.exactEntranceLng != null
+                ? {
+                    lat: recipient.exactEntranceLat,
+                    lng: recipient.exactEntranceLng,
+                    note: recipient.exactEntranceNote,
+                    panoId: recipient.exactEntrancePanoId || undefined,
+                    heading: recipient.exactEntranceHeading,
+                    pitch: recipient.exactEntrancePitch,
+                  }
+                : null;
+            })(),
           }}
         />
       </SaleDocumentPartyEditDialog>
@@ -509,8 +539,9 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
               ? quickEmptyBoxAdditionalCharge
               : null
           }
-          logisticsChargeSuggestion={logisticsFees.emptyBoxDeliveryFee}
+          logisticsChargeHistory={customerLogisticsChargeHistory.emptyBoxDelivery}
           onLogisticsChargeChange={setQuickEmptyBoxAdditionalCharge}
+          paymentSettings={logisticsFees}
         />
       ) : null}
 
@@ -538,6 +569,16 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
               : null
           }
           templates={routeCatalog.templates}
+          customerPostalCode={
+            routePlannerLeg === "quickEmptyBox" && quickSaleSender
+              ? quickSaleSender.postalCode
+              : selectedSender?.postalCode || ""
+          }
+          customerId={
+            routePlannerLeg === "quickEmptyBox" && quickSaleSender
+              ? quickSaleSender.id
+              : selectedSender?.id || ""
+          }
           scheduleSuggestionsByWeekday={
             routePlannerLeg === "fullBox"
               ? routeCatalog.scheduleSuggestionsByWeekday?.pickup
@@ -558,7 +599,7 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
             routePlannerLeg === "emptyBox" ||
             routePlannerLeg === "quickEmptyBox"
           }
-          pendingRouteLabel="No sé la ruta"
+          pendingRouteLabel="Continuar sin ruta"
           requireExplicitRouteSelection
           onCancel={() => setRoutePlannerLeg(null)}
           onConfirm={(input) => confirmSaleRoute(input)}
@@ -605,6 +646,7 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
           }
         }}
         onConfirm={() => void createOpenInvoice()}
+        paymentSettings={logisticsFees}
       />
 
       {cardStylePicker ? (

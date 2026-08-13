@@ -1,5 +1,4 @@
 "use client";
-
 import {
   Box,
   Check,
@@ -15,6 +14,10 @@ import {
   InventoryEmptyContextMenu,
   type InventoryEmptyContextMenuState,
 } from "@/components/inventory/inventory-empty-context-menu";
+import {
+  InventoryItemMeta,
+  InventoryItemOperationsButton,
+} from "@/components/inventory/inventory-item-summary";
 import { InlineSearchCombobox } from "@/components/inline-search-picker";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import type { ViewLayout } from "@/lib/view-layout";
@@ -43,7 +46,6 @@ import {
 } from "@/lib/inventory-structure-utils";
 import { type CategoryConfig, type InventoryTreeItem } from "@/lib/inventory-tree";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding/coach-targets";
-
 type InventoryItemCardProps = {
   item: InventoryTreeItem;
   selectedCategoryData: CategoryConfig;
@@ -64,7 +66,6 @@ type InventoryItemCardProps = {
   binPlacementSummary?: string;
   primaryLocation?: string;
 };
-
 function InventoryItemCard({
   item,
   selectedCategoryData,
@@ -102,7 +103,6 @@ function InventoryItemCard({
   const stockQty = metrics.warehouse;
   const stockUnitLabel = formatInventoryAvailableLabel(stockQty);
   const photoUrl = stockItem.photoUrl || leafItems.find((item) => item.photoUrl)?.photoUrl;
-
   return (
     <article
       key={item.id}
@@ -115,8 +115,21 @@ function InventoryItemCard({
       }
       className={`group relative flex min-h-[7.75rem] cursor-context-menu overflow-hidden rounded-2xl border p-3 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(0,0,0,0.18)] sm:p-3.5 ${stockCardClass[stockLevel]}`}
     >
+      {!editing ? (
+        <InventoryItemOperationsButton
+          itemName={item.name}
+          onOperate={(event) => {
+            event.stopPropagation();
+            onContextMenu(
+              event,
+              item,
+              stockItem,
+              primaryLocation || binPlacementSummary,
+            );
+          }}
+        />
+      ) : null}
       <div className="mx-auto flex h-full w-full max-w-[10.5rem] flex-1 flex-col">
-
         {photoUrl ? (
           <div className="mb-2 overflow-hidden rounded-xl border border-black/40 bg-black/20">
             {/* Supabase inventory photos use signed URLs outside Next static remote hosts. */}
@@ -143,7 +156,6 @@ function InventoryItemCard({
           </div>
           <span className="h-px min-w-0 flex-1 bg-black/35" aria-hidden />
         </div>
-
         <div
           className={`mt-auto flex min-w-0 items-end gap-2 pt-3 ${
             editing ? "justify-between" : "justify-center text-center"
@@ -158,21 +170,26 @@ function InventoryItemCard({
                 autoFocus
               />
             ) : (
-              <p className="truncate text-sm font-black leading-tight text-[#f8fafc]">
-                {item.name}
-              </p>
+              <>
+                <p className="break-words text-sm font-black leading-tight text-[#f8fafc] sm:truncate">
+                  {item.name}
+                </p>
+                <InventoryItemMeta
+                  item={stockItem}
+                  className="mt-1 break-words text-[9px] font-black uppercase tracking-wide text-slate-400 sm:truncate"
+                />
+              </>
             )}
             {!editing && (primaryLocation || binPlacementSummary) ? (
               <p
-                className="mt-1 flex items-center justify-center gap-1 truncate text-[10px] font-black text-cyan-300"
+                className="mt-1 flex flex-wrap items-center justify-center gap-1 text-[10px] font-black text-cyan-300 sm:flex-nowrap sm:truncate"
                 title={primaryLocation || binPlacementSummary}
               >
                 <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-                <span className="truncate">{primaryLocation || binPlacementSummary}</span>
+                <span className="break-words sm:truncate">{primaryLocation || binPlacementSummary}</span>
               </p>
             ) : null}
           </div>
-
           {editing ? (
             <div className="flex shrink-0 items-center gap-1">
               <button
@@ -201,7 +218,6 @@ function InventoryItemCard({
     </article>
   );
 }
-
 function InventoryItemRow({
   item,
   selectedCategoryData,
@@ -233,7 +249,6 @@ function InventoryItemRow({
   const stockLevel = metrics.level;
   const stockQty = metrics.warehouse;
   const stockUnitLabel = formatInventoryAvailableLabel(stockQty);
-
   return (
     <article
       data-inventory-item-id={item.id}
@@ -243,7 +258,7 @@ function InventoryItemRow({
       className={`group grid w-full min-w-0 cursor-context-menu items-center gap-2.5 overflow-hidden rounded-xl border px-2.5 py-2 transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_10px_20px_rgba(0,0,0,0.18)] sm:px-3 sm:py-2.5 ${
         editing
           ? "grid-cols-[auto_minmax(0,1fr)_auto]"
-          : "grid-cols-[auto_minmax(0,1fr)]"
+          : "grid-cols-[auto_minmax(0,1fr)_auto]"
       } ${stockCardClass[stockLevel]}`}
     >
       <div className="flex min-w-[3.25rem] shrink-0 flex-col items-center rounded-lg border border-black/25 bg-black/15 px-1.5 py-1 text-center">
@@ -256,7 +271,6 @@ function InventoryItemRow({
           {stockUnitLabel}
         </p>
       </div>
-
       {editing ? (
         <input
           className={`${inputClass} h-9 min-w-0 w-full text-sm`}
@@ -266,19 +280,22 @@ function InventoryItemRow({
         />
       ) : (
         <div className="min-w-0">
-          <p className="truncate text-sm font-black text-[#f8fafc]">{item.name}</p>
+          <p className="break-words text-sm font-black text-[#f8fafc] sm:truncate">{item.name}</p>
+          <InventoryItemMeta
+            item={stockItem}
+            className="mt-0.5 break-words text-[9px] font-black uppercase tracking-wide text-slate-400 sm:truncate"
+          />
           {binPlacementSummary ? (
             <p
-              className="mt-0.5 flex items-center gap-1 truncate text-[10px] font-black text-cyan-300"
+              className="mt-0.5 flex flex-wrap items-center gap-1 text-[10px] font-black text-cyan-300 sm:flex-nowrap sm:truncate"
               title={binPlacementSummary}
             >
               <MapPin className="h-3 w-3 shrink-0" aria-hidden />
-              <span className="truncate">{binPlacementSummary}</span>
+              <span className="break-words sm:truncate">{binPlacementSummary}</span>
             </p>
           ) : null}
         </div>
       )}
-
       {editing ? (
         <div className="flex shrink-0 items-center gap-1">
           <button
@@ -301,11 +318,24 @@ function InventoryItemRow({
             <X className="h-3.5 w-3.5" />
           </button>
         </div>
-      ) : null}
+      ) : (
+        <InventoryItemOperationsButton
+          itemName={item.name}
+          compact
+          onOperate={(event) => {
+            event.stopPropagation();
+            onContextMenu(
+              event,
+              item,
+              stockItem,
+              primaryLocation || binPlacementSummary,
+            );
+          }}
+        />
+      )}
     </article>
   );
 }
-
 export type InventoryItemGridProps = {
   warehouseId?: string;
   warehouseName?: string;
@@ -347,7 +377,6 @@ export type InventoryItemGridProps = {
   onSaveItem: (categoryName: string, itemId: string) => void;
   viewLayout?: ViewLayout;
 };
-
 export function InventoryItemGrid({
   warehouseId,
   warehouseName,
@@ -382,12 +411,10 @@ export function InventoryItemGrid({
   const [emptyContextMenu, setEmptyContextMenu] =
     useState<InventoryEmptyContextMenuState | null>(null);
   const [binPlacements, setBinPlacements] = useState<InventoryItemBinPlacement[]>([]);
-
   useEffect(() => {
     if (!warehouseId) {
       return;
     }
-
     let active = true;
     const loadPlacements = async () => {
       const result = await listWarehouseInventoryBinPlacementsAction({ warehouseId });
@@ -396,7 +423,6 @@ export function InventoryItemGrid({
       }
     };
     const handlePlacementChange = () => void loadPlacements();
-
     void loadPlacements();
     window.addEventListener("inventory-bin-placements-changed", handlePlacementChange);
     return () => {
@@ -597,7 +623,7 @@ export function InventoryItemGrid({
               </button>
             ) : null}
             <div className="min-w-0 flex-1">
-              <p className="truncate text-lg font-black capitalize text-[#f8fafc]">
+              <p className="break-words text-lg font-black capitalize text-[#f8fafc] sm:truncate">
                 {panelTitle}
               </p>
               <p className="text-[11px] font-bold uppercase tracking-wide text-slate-500">

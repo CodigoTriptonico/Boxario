@@ -14,7 +14,7 @@ const datePickerCalendarSource = readFileSync(
 
 const consumerFiles = [
   "components/logistica/panels/logistics-toolbar.tsx",
-  "components/estadisticas/period-range-toolbar.tsx",
+  "components/estadisticas/statistics-toolbar.tsx",
   "components/inventory-movements-panel.tsx",
   "components/logistica/task-schedule/logistics-task-schedule-confirm-panel-view.tsx",
   "components/inventory-assignment-modals.tsx",
@@ -47,9 +47,22 @@ describe("date input standard", () => {
   });
 
   it("marks the selected day with a ring, not a green fill that hides status tones", () => {
-    assert.equal(datePickerCalendarSource.includes("bg-emerald-400 text-slate-950"), false);
     assert.match(datePickerCalendarSource, /logisticsCalendarDaySelectedClass/);
     assert.match(datePickerCalendarSource, /data-day-selected/);
+    assert.ok(
+      datePickerCalendarSource.indexOf("else if (tone)") <
+        datePickerCalendarSource.indexOf("else if (rangeEndpoint)"),
+      "status tones must take precedence over range endpoint fills",
+    );
+  });
+
+  it("can render an inclusive range inside the shared calendar", () => {
+    assert.match(datePickerCalendarSource, /rangeStart/);
+    assert.match(datePickerCalendarSource, /rangeEnd/);
+    assert.match(datePickerCalendarSource, /data-range-start/);
+    assert.match(datePickerCalendarSource, /data-range-end/);
+    assert.match(datePickerCalendarSource, /data-in-range/);
+    assert.match(datePickerCalendarSource, /embedded/);
   });
 
   it("replaces raw date inputs across the app", () => {

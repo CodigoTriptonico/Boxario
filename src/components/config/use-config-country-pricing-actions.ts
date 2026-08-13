@@ -1,6 +1,7 @@
 "use client";
 
 import { flushSync } from "react-dom";
+import { useRef, useState } from "react";
 import type { MouseEvent, PointerEvent as ReactPointerEvent } from "react";
 import {
   localPromotionId,
@@ -11,6 +12,7 @@ import {
 } from "@/components/config/config-pricing-helpers";
 import {
   compareCountriesByCatalogOrder,
+  isCountryAlreadyConfigured,
   type CountryOption,
 } from "@/lib/country-options";
 import {
@@ -20,6 +22,16 @@ import {
 } from "@/lib/pricing-catalog";
 import type { PricingCountryConfig } from "@/lib/pricing/types";
 import {
+  assessCountryRemovalRisk,
+  countryAddDuplicateMessage,
+  countryAddErrorMessage,
+  countryAddSuccessMessage,
+  countryRemovalConfirmCopy,
+  countryRemoveBlockedMessage,
+  countryRemoveErrorMessage,
+  countryRemoveSuccessMessage,
+} from "@/lib/pricing/country-interaction";
+import {
   createBlankPromotion,
   isPromotionRuleValid,
   normalizeComboRule,
@@ -27,22 +39,41 @@ import {
   type PricingPromotionConfig,
 } from "@/lib/pricing-promotions";
 import type { useNotify } from "@/hooks/use-notify";
+import type { PricingFlushPendingSave } from "@/hooks/use-pricing-backend";
+
+export type CountryRemovalConfirmState = {
+  countryName: string;
+  title: string;
+  message: string;
+  confirmLabel: string;
+};
+
+type CountryRemovalSnapshot = {
+  country: PricingCountryConfig;
+  promotions: PricingPromotionConfig[];
+  distributorPrices: Record<string, Record<string, PricingCountryConfig["boxes"]>>;
+  selectedCountry: string | null;
+};
 
 type ConfigCountryPricingActionsParams = {
   notify: ReturnType<typeof useNotify>;
+  countries: PricingCountryConfig[];
   setCountries: React.Dispatch<React.SetStateAction<PricingCountryConfig[]>>;
   setPromotions: React.Dispatch<React.SetStateAction<PricingPromotionConfig[]>>;
+  distributorPrices: Record<string, Record<string, PricingCountryConfig["boxes"]>>;
   setDistributorPrices: React.Dispatch<
     React.SetStateAction<Record<string, Record<string, PricingCountryConfig["boxes"]>>>
   >;
-  flushPendingSave: () => void | Promise<void>;
+  flushPendingSave: PricingFlushPendingSave;
   selectedCountry: string | null;
   setSelectedCountry: React.Dispatch<React.SetStateAction<string | null>>;
   setCountryQuery: React.Dispatch<React.SetStateAction<string>>;
   setPendingCountryToAdd: React.Dispatch<React.SetStateAction<CountryOption | null>>;
   setShowCountryPicker: React.Dispatch<React.SetStateAction<boolean>>;
   setCountryContextMenu: React.Dispatch<React.SetStateAction<CountryContextMenu | null>>;
-  setCountryProductContextMenu: React.Dispatch<React.SetStateAction<CountryProductContextMenu | null>>;
+  setCountryProductContextMenu: React.Dispatch<
+    React.SetStateAction<CountryProductContextMenu | null>
+  >;
   setCountryProductPickerOpen: React.Dispatch<React.SetStateAction<boolean>>;
   setCountryPriceTab: React.Dispatch<React.SetStateAction<CountryPriceTab>>;
   setPromotionEditor: React.Dispatch<React.SetStateAction<PromotionEditorState | null>>;
@@ -54,11 +85,28 @@ type ConfigCountryPricingActionsParams = {
   onSelectedCountryRemoved?: (countryName: string) => void;
 };
 
+function stripCountryFromDistributorPrices(
+  current: Record<string, Record<string, PricingCountryConfig["boxes"]>>,
+  countryName: string,
+) {
+  const next: typeof current = {};
+
+  for (const [distributor, pricesByCountry] of Object.entries(current)) {
+    next[distributor] = Object.fromEntries(
+      Object.entries(pricesByCountry).filter(([country]) => country !== countryName),
+    );
+  }
+
+  return next;
+}
+
 export function useConfigCountryPricingActions(params: ConfigCountryPricingActionsParams) {
   const {
     notify,
+    countries,
     setCountries,
     setPromotions,
+    distributorPrices,
     setDistributorPrices,
     flushPendingSave,
     selectedCountry,
@@ -78,6 +126,12 @@ export function useConfigCountryPricingActions(params: ConfigCountryPricingActio
     promotions,
     onSelectedCountryRemoved,
   } = params;
+
+  const [countryMutationBusy, setCountryMutationBusy] = useState<string | null>(null);
+  const [countryRemovalConfirm, setCountryRemovalConfirm] =
+    useState<CountryRemovalConfirmState | null>(null);
+  const [countryRemovalConfirming, setCountryRemovalConfirming] = useState(false);
+  const mutationLockRef = useRef(false);
 
   function openCountryContextMenu(
     event: MouseEvent<HTMLElement> | ReactPointerEvent<HTMLElement>,
@@ -135,23 +189,64 @@ export function useConfigCountryPricingActions(params: ConfigCountryPricingActio
     };
   }
 
-  function removeCountry(countryName: string) {
-    flushSync(() => {
-      setCountries((current) => current.filter((country) => country.name !== countryName));
-      setPromotions((current) =>
-        current.filter((promotion) => promotion.countryName !== countryName),
-      );
-      setDistributorPrices((current) => {
-        const next: typeof current = {};
+  function captureRemovalSnapshot(countryName: string): CountryRemovalSnapshot | null {
+    const country = countries.find((entry) => entry.name === countryName);
 
-        for (const [distributor, pricesByCountry] of Object.entries(current)) {
-          next[distributor] = Object.fromEntries(
-            Object.entries(pricesByCountry).filter(([country]) => country !== countryName),
-          );
+    if (!country) {
+      return null;
+    }
+
+    return {
+      country: structuredClone(country),
+      promotions: promotions
+        .filter((promotion) => promotion.countryName === countryName)
+        .map((promotion) => structuredClone(promotion)),
+      distributorPrices: structuredClone(distributorPrices),
+      selectedCountry,
+    };
+  }
+
+  function restoreRemovalSnapshot(snapshot: CountryRemovalSnapshot) {
+    flushSync(() => {
+      setCountries((current) => {
+        if (current.some((entry) => entry.name === snapshot.country.name)) {
+          return current;
         }
 
-        return next;
+        return [...current, snapshot.country].sort(compareCountriesByCatalogOrder);
       });
+      setPromotions((current) => {
+        const without = current.filter(
+          (promotion) => promotion.countryName !== snapshot.country.name,
+        );
+        return [...without, ...snapshot.promotions];
+      });
+      setDistributorPrices(snapshot.distributorPrices);
+    });
+
+    if (snapshot.selectedCountry === snapshot.country.name) {
+      setSelectedCountry(snapshot.country.name);
+    }
+  }
+
+  async function persistCountryRemoval(
+    countryName: string,
+    snapshot: CountryRemovalSnapshot,
+    options: { offerUndo: boolean },
+  ) {
+    const nextCountries = countries.filter((country) => country.name !== countryName);
+    const nextPromotions = promotions.filter(
+      (promotion) => promotion.countryName !== countryName,
+    );
+    const nextDistributorPrices = stripCountryFromDistributorPrices(
+      distributorPrices,
+      countryName,
+    );
+
+    flushSync(() => {
+      setCountries(nextCountries);
+      setPromotions(nextPromotions);
+      setDistributorPrices(nextDistributorPrices);
     });
 
     if (selectedCountry === countryName) {
@@ -160,42 +255,222 @@ export function useConfigCountryPricingActions(params: ConfigCountryPricingActio
 
     onSelectedCountryRemoved?.(countryName);
     setCountryContextMenu(null);
-    void flushPendingSave();
-    notify.success(`${countryName} quitado`);
+
+    const result = await flushPendingSave({
+      countries: nextCountries,
+      promotions: nextPromotions,
+      distributorPrices: nextDistributorPrices,
+    });
+
+    if (!result.ok) {
+      restoreRemovalSnapshot(snapshot);
+      const blocked =
+        /destinatarios vinculados|configuraciones relacionadas|PRICING_COUNTRY_IN_USE/i.test(
+          result.error,
+        );
+      notify.error(
+        blocked
+          ? countryRemoveBlockedMessage(countryName)
+          : result.error || countryRemoveErrorMessage(countryName),
+      );
+      return false;
+    }
+
+    if (options.offerUndo) {
+      notify.success(countryRemoveSuccessMessage(countryName), {
+        undo: {
+          label: "Deshacer",
+          onUndo: async () => {
+            const restoredCountries = [...nextCountries, snapshot.country].sort(
+              compareCountriesByCatalogOrder,
+            );
+            const restoredPromotions = [...nextPromotions, ...snapshot.promotions];
+            restoreRemovalSnapshot(snapshot);
+            const undoResult = await flushPendingSave({
+              countries: restoredCountries,
+              promotions: restoredPromotions,
+              distributorPrices: snapshot.distributorPrices,
+            });
+
+            if (!undoResult.ok) {
+              flushSync(() => {
+                setCountries(nextCountries);
+                setPromotions(nextPromotions);
+                setDistributorPrices(nextDistributorPrices);
+              });
+              if (snapshot.selectedCountry === snapshot.country.name) {
+                setSelectedCountry(null);
+              }
+              onSelectedCountryRemoved?.(countryName);
+              notify.error(
+                undoResult.error ||
+                  `No se pudo restaurar ${countryName}. Inténtalo nuevamente.`,
+              );
+              return;
+            }
+
+            notify.success(`${countryName} se restauró correctamente.`);
+          },
+        },
+      });
+    } else {
+      notify.success(countryRemoveSuccessMessage(countryName));
+    }
+
+    return true;
+  }
+
+  function requestRemoveCountry(countryName: string) {
+    if (mutationLockRef.current || countryMutationBusy) {
+      return;
+    }
+
+    const snapshot = captureRemovalSnapshot(countryName);
+
+    if (!snapshot) {
+      setCountryContextMenu(null);
+      return;
+    }
+
+    const assessment = assessCountryRemovalRisk(
+      snapshot.country,
+      promotions,
+      distributorPrices,
+    );
+    setCountryContextMenu(null);
+
+    if (assessment.risk === "moderate") {
+      const copy = countryRemovalConfirmCopy(countryName, assessment);
+      setCountryRemovalConfirm({
+        countryName,
+        title: copy.title,
+        message: copy.message,
+        confirmLabel: copy.confirmLabel,
+      });
+      return;
+    }
+
+    void (async () => {
+      mutationLockRef.current = true;
+      setCountryMutationBusy(`remove:${countryName}`);
+
+      try {
+        await persistCountryRemoval(countryName, snapshot, { offerUndo: true });
+      } finally {
+        mutationLockRef.current = false;
+        setCountryMutationBusy(null);
+      }
+    })();
+  }
+
+  function cancelCountryRemoval() {
+    if (countryRemovalConfirming) {
+      return;
+    }
+
+    setCountryRemovalConfirm(null);
+  }
+
+  async function confirmCountryRemoval() {
+    if (!countryRemovalConfirm || mutationLockRef.current) {
+      return;
+    }
+
+    const countryName = countryRemovalConfirm.countryName;
+    const snapshot = captureRemovalSnapshot(countryName);
+
+    if (!snapshot) {
+      setCountryRemovalConfirm(null);
+      return;
+    }
+
+    mutationLockRef.current = true;
+    setCountryRemovalConfirming(true);
+    setCountryMutationBusy(`remove:${countryName}`);
+
+    try {
+      const ok = await persistCountryRemoval(countryName, snapshot, {
+        offerUndo: false,
+      });
+
+      if (ok) {
+        setCountryRemovalConfirm(null);
+      }
+    } finally {
+      mutationLockRef.current = false;
+      setCountryRemovalConfirming(false);
+      setCountryMutationBusy(null);
+    }
+  }
+
+  async function addCountry(country: CountryOption) {
+    if (mutationLockRef.current || countryMutationBusy) {
+      return;
+    }
+
+    if (isCountryAlreadyConfigured(country, countries)) {
+      notify.info(countryAddDuplicateMessage(country.name));
+      setPendingCountryToAdd(null);
+      return;
+    }
+
+    mutationLockRef.current = true;
+    setCountryMutationBusy(`add:${country.code || country.name}`);
+
+    const previousCountries = countries;
+    const nextCountries = [
+      ...countries,
+      {
+        code: country.code,
+        name: country.name,
+        deliveryTime: "",
+        boxes: [],
+      },
+    ].sort(compareCountriesByCatalogOrder);
+
+    flushSync(() => {
+      setCountries(nextCountries);
+    });
+    setCountryQuery("");
+    setPendingCountryToAdd(null);
+    setShowCountryPicker(false);
+    setSelectedCountry(country.name);
+
+    try {
+      const result = await flushPendingSave({ countries: nextCountries });
+
+      if (!result.ok) {
+        flushSync(() => {
+          setCountries(previousCountries);
+        });
+        setSelectedCountry(null);
+        setShowCountryPicker(true);
+        setPendingCountryToAdd(country);
+        notify.error(result.error || countryAddErrorMessage(country.name));
+        return;
+      }
+
+      notify.success(countryAddSuccessMessage(country.name));
+    } finally {
+      mutationLockRef.current = false;
+      setCountryMutationBusy(null);
+    }
+  }
+
+  function closeCountryPicker() {
+    if (countryMutationBusy?.startsWith("add:")) {
+      return;
+    }
+
+    setCountryQuery("");
+    setPendingCountryToAdd(null);
+    setShowCountryPicker(false);
   }
 
   function openConfiguredCountry(countryName: string) {
     setCountryQuery("");
     setShowCountryPicker(false);
     setSelectedCountry(countryName);
-  }
-
-  function addCountry(country: CountryOption) {
-    flushSync(() => {
-      setCountries((current) =>
-        [
-          ...current,
-          {
-            code: country.code,
-            name: country.name,
-            deliveryTime: "",
-            boxes: [],
-          },
-        ].sort(compareCountriesByCatalogOrder),
-      );
-    });
-    setCountryQuery("");
-    setPendingCountryToAdd(null);
-    setShowCountryPicker(false);
-    setSelectedCountry(country.name);
-    void flushPendingSave();
-    notify.success(`${country.name} agregado`);
-  }
-
-  function closeCountryPicker() {
-    setCountryQuery("");
-    setPendingCountryToAdd(null);
-    setShowCountryPicker(false);
   }
 
   function updateCountryTime(time: string) {
@@ -257,7 +532,7 @@ export function useConfigCountryPricingActions(params: ConfigCountryPricingActio
   function addCountryProduct(product: InventoryCatalogProduct) {
     const countryName = selectedCountry ?? activeCountry;
 
-    if (!countryName) {
+    if (!countryName || mutationLockRef.current) {
       return;
     }
 
@@ -427,7 +702,12 @@ export function useConfigCountryPricingActions(params: ConfigCountryPricingActio
   return {
     countryContextMenuProps,
     countryProductContextMenuProps,
-    removeCountry,
+    removeCountry: requestRemoveCountry,
+    countryRemovalConfirm,
+    countryRemovalConfirming,
+    cancelCountryRemoval,
+    confirmCountryRemoval,
+    countryMutationBusy,
     openConfiguredCountry,
     addCountry,
     closeCountryPicker,

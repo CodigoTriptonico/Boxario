@@ -23,7 +23,11 @@ const LOGISTICA_CLIENT_SOURCE_FILES = [
   "src/components/logistica/panels/logistics-client-dialogs.tsx",
   "src/components/logistica/panels/logistics-toolbar.tsx",
   "src/components/logistica/panels/logistics-tasks-board.tsx",
-  "src/components/logistica/panels/logistics-routes-view.tsx",
+  "src/components/logistica/logistics-routes-workspace.tsx",
+  "src/components/logistica/logistics-confirmations-excel-table.tsx",
+  "src/components/logistica/logistics-template-booking-groups.tsx",
+  "src/components/logistica/logistics-unified-route-list.tsx",
+  "src/components/logistica/logistics-history-route-list.tsx",
 ] as const;
 
 export function readLogisticaClientSource(root = process.cwd()) {

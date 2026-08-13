@@ -28,6 +28,14 @@ export type CustomerRecipientRow = {
   addressVerified: boolean;
   lat: number | null;
   lng: number | null;
+  exactEntranceLat: number | null;
+  exactEntranceLng: number | null;
+  exactEntranceConfirmedAt: string;
+  exactEntranceNote: string;
+  exactEntrancePanoId: string;
+  exactEntranceHeading: number | null;
+  exactEntrancePitch: number | null;
+  createdAt: string;
 };
 
 export type CustomerWithRecipientsRow = {
@@ -52,6 +60,14 @@ export type CustomerWithRecipientsRow = {
   addressVerified: boolean;
   lat: number | null;
   lng: number | null;
+  exactEntranceLat: number | null;
+  exactEntranceLng: number | null;
+  exactEntranceConfirmedAt: string;
+  exactEntranceNote: string;
+  exactEntrancePanoId: string;
+  exactEntranceHeading: number | null;
+  exactEntrancePitch: number | null;
+  createdAt: string;
   recipients: CustomerRecipientRow[];
 };
 
@@ -77,6 +93,14 @@ type CustomerDbRow = {
   address_verified?: boolean | null;
   lat?: number | string | null;
   lng?: number | string | null;
+  exact_entrance_lat?: number | string | null;
+  exact_entrance_lng?: number | string | null;
+  exact_entrance_confirmed_at?: string | null;
+  exact_entrance_note?: string | null;
+  exact_entrance_pano_id?: string | null;
+  exact_entrance_heading?: number | string | null;
+  exact_entrance_pitch?: number | string | null;
+  created_at?: string | null;
   customer_recipients: RecipientDbRow[] | null;
 };
 
@@ -102,6 +126,14 @@ type RecipientDbRow = {
   address_verified?: boolean | null;
   lat?: number | string | null;
   lng?: number | string | null;
+  exact_entrance_lat?: number | string | null;
+  exact_entrance_lng?: number | string | null;
+  exact_entrance_confirmed_at?: string | null;
+  exact_entrance_note?: string | null;
+  exact_entrance_pano_id?: string | null;
+  exact_entrance_heading?: number | string | null;
+  exact_entrance_pitch?: number | string | null;
+  created_at?: string | null;
 };
 
 const RECIPIENT_SELECT_FIELDS = `
@@ -125,7 +157,15 @@ const RECIPIENT_SELECT_FIELDS = `
   formatted_address,
   address_verified,
   lat,
-  lng
+  lng,
+  exact_entrance_lat,
+  exact_entrance_lng,
+  exact_entrance_confirmed_at,
+  exact_entrance_note,
+  exact_entrance_pano_id,
+  exact_entrance_heading,
+  exact_entrance_pitch,
+  created_at
 `;
 
 const CUSTOMER_SELECT_FIELDS = `
@@ -149,7 +189,15 @@ const CUSTOMER_SELECT_FIELDS = `
   formatted_address,
   address_verified,
   lat,
-  lng
+  lng,
+  exact_entrance_lat,
+  exact_entrance_lng,
+  exact_entrance_confirmed_at,
+  exact_entrance_note,
+  exact_entrance_pano_id,
+  exact_entrance_heading,
+  exact_entrance_pitch,
+  created_at
 `;
 
 export function groupRecipientsByCustomerId(recipients: RecipientDbRow[]) {
@@ -266,6 +314,14 @@ export function mapRecipientRow(row: RecipientDbRow): CustomerRecipientRow {
     addressVerified: Boolean(row.address_verified),
     lat: mapGeoNumber(row.lat),
     lng: mapGeoNumber(row.lng),
+    exactEntranceLat: mapGeoNumber(row.exact_entrance_lat),
+    exactEntranceLng: mapGeoNumber(row.exact_entrance_lng),
+    exactEntranceConfirmedAt: row.exact_entrance_confirmed_at || "",
+    exactEntranceNote: row.exact_entrance_note || "",
+    exactEntrancePanoId: row.exact_entrance_pano_id || "",
+    exactEntranceHeading: mapGeoNumber(row.exact_entrance_heading),
+    exactEntrancePitch: mapGeoNumber(row.exact_entrance_pitch),
+    createdAt: row.created_at || "",
   };
 }
 
@@ -298,6 +354,14 @@ export function mapCustomerRow(row: CustomerDbRow): CustomerWithRecipientsRow {
     addressVerified: Boolean(row.address_verified),
     lat: mapGeoNumber(row.lat),
     lng: mapGeoNumber(row.lng),
+    exactEntranceLat: mapGeoNumber(row.exact_entrance_lat),
+    exactEntranceLng: mapGeoNumber(row.exact_entrance_lng),
+    exactEntranceConfirmedAt: row.exact_entrance_confirmed_at || "",
+    exactEntranceNote: row.exact_entrance_note || "",
+    exactEntrancePanoId: row.exact_entrance_pano_id || "",
+    exactEntranceHeading: mapGeoNumber(row.exact_entrance_heading),
+    exactEntrancePitch: mapGeoNumber(row.exact_entrance_pitch),
+    createdAt: row.created_at || "",
     recipients,
   };
 }

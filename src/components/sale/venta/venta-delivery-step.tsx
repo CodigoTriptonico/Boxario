@@ -25,8 +25,8 @@ export function VentaDeliveryStep({ controller }: { controller: VentaController;
     fullBoxRouteDecision,
     fullBoxScheduleAt,
     fullBoxScheduleMode,
+    customerLogisticsChargeHistory,
     logisticsContinueHint,
-    logisticsFees,
     logisticsPlanReady,
     selectEmptyBoxMode,
     selectFullBoxMode,
@@ -62,8 +62,8 @@ export function VentaDeliveryStep({ controller }: { controller: VentaController;
               onDeferFullBoxPickup={deferFullBoxPickup}
               emptyBoxCharge={emptyBoxAdditionalCharge}
               fullBoxCharge={fullBoxAdditionalCharge}
-              emptyBoxChargeSuggestion={logisticsFees.emptyBoxDeliveryFee}
-              fullBoxChargeSuggestion={logisticsFees.fullBoxPickupFee}
+              emptyBoxChargeHistory={customerLogisticsChargeHistory.emptyBoxDelivery}
+              fullBoxChargeHistory={customerLogisticsChargeHistory.fullBoxPickup}
               onEmptyBoxChargeChange={setEmptyBoxAdditionalCharge}
               onFullBoxChargeChange={setFullBoxAdditionalCharge}
             />

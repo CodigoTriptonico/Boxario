@@ -22,6 +22,7 @@ import { type PhysicalPackageStatus } from "@/lib/physical-packages";
 import { formatScheduleAtDisplay } from "@/lib/sale/schedule-time";
 import {
   buildExpedienteRecipientParty,
+  buildExpedienteEditParty,
   buildExpedienteSaleSender,
   buildExpedienteSenderParty,
   logisticsLegModeLabel,
@@ -36,9 +37,11 @@ import {
 import {
   invoiceStatusLabel,
   readBoxLinesFromLogisticsPlan,
+  shipmentLogisticsSteps,
   totalFromShipment,
   quoteFromShipment,
 } from "@/lib/shipment-display";
+import { buildShipmentTimings } from "@/lib/shipment-timing";
 import { shipmentVisibilityScope } from "@/lib/shipment-visibility";
 import { consolidateShipmentActivityHistory } from "@/lib/shipment-step-history";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
@@ -115,6 +118,7 @@ type ExpedienteShipmentDbRow = {
   customer_name: string;
   country: string;
   carrier: string;
+  delivery_notes?: string | null;
   paid: number | string | null;
   status: ShipmentExpedientePayload["status"];
   sale_kind?: ShipmentExpedientePayload["saleKind"] | null;
@@ -124,6 +128,13 @@ type ExpedienteShipmentDbRow = {
       : never
     : never;
   created_at?: string | null;
+  finalized_at?: string | null;
+  empty_box_delivered_at?: string | null;
+  full_box_collected_at?: string | null;
+  office_received_at?: string | null;
+  departed_at?: string | null;
+  shipped_at?: string | null;
+  delivered_at?: string | null;
   sales_owner_id?: string | null;
   sales_owner_profile?: { full_name?: string | null; email?: string | null } | Array<{
     full_name?: string | null;
@@ -139,7 +150,9 @@ type ExpedienteShipmentDbRow = {
 
 const EXPEDIENTE_SHIPMENT_SELECT = `
   id, code, customer_id, recipient_id, recipient_snapshot, customer_name, country, carrier, paid,
-  status, sale_kind, invoice_status, created_at, sales_owner_id, logistics_plan,
+  status, sale_kind, invoice_status, created_at, finalized_at, empty_box_delivered_at,
+  full_box_collected_at, office_received_at, departed_at, shipped_at, delivered_at,
+  sales_owner_id, logistics_plan, delivery_notes,
   customer:customers!shipments_customer_id_fkey(
     first_name, last_name, phones, email, emails, street, house_number, neighborhood, city, state,
     postal_code, country, formatted_address, address_reference
@@ -221,24 +234,10 @@ function readFeeAdjustmentReason(plan: Record<string, unknown>) {
   return "";
 }
 
-function readFeeAdjustmentAdjusted(plan: Record<string, unknown>) {
-  const adjustments =
-    plan.feeAdjustments && typeof plan.feeAdjustments === "object"
-      ? (plan.feeAdjustments as Record<string, unknown>)
-      : {};
-
-  return Object.values(adjustments).some((value) => {
-    if (!value || typeof value !== "object") {
-      return false;
-    }
-
-    const charge = value as Record<string, unknown>;
-    return (
-      charge.enabled === true &&
-      parseMoneyValue(String(charge.amount || "$0")) !==
-        parseMoneyValue(String(charge.suggestion || "$0"))
-    );
-  });
+function readFeeAdjustmentAdjusted(_plan: Record<string, unknown>) {
+  // Ya no hay tarifa sugerida de organización; el importe lo captura Ventas.
+  void _plan;
+  return false;
 }
 
 async function assertShipmentVisible(
@@ -350,6 +349,57 @@ export async function loadShipmentExpedienteAction(
     const tasks = (row.shipment_logistics_tasks || [])
       .map(mapTask)
       .sort((a, b) => a.createdAt.localeCompare(b.createdAt));
+
+    const taskIds = tasks.map((task) => task.id);
+    const [{ data: activeRequests, error: requestsError }, { data: routeStops, error: stopsError }] = await Promise.all([
+      supabase
+        .from("customer_route_assignment_requests")
+        .select("id, task_id, status")
+        .eq("organization_id", session.organizationId)
+        .eq("shipment_id", shipmentId)
+        .in("status", ["template_confirmed", "routed"]),
+      taskIds.length
+        ? supabase
+            .from("logistics_route_stops")
+            .select("id, task_id")
+            .eq("organization_id", session.organizationId)
+            .in("task_id", taskIds)
+        : Promise.resolve({ data: [], error: null }),
+    ]);
+
+    const editBlockedReason = !permissions.canEditShipment
+      ? "Solo Ventas puede editar este envío."
+      : requestsError || stopsError
+        ? "No se pudo verificar si Logística ya confirmó el envío."
+        : tasks.some((task) => task.scheduleConfirmationStatus === "confirmed") ||
+            Boolean((activeRequests || []).length) ||
+            Boolean((routeStops || []).length) ||
+            ["En oficina", "Pickup", "Enviado", "Entregado"].includes(row.status)
+          ? "Logística ya confirmó este envío; para proteger la ruta, la edición está bloqueada."
+          : "";
+
+    const editData: ShipmentExpedientePayload["edit"] = {
+      canEdit: permissions.canEditShipment && !editBlockedReason,
+      blockedReason: editBlockedReason,
+      customerId: row.customer_id || null,
+      recipientId: row.recipient_id || null,
+      sender: buildExpedienteEditParty({
+        customer,
+        fallbackName: row.customer_name,
+        fallbackCountry: "USA",
+      }),
+      recipient:
+        row.recipient_snapshot || recipient
+          ? buildExpedienteEditParty({
+              recipient,
+              snapshot: row.recipient_snapshot,
+              fallbackCountry: row.country,
+            })
+          : null,
+      country: row.country,
+      carrier: row.carrier,
+      deliveryNotes: String(row.delivery_notes || ""),
+    };
 
     const routeByTaskId = new Map<string, { routeName: string; driverId: string | null }>();
     let driverLabelById = new Map<string, string>();
@@ -513,6 +563,47 @@ export async function loadShipmentExpedienteAction(
       "id" | "code" | "customer_name" | "country" | "carrier" | "paid" | "logistics_plan" | "invoice_status"
     >;
 
+    const timelineRow: ShipmentRow = {
+      id: row.id,
+      code: row.code,
+      customerId: row.customer_id || null,
+      recipientId: row.recipient_id || null,
+      recipientSnapshot: row.recipient_snapshot || null,
+      customer_name: row.customer_name,
+      country: row.country,
+      carrier: row.carrier,
+      paid: Number(row.paid) || 0,
+      profit: 0,
+      status: row.status,
+      assigned_to: null,
+      createdBy: null,
+      salesOwnerId: row.sales_owner_id || null,
+      salesOwnerName: profileLabel(row.sales_owner_profile) || "Sin vendedor",
+      sale_kind: row.sale_kind || "full",
+      invoice_status: row.invoice_status || "open",
+      invoice_priority: false,
+      accounting_status: "not_exportable",
+      created_at: row.created_at || null,
+      finalized_at: row.finalized_at || null,
+      empty_box_delivered_at: row.empty_box_delivered_at || null,
+      full_box_collected_at: row.full_box_collected_at || null,
+      office_received_at: row.office_received_at || null,
+      departed_at: row.departed_at || null,
+      shipped_at: row.shipped_at || null,
+      delivered_at: row.delivered_at || null,
+      delivery_notes: row.delivery_notes || "",
+      logistics_plan: logisticsPlan,
+      logisticsTasks: tasks,
+      payments: (row.shipment_payments || [])
+        .map(mapPayment)
+        .sort((a, b) => a.createdAt.localeCompare(b.createdAt)),
+    };
+    const timelineSteps = shipmentLogisticsSteps(timelineRow);
+    const timeline = {
+      steps: timelineSteps,
+      timings: buildShipmentTimings(timelineRow, timelineSteps),
+    };
+
     const quote = quoteFromShipment(shipmentRow as ShipmentRow);
     const financial: ExpedienteFinancialView | null = permissions.canViewFinancial
       ? {
@@ -595,6 +686,8 @@ export async function loadShipmentExpedienteAction(
       salesOwnerName: profileLabel(row.sales_owner_profile) || "Sin vendedor",
       boxCount,
       permissions,
+      edit: editData,
+      timeline,
       sender: senderParty,
       recipient: recipientParty,
       documents: {

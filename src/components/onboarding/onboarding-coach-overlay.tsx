@@ -50,7 +50,7 @@ function OnboardingCoachTooltip({
           <Sparkles className="h-4 w-4" aria-hidden />
         </span>
         <div className="min-w-0">
-          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-300/90">
+          <p className="text-[10px] font-black uppercase tracking-wide text-emerald-300">
             Tip del tutorial
           </p>
           <p className="mt-0.5 text-sm font-black leading-snug text-[#f8fafc]">

@@ -331,11 +331,11 @@ export function CountryPricesDetailPanel({
                         </label>
 
                         <div className="flex items-center justify-between gap-3 rounded-lg border border-emerald-700/40 bg-emerald-950/25 px-3 py-2">
-                          <span className="text-[10px] font-black uppercase tracking-wide text-emerald-400/80">
+                          <span className="text-[10px] font-black uppercase tracking-wide text-emerald-400">
                             Ganancia
                           </span>
                           <span className="flex items-center gap-1 tabular-nums text-emerald-300">
-                            <DollarSign className="h-4 w-4 shrink-0 opacity-70" />
+                            <DollarSign className="h-4 w-4 shrink-0" />
                             <span className="text-lg font-black">{profit}</span>
                           </span>
                         </div>
@@ -412,7 +412,7 @@ export function CountryPricesDetailPanel({
     <section>
       <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
         {!comboBuilderProducts.length && !promotionEditor ? (
-          <p className="text-xs font-bold text-amber-300/90">
+          <p className="text-xs font-bold text-amber-300">
             Agrega productos en Items primero.
           </p>
         ) : (

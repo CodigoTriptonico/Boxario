@@ -14,13 +14,13 @@ function migration(name: string) {
   return readFileSync(path.join(root, "supabase", "migrations", name), "utf8");
 }
 
-test("customer route verification migration covers pending approve and soft history", () => {
-  const sql = migration("115_customer_route_verifications.sql");
-  assert.match(sql, /create table if not exists public\.customer_route_verifications/i);
-  assert.match(sql, /create table if not exists public\.customer_route_assignment_requests/i);
-  assert.match(sql, /status in \('pending', 'approved', 'rejected'\)/);
-  assert.match(sql, /customer_route_verifications_active_uidx/);
-  assert.match(sql, /customer_route_assignment_requests_pending_task_uidx/);
+test("customer route verification migration uses exact address approvals and explicit template states", () => {
+  const sql = migration("196_geographic_routes_zip_schedules.sql");
+  assert.match(sql, /create table if not exists public\.logistics_route_address_approvals/i);
+  assert.match(sql, /address_fingerprint/i);
+  assert.match(sql, /pending_approval.*template_confirmed.*deferred.*rejected.*routed/s);
+  assert.match(sql, /logistics_route_address_approvals_active_uidx/);
+  assert.match(sql, /customer_route_assignment_requests_active_task_uidx/);
   assert.match(sql, /sales\.manage/);
 });
 
@@ -39,7 +39,7 @@ test("eval: first assignment pending, verified auto, zone change revokes", () =>
       routeTemplateId: "a",
       currentZoneKey: "zona-1",
     }),
-    "assigned",
+    "template_confirmed",
   );
   assert.equal(
     zoneChangeShouldRevokeVerification({

@@ -13,8 +13,16 @@ import type { ItemContextMenu } from "@/lib/inventory-structure-utils";
 export type InventoryItemAdminDraft = {
   name: string;
   sku: string;
+  barcode: string;
+  description: string;
   unit: string;
   minStock: string;
+  maxStock: string;
+  inventoryClass: "consumable" | "sellable" | "reusable" | "asset";
+  preferredSupplier: string;
+  requiresSerialTracking: boolean;
+  requiresLotTracking: boolean;
+  requiresExpiryTracking: boolean;
   isCommercial: boolean;
   isActive: boolean;
 };
@@ -27,6 +35,23 @@ type InventoryItemAdminModalProps = {
   onSubmit: (draft: InventoryItemAdminDraft) => void | Promise<void>;
 };
 
+const initialDraft: InventoryItemAdminDraft = {
+  name: "",
+  sku: "",
+  barcode: "",
+  description: "",
+  unit: "pieza",
+  minStock: "2",
+  maxStock: "",
+  inventoryClass: "consumable",
+  preferredSupplier: "",
+  requiresSerialTracking: false,
+  requiresLotTracking: false,
+  requiresExpiryTracking: false,
+  isCommercial: false,
+  isActive: true,
+};
+
 export function InventoryItemAdminModal({
   open,
   context,
@@ -34,14 +59,7 @@ export function InventoryItemAdminModal({
   onClose,
   onSubmit,
 }: InventoryItemAdminModalProps) {
-  const [draft, setDraft] = useState<InventoryItemAdminDraft>({
-    name: "",
-    sku: "",
-    unit: "pieza",
-    minStock: "2",
-    isCommercial: false,
-    isActive: true,
-  });
+  const [draft, setDraft] = useState<InventoryItemAdminDraft>(initialDraft);
 
   useEffect(() => {
     if (!open || !context) {
@@ -52,8 +70,17 @@ export function InventoryItemAdminModal({
       setDraft({
         name: context.treeItem.name,
         sku: context.stockItem.sku || context.stockItem.size || "",
+        barcode: context.stockItem.barcode || "",
+        description: context.stockItem.description || "",
         unit: resolveInventoryItemUnit(context.stockItem),
         minStock: String(context.stockItem.minStock ?? 2),
+        maxStock:
+          context.stockItem.maxStock == null ? "" : String(context.stockItem.maxStock),
+        inventoryClass: context.stockItem.inventoryClass || "consumable",
+        preferredSupplier: context.stockItem.preferredSupplier || "",
+        requiresSerialTracking: context.stockItem.requiresSerialTracking ?? false,
+        requiresLotTracking: context.stockItem.requiresLotTracking ?? false,
+        requiresExpiryTracking: context.stockItem.requiresExpiryTracking ?? false,
         isCommercial: context.stockItem.isCommercial ?? false,
         isActive: context.stockItem.isActive ?? true,
       });
@@ -66,7 +93,7 @@ export function InventoryItemAdminModal({
 
   return (
     <div
-      className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-black/45 p-4 pt-[8dvh]"
+      className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-black/45 p-4 pt-[5dvh]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
@@ -74,7 +101,7 @@ export function InventoryItemAdminModal({
       }}
     >
       <form
-        className="w-full max-w-md rounded-xl border border-black bg-[#17211d] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
+        className="w-full max-w-2xl rounded-xl border border-black bg-[#17211d] p-4 shadow-[0_20px_50px_rgba(0,0,0,0.5)]"
         onSubmit={(event) => {
           event.preventDefault();
           void onSubmit(draft);
@@ -92,7 +119,7 @@ export function InventoryItemAdminModal({
         <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
           Nombre
           <input
-            className={`${inputClass} h-10 text-sm`}
+            className={`${inputClass} h-10 text-sm normal-case`}
             value={draft.name}
             onChange={(event) =>
               setDraft((current) => ({ ...current, name: event.target.value }))
@@ -103,16 +130,82 @@ export function InventoryItemAdminModal({
         </label>
 
         <label className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
-          SKU o código
-          <input
-            className={`${inputClass} h-10 text-sm`}
-            value={draft.sku}
+          Descripción
+          <textarea
+            className={`${inputClass} min-h-20 resize-y py-2 text-sm normal-case`}
+            value={draft.description}
             onChange={(event) =>
-              setDraft((current) => ({ ...current, sku: event.target.value }))
+              setDraft((current) => ({ ...current, description: event.target.value }))
             }
-            placeholder="Opcional"
+            placeholder="Qué es, para qué se usa o cómo identificarlo"
           />
         </label>
+
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
+            SKU
+            <input
+              className={`${inputClass} h-10 text-sm normal-case`}
+              value={draft.sku}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, sku: event.target.value }))
+              }
+              placeholder="Código interno"
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
+            Código de barras
+            <input
+              className={`${inputClass} h-10 text-sm normal-case`}
+              value={draft.barcode}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, barcode: event.target.value }))
+              }
+              placeholder="Escanea o escribe el código"
+            />
+          </label>
+        </div>
+
+        <div className="my-4 border-t border-white/10" />
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
+            Clase de inventario
+            <select
+              className={`${inputClass} h-10 text-sm normal-case`}
+              value={draft.inventoryClass}
+              onChange={(event) => {
+                const inventoryClass = event.target
+                  .value as InventoryItemAdminDraft["inventoryClass"];
+                setDraft((current) => ({
+                  ...current,
+                  inventoryClass,
+                  isCommercial:
+                    inventoryClass === "sellable" ? true : current.isCommercial,
+                }));
+              }}
+            >
+              <option value="consumable">Consumible</option>
+              <option value="sellable">Producto para vender</option>
+              <option value="reusable">Reutilizable</option>
+              <option value="asset">Activo</option>
+            </select>
+          </label>
+          <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
+            Proveedor habitual
+            <input
+              className={`${inputClass} h-10 text-sm normal-case`}
+              value={draft.preferredSupplier}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  preferredSupplier: event.target.value,
+                }))
+              }
+              placeholder="Opcional"
+            />
+          </label>
+        </div>
 
         <div className="mt-3">
           <p className="text-xs font-black uppercase text-slate-400">Unidad</p>
@@ -134,41 +227,88 @@ export function InventoryItemAdminModal({
           </div>
         </div>
 
-        <label className="mt-3 grid gap-1.5 text-xs font-black uppercase text-slate-400">
-          Stock mínimo
-          <input
-            className={`${inputClass} h-10 text-sm`}
-            type="number"
-            min={0}
-            step={1}
-            value={draft.minStock}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, minStock: event.target.value }))
-            }
-          />
-        </label>
+        <div className="mt-3 grid gap-3 sm:grid-cols-2">
+          <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
+            Stock mínimo
+            <input
+              className={`${inputClass} h-10 text-sm`}
+              type="number"
+              min={0}
+              step={1}
+              value={draft.minStock}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, minStock: event.target.value }))
+              }
+            />
+          </label>
+          <label className="grid gap-1.5 text-xs font-black uppercase text-slate-400">
+            Stock máximo
+            <input
+              className={`${inputClass} h-10 text-sm`}
+              type="number"
+              min={0}
+              step={1}
+              value={draft.maxStock}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, maxStock: event.target.value }))
+              }
+              placeholder="Sin límite"
+            />
+          </label>
+        </div>
 
-        <label className="mt-3 flex items-center gap-2 text-sm font-black text-slate-200">
-          <input
-            type="checkbox"
-            checked={draft.isCommercial}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, isCommercial: event.target.checked }))
-            }
-          />
-          Artículo comercial
-        </label>
+        <div className="mt-4 border-t border-white/10 pt-3">
+          <p className="text-xs font-black uppercase text-slate-400">
+            Trazabilidad requerida
+          </p>
+          <div className="mt-2 grid gap-2 sm:grid-cols-3">
+            {([
+              ["requiresSerialTracking", "Número de serie"],
+              ["requiresLotTracking", "Lote"],
+              ["requiresExpiryTracking", "Vencimiento"],
+            ] as const).map(([key, label]) => (
+              <label
+                key={key}
+                className="flex items-center gap-2 text-sm font-black text-slate-200"
+              >
+                <input
+                  type="checkbox"
+                  checked={draft[key]}
+                  onChange={(event) =>
+                    setDraft((current) => ({ ...current, [key]: event.target.checked }))
+                  }
+                />
+                {label}
+              </label>
+            ))}
+          </div>
+        </div>
 
-        <label className="mt-2 flex items-center gap-2 text-sm font-black text-slate-200">
-          <input
-            type="checkbox"
-            checked={draft.isActive}
-            onChange={(event) =>
-              setDraft((current) => ({ ...current, isActive: event.target.checked }))
-            }
-          />
-          Activo
-        </label>
+        <div className="mt-4 grid gap-2 border-t border-white/10 pt-3 sm:grid-cols-2">
+          <label className="flex items-center gap-2 text-sm font-black text-slate-200">
+            <input
+              type="checkbox"
+              checked={draft.isCommercial}
+              onChange={(event) =>
+                setDraft((current) => ({
+                  ...current,
+                  isCommercial: event.target.checked,
+                }))
+              }
+            />
+            Disponible para venta
+          </label>
+          <label className="flex items-center gap-2 text-sm font-black text-slate-200">
+            <input
+              type="checkbox"
+              checked={draft.isActive}
+              onChange={(event) =>
+                setDraft((current) => ({ ...current, isActive: event.target.checked }))
+              }
+            />
+            Artículo activo
+          </label>
+        </div>
 
         <p className="mt-3 text-xs font-bold text-slate-500">
           El stock actual, historial, costos y asignaciones solo cambian mediante

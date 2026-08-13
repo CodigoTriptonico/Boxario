@@ -44,6 +44,10 @@ export async function proxy(request: NextRequest) {
     return NextResponse.next();
   }
 
+  if (process.env.NODE_ENV !== "production" && pathname === "/dev-sw-cleanup") {
+    return NextResponse.next();
+  }
+
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const key = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
 

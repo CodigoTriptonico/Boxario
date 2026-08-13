@@ -45,11 +45,16 @@ test("seguimiento wires program-route into logistics approval flow", () => {
   assert.match(envios, /LogisticsTaskScheduleConfirmPanel/);
   assert.match(envios, /selectionOrder=\"date-first\"/);
   assert.match(envios, /showDriverPicker=\{false\}/);
+  assert.match(envios, /Enviar a logística/);
+  assert.match(envios, /Enviado a logística para aprobar la ruta/);
+  assert.doesNotMatch(envios, /Asignar ruta/);
+  assert.doesNotMatch(envios, /"Ruta asignada"/);
   assert.match(envios, /allowPendingRoute/);
   assert.match(panel, /resolveScheduleConfirmDriverId/);
   assert.match(panel, /showDriverPicker/);
   assert.equal(panel.includes("showDriverPicker ? resolvedDriverId : true"), false);
-  assert.match(actions, /driver_id: driverId \|\| null/);
+  assert.match(actions, /driver_id: null/);
+  assert.doesNotMatch(actions, /driver_id: driverId \|\| null/);
   assert.match(actions, /Completa fecha y ruta/);
   assert.equal(
     actions.includes(
@@ -150,6 +155,9 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.match(panel, /DATE_FIRST_STEPS/);
     assert.match(panel, /const IMPLICIT_DAY_STEPS:[^=]+ = \["day"\]/);
     assert.match(panel, /const DATE_FIRST_STEPS:[^=]+ = \["day", "route"\]/);
+    assert.match(panel, /template\.isSystemGeneral !== true/);
+    assert.match(panel, /const routeChoiceTemplates = routeFirst \? templates : namedTemplates/);
+    assert.match(panel, /DAY_AS_ROUTE_TEMPLATE_ID/);
     assert.match(panel, /requiresNamedRouteChoice = pendingDayRouteMode \|\| dayTemplates\.length > 0/);
     assert.match(
       panel,
@@ -162,7 +170,8 @@ test("seguimiento wires program-route into logistics approval flow", () => {
     assert.doesNotMatch(panel, /\{shipmentCode\} · \{customerName\}/);
     assert.doesNotMatch(panel, /id="confirm-task-schedule-title"/);
     assert.match(panel, /wizardSteps\[wizardSteps\.length - 1\] === step/);
-    assert.match(panel, /dayAsRoute \? driverField : null/);
+    assert.match(panel, /const timeStepField = \([\s\S]*?\{driverField\}/);
+    assert.match(panel, /resolveLogisticsDefaultDriverId/);
     assert.match(
       panel,
       /step === "route" &&\s*allowPendingRoute &&\s*requiresNamedRouteChoice/,

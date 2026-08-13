@@ -246,7 +246,7 @@ export function UsersSettingsPanel() {
   }
 
   if (!loaded) {
-    return <PageLoading />;
+    return <PageLoading inline />;
   }
 
   const inviteModal = showInviteForm ? (
@@ -449,7 +449,7 @@ export function UsersSettingsPanel() {
             </div>
 
             {atUserLimit ? (
-              <p className="border-b border-black/80 px-4 py-2.5 text-xs font-bold text-amber-200/90">
+              <p className="border-b border-black/80 px-4 py-2.5 text-xs font-bold text-amber-200">
                 Límite del plan alcanzado. No puedes crear más usuarios hasta ampliar el contrato.
               </p>
             ) : remainingUsers === 1 ? (

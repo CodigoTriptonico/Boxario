@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listActivityHistoryAction } from "@/app/actions/history";
 import { loadSaleCountryBoxesAction } from "@/app/actions/pricing";
 import {
@@ -18,6 +18,12 @@ import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { resolveCountryBoxes } from "@/components/sale/venta/shared";
 import type { VentaCore } from "@/components/sale/venta/use-venta-core";
 import type { VentaFoundation } from "@/components/sale/venta/use-venta-foundation";
+import {
+  readSalePersonSortMode,
+  sortSalePersons,
+  writeSalePersonSortMode,
+  type SalePersonSortMode,
+} from "@/lib/sale-person-list-sort";
 
 type VentaDataContext = VentaCore & VentaFoundation;
 
@@ -270,39 +276,6 @@ export function useVentaData(context: VentaDataContext) {
   }, [setShellConfig]);
 
   useEffect(() => {
-    function openSaleCardMenu(event: globalThis.MouseEvent) {
-      if (event.type !== "contextmenu" && event.button !== 2) {
-        return;
-      }
-
-      const target = event.target instanceof Element
-        ? event.target.closest<HTMLElement>("[data-sale-context-key]")
-        : null;
-
-      if (!target) {
-        return;
-      }
-
-      if (!openContextMenuForTarget(target, event.clientX, event.clientY)) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    document.addEventListener("pointerup", openSaleCardMenu, true);
-    document.addEventListener("mouseup", openSaleCardMenu, true);
-    document.addEventListener("contextmenu", openSaleCardMenu, true);
-
-    return () => {
-      document.removeEventListener("pointerup", openSaleCardMenu, true);
-      document.removeEventListener("mouseup", openSaleCardMenu, true);
-      document.removeEventListener("contextmenu", openSaleCardMenu, true);
-    };
-  }, [openContextMenuForTarget]);
-
-  useEffect(() => {
     if (!contextMenu) {
       return;
     }
@@ -401,18 +374,30 @@ export function useVentaData(context: VentaDataContext) {
     selectedSender,
   ]);
 
-  const filteredSenders = useMemo(() => {
-    return [...senderList].sort((left, right) => {
-      const leftHasRecipients = left.recipients.length > 0 ? 1 : 0;
-      const rightHasRecipients = right.recipients.length > 0 ? 1 : 0;
+  const [senderSortMode, setSenderSortModeState] = useState<SalePersonSortMode>("recent");
+  const [recipientSortMode, setRecipientSortModeState] =
+    useState<SalePersonSortMode>("recent");
 
-      if (rightHasRecipients !== leftHasRecipients) {
-        return rightHasRecipients - leftHasRecipients;
-      }
-
-      return 0;
+  useEffect(() => {
+    queueMicrotask(() => {
+      setSenderSortModeState(readSalePersonSortMode("sender", "recent"));
+      setRecipientSortModeState(readSalePersonSortMode("recipient", "recent"));
     });
-  }, [senderList]);
+  }, []);
+
+  const setSenderSortMode = useCallback((mode: SalePersonSortMode) => {
+    setSenderSortModeState(mode);
+    writeSalePersonSortMode("sender", mode);
+  }, []);
+
+  const setRecipientSortMode = useCallback((mode: SalePersonSortMode) => {
+    setRecipientSortModeState(mode);
+    writeSalePersonSortMode("recipient", mode);
+  }, []);
+
+  const filteredSenders = useMemo(() => {
+    return sortSalePersons(senderList, senderSortMode);
+  }, [senderList, senderSortMode]);
 
   useEffect(() => {
     if (!senderQuery.trim()) {
@@ -489,64 +474,26 @@ export function useVentaData(context: VentaDataContext) {
   }, [saleShortcuts.lastRecipientByCustomerId, selectedSender]);
 
   const sortedFilteredRecipients = useMemo(() => {
-    if (!suggestedRecipientId || filteredRecipients.length <= 1) {
-      return filteredRecipients;
+    const sorted = sortSalePersons(filteredRecipients, recipientSortMode);
+
+    if (
+      recipientSortMode !== "recent" ||
+      !suggestedRecipientId ||
+      sorted.length <= 1
+    ) {
+      return sorted;
     }
 
-    const suggested = filteredRecipients.find((recipient) => recipient.id === suggestedRecipientId);
+    const suggested = sorted.find((recipient) => recipient.id === suggestedRecipientId);
     if (!suggested) {
-      return filteredRecipients;
+      return sorted;
     }
 
     return [
       suggested,
-      ...filteredRecipients.filter((recipient) => recipient.id !== suggestedRecipientId),
+      ...sorted.filter((recipient) => recipient.id !== suggestedRecipientId),
     ];
-  }, [filteredRecipients, suggestedRecipientId]);
-
-  useEffect(() => {
-    const elements = Array.from(
-      document.querySelectorAll<HTMLElement>("[data-sale-context-key]"),
-    );
-
-    function openElementMenu(event: globalThis.MouseEvent) {
-      if (event.type !== "contextmenu" && event.button !== 2) {
-        return;
-      }
-
-      const target = event.currentTarget instanceof HTMLElement ? event.currentTarget : null;
-
-      if (!target) {
-        return;
-      }
-
-      if (!openContextMenuForTarget(target, event.clientX, event.clientY, 50)) {
-        return;
-      }
-
-      event.preventDefault();
-      event.stopPropagation();
-    }
-
-    elements.forEach((element) => {
-      element.addEventListener("pointerup", openElementMenu, true);
-      element.addEventListener("mouseup", openElementMenu, true);
-      element.addEventListener("contextmenu", openElementMenu, true);
-    });
-
-    return () => {
-      elements.forEach((element) => {
-        element.removeEventListener("pointerup", openElementMenu, true);
-        element.removeEventListener("mouseup", openElementMenu, true);
-        element.removeEventListener("contextmenu", openElementMenu, true);
-      });
-    };
-  }, [
-    boxesForCountry,
-    filteredSenders,
-    openContextMenuForTarget,
-    sortedFilteredRecipients,
-  ]);
+  }, [filteredRecipients, recipientSortMode, suggestedRecipientId]);
 
   const copyAddressItems = [
     {
@@ -614,6 +561,10 @@ export function useVentaData(context: VentaDataContext) {
     activeSender,
     duplicateRecipient,
     filteredSenders,
+    senderSortMode,
+    setSenderSortMode,
+    recipientSortMode,
+    setRecipientSortMode,
     recipientSearchOptions,
     boxesForCountry,
     suggestedRecipientId,

@@ -73,7 +73,7 @@ Script: `npm run benchmark:pagination` → `scripts/benchmark-list-pagination.mj
 - Mide `LIMIT 50` en `OFFSET 0 / 500 / 5000`.
 - Exit 0 siempre (no es gate).
 
-### Números (sesión 2026-08-02, local @ 127.0.0.1:54322)
+### Números (sesión 2026-08-02, local @ 127.0.0.1:60022)
 
 Dataset en txn: routes=601, shipments=601, movements=600. Luego ROLLBACK.
 

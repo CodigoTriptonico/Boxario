@@ -109,8 +109,12 @@ describe("canAccessPath seller shipments", () => {
     assert.equal(canAccessPath(sellerSession(), "/logistica"), false);
   });
 
-  it("keeps estadisticas admin-only", () => {
-    assert.equal(canAccessPath(sellerSession(), "/estadisticas"), false);
+  it("opens statistics by capability while keeping drivers out", () => {
+    assert.equal(canAccessPath(sellerSession(), "/estadisticas"), true);
+    assert.equal(canAccessPath(adminSession(), "/estadisticas"), true);
+    assert.equal(canAccessPath(driverSession(), "/estadisticas"), false);
+    assert.equal(canAccessPath(businessRoleSession("logistica", ["logistics.settings.manage"]), "/estadisticas"), true);
+    assert.equal(canAccessPath(businessRoleSession("finanzas", ["accounting.view"]), "/estadisticas"), true);
   });
 
   it("keeps auditoria admin-only", () => {

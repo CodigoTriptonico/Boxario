@@ -6,7 +6,6 @@ import {
   BookOpen,
   CalendarDays,
   Loader2,
-  PackageCheck,
   Pencil,
   Phone,
   Route,
@@ -22,27 +21,29 @@ import {
   secondaryButtonClass,
   textMutedClass,
 } from "@/components/ui-blocks";
-import { driverLabel, logisticsActionIconWellClass, logisticsPriorityAwaitingDriver, logisticsPriorityCardClass, logisticsPriorityHeaderClass } from "@/lib/logistics-view";
+import { driverLabel, isLogisticsDateOnDisabledWeekday, logisticsActionIconWellClass, logisticsPriorityAwaitingDriver, logisticsPriorityCardClass, logisticsPriorityHeaderClass } from "@/lib/logistics-view";
 import { canEditLogisticsTaskFields } from "@/lib/logistics-task-edit";
 import { isLogisticsFailedTask } from "@/lib/logistics-reprogram";
 import { readShipmentBoxLines } from "@/lib/shipment-display";
 import type { LogisticsRouteRow, LogisticsRouteStopRow } from "@/lib/logistics-routing";
 import type { LogisticsInvoiceItem, LogisticsTaskItem, TaskAddressMeta } from "@/components/logistica/types";
+import type { MouseEvent as ReactMouseEvent } from "react";
 import { LOGISTICS_CARD_PICKER_SHELL } from "@/components/logistica/lib/constants";
 import {
   invoiceActionFieldClass,
   invoiceActionLabel,
   invoiceDriverFieldClass,
-  invoiceEvidenceLabel,
   taskTypeIcon,
 } from "@/components/logistica/lib/task-ui";
 import { LogisticsTaskWaitingBanner } from "@/components/logistica/panels/logistics-task-waiting-banner";
 import { LogisticsTaskRoutePicker } from "@/components/logistica/panels/logistics-task-route-picker";
+import { formatLogisticsEntryDate } from "@/components/logistica/lib/formatters";
 
 export type LogisticsInvoicePanelProps = {
   item: LogisticsInvoiceItem;
   addressByTaskId: Map<string, TaskAddressMeta>;
   routeByTaskId: Map<string, { route: LogisticsRouteRow; stop: LogisticsRouteStopRow }>;
+  routeRequestStatusByTaskId?: Map<string, string>;
   highlightTaskId: string | null;
   selectedTaskIds: string[];
   memberById: Map<string, string>;
@@ -65,6 +66,12 @@ export type LogisticsInvoicePanelProps = {
     task: LogisticsTaskItem,
     nextSelection: string | null,
     routeInfo?: { route: LogisticsRouteRow; stop: LogisticsRouteStopRow },
+  ) => void;
+  onOpenTaskContextMenu?: (
+    event: ReactMouseEvent<HTMLElement>,
+    task: LogisticsTaskItem,
+    canAssign: boolean,
+    disabledReason: string,
   ) => void;
 };
 
@@ -91,18 +98,37 @@ export function LogisticsInvoiceCard({
   routeCatalog,
   filterAnchorDate,
   onTaskRouteChange,
+  onOpenTaskContextMenu,
 }: LogisticsInvoicePanelProps) {
   const task = item.currentTask;
   const nextTask = item.nextTask;
   const displayTask = task || nextTask;
+  const contextTask = task || nextTask;
   const address = displayTask ? addressByTaskId.get(displayTask.id) : undefined;
   const routeInfo = task ? routeByTaskId.get(task.id) : undefined;
+  const contextDisabledReason = routeInfo
+    ? `Esta tarea ya está asignada a la ruta ${routeInfo.route.name}.`
+    : contextTask?.status === "completed"
+      ? "Esta tarea ya fue completada."
+      : contextTask?.status === "cancelled"
+        ? "Esta tarea fue cancelada."
+        : "Esta tarea no cumple las condiciones para asignarse a una ruta.";
   const highlighted =
     highlightTaskId === task?.id || Boolean(nextTask && highlightTaskId === nextTask.id);
   const missingGeo = Boolean(displayTask && !address?.hasGeo);
   const canChangeDriver = task ? canChangeTaskDriver(task, routeInfo) : false;
   const isFailed = Boolean(task && isLogisticsFailedTask(task));
   const routePendingDay = Boolean(task && !task.scheduledAt && task.requestedScheduleAt);
+  const operationDayUnavailable = isLogisticsDateOnDisabledWeekday({
+    scheduledAt: task?.scheduledAt || task?.requestedScheduleAt,
+    routeDate: routeInfo?.route.routeDate,
+    enabledDays: routeCatalog?.enabledDays,
+  });
+  const canSelectForRoute =
+    task !== null && !operationDayUnavailable && taskCanBeSelectedForRoute(task, routeInfo);
+  const logisticsEntryDate = displayTask
+    ? formatLogisticsEntryDate(displayTask.orderedAt || displayTask.createdAt)
+    : null;
   const priorityCardClass = logisticsPriorityCardClass(item.shipment.invoice_priority);
   const priorityHeaderClass = logisticsPriorityHeaderClass(item.shipment.invoice_priority);
   const effectiveDriverId = routeInfo?.route.assignedTo || task?.assignedTo || null;
@@ -111,16 +137,25 @@ export function LogisticsInvoiceCard({
     effectiveDriverId,
     Boolean(task),
   );
-  const invoiceEvidence = invoiceEvidenceLabel(item.shipment);
-
   return (
     <article
       key={task?.id || item.shipment.id}
       data-logistics-task-id={task?.id || nextTask?.id || item.shipment.id}
-      className={`${listCardShellClass} shadow-[0_6px_18px_rgba(0,0,0,0.18)] ${priorityCardClass} ${isFailed ? "border-amber-700/70" : ""} ${highlighted ? "ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1a2320]" : ""}`}
+    onContextMenu={
+      contextTask && onOpenTaskContextMenu
+          ? (event) =>
+              onOpenTaskContextMenu(
+                event,
+                contextTask,
+                taskCanBeSelectedForRoute(contextTask, routeInfo),
+                contextDisabledReason,
+              )
+          : undefined
+      }
+      className={`${listCardShellClass} shadow-[0_6px_18px_rgba(0,0,0,0.18)] ${priorityCardClass} ${isFailed ? "border-amber-700/70" : ""} ${operationDayUnavailable ? "border-amber-700/60" : ""} ${highlighted ? "ring-2 ring-emerald-400 ring-offset-2 ring-offset-[#1a2320]" : ""}`}
     >
       <div className={`relative border-b border-black px-3 py-2.5 ${priorityHeaderClass}`}>
-        {task && !isFailed && taskCanBeSelectedForRoute(task, routeInfo) ? (
+        {canSelectForRoute && !isFailed ? (
           <label className="absolute left-2 top-2 z-10 flex h-8 w-8 shrink-0 cursor-pointer items-center justify-center rounded-md border border-black bg-surface-inset">
             <input
               type="checkbox"
@@ -137,16 +172,16 @@ export function LogisticsInvoiceCard({
           </div>
         ) : null}
         <div className={`mx-auto min-w-0 text-center ${item.shipment.invoice_priority ? "pr-14" : ""}`}>
-          <p className="truncate text-base font-black text-[#f8fafc]">
-            <span className="truncate">{item.shipment.code}</span>
+          <p className="break-words text-base font-black text-[#f8fafc] sm:truncate">
+            <span className="break-all sm:truncate">{item.shipment.code}</span>
           </p>
-          <p className="truncate text-xs font-black text-slate-300">
+          <p className="break-words text-xs font-black text-slate-300 sm:truncate">
             {item.shipment.customer_name}
           </p>
           {item.shipment.customerPhone ? (
-            <p className="mt-0.5 inline-flex max-w-full items-center justify-center gap-1 truncate text-[11px] font-black text-slate-400">
+            <p className="mt-0.5 inline-flex max-w-full flex-wrap items-center justify-center gap-1 text-[11px] font-black text-slate-400 sm:flex-nowrap sm:truncate">
               <Phone className="h-3 w-3 shrink-0" />
-              <span className="truncate">{item.shipment.customerPhone}</span>
+              <span className="break-words sm:truncate">{item.shipment.customerPhone}</span>
             </p>
           ) : null}
           {canManageLogisticsSettings ? (
@@ -173,10 +208,24 @@ export function LogisticsInvoiceCard({
                 Ruta pendiente
               </span>
             ) : null}
-            <span className={`inline-flex items-center gap-1 rounded-md border px-2 py-0.5 text-[10px] font-black ${invoiceEvidence.tone}`}>
-              <PackageCheck className="h-3 w-3" />
-              {invoiceEvidence.label}
-            </span>
+            {operationDayUnavailable ? (
+              <span
+                className="inline-flex items-center gap-1 rounded-md border border-amber-700/60 bg-amber-950/30 px-1.5 py-0.5 text-[10px] font-black text-amber-200"
+                title="El invoice se conserva visible; el día está desactivado y debe reprogramarse o reactivarse antes de asignarlo."
+              >
+                <AlertTriangle className="h-3 w-3" />
+                Día no operativo · visible
+              </span>
+            ) : null}
+            {logisticsEntryDate ? (
+              <span
+                className="inline-flex items-center gap-1 text-[10px] font-black text-emerald-200"
+                title={`Agregada a Logística el ${logisticsEntryDate}`}
+              >
+                <CalendarDays className="h-3 w-3" aria-hidden />
+                Agregada a Logística · {logisticsEntryDate}
+              </span>
+            ) : null}
           </div>
         </div>
       </div>
@@ -209,7 +258,7 @@ export function LogisticsInvoiceCard({
               {taskTypeIcon(item.step.stepType, "h-5 w-5")}
             </span>
             <div className="min-w-0">
-              <span className="pointer-events-none block text-[10px] font-black uppercase opacity-70">
+              <span className="pointer-events-none block text-[10px] font-black uppercase text-app-text-muted">
                 Accion
               </span>
               <span className="pointer-events-none block truncate text-sm font-black">
@@ -223,7 +272,7 @@ export function LogisticsInvoiceCard({
           >
             <span
               className={`inline-flex items-center gap-1 text-[10px] font-black uppercase ${
-                task && !effectiveDriverId ? "text-rose-400" : "opacity-70"
+                  task && !effectiveDriverId ? "text-rose-400" : "text-app-text-secondary"
               }`}
             >
               <Truck className="h-3.5 w-3.5" />

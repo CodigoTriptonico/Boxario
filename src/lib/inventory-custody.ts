@@ -46,6 +46,7 @@ export type InventoryCustodyServerSnapshot = {
   agencyModuleEnabled: boolean;
   agencyRows: InventoryCustodyAgencyRow[];
   fullPackageCounts: InventoryCustodyFullCount[];
+  warehouseItems: InventoryStockItem[];
 };
 
 export function inventoryCustodyRowKey(productKey: string, boxSize: string) {

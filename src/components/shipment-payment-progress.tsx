@@ -29,32 +29,30 @@ export function ShipmentPaymentProgress({
 
   if (compact) {
     return (
-      <div
-        className={`w-full min-w-0 rounded-lg border border-black bg-surface-inset ${summaryRow ? "p-1.5" : "p-2"}`}
-      >
-        <div className="grid grid-cols-3 divide-x divide-black/50 overflow-hidden rounded border border-black/40 bg-surface-card-header">
-          <div className="min-w-0 px-1.5 py-1">
+      <div className={`w-full min-w-0 border-y border-black/60 ${summaryRow ? "py-1.5" : "py-2"}`}>
+        <div className="grid grid-cols-3 gap-2">
+          <div className="min-w-0">
             <p className="text-[8px] font-black uppercase leading-none text-slate-500">Total</p>
-            <p className="mt-0.5 whitespace-nowrap text-[11px] font-black tabular-nums text-[#f8fafc]">
+            <p className="mt-1 whitespace-nowrap text-[11px] font-black tabular-nums text-slate-100">
               {formatMoneyValue(progress.total)}
             </p>
           </div>
-          <div className="min-w-0 px-1.5 py-1">
+          <div className="min-w-0 border-l border-black/50 pl-2">
             <p className="text-[8px] font-black uppercase leading-none text-slate-500">Pagado</p>
-            <p className="mt-0.5 whitespace-nowrap text-[11px] font-black tabular-nums text-emerald-300">
+            <p className="mt-1 whitespace-nowrap text-[11px] font-black tabular-nums text-emerald-300">
               {formatMoneyValue(progress.paid)}
             </p>
           </div>
-          <div className="min-w-0 px-1.5 py-1">
-            <p className="text-[8px] font-black uppercase leading-none text-slate-500">Debe</p>
-            <p className="mt-0.5 whitespace-nowrap text-[11px] font-black tabular-nums text-amber-200">
+          <div className="min-w-0 border-l border-black/50 pl-2">
+            <p className="text-[8px] font-black uppercase leading-none text-slate-500">Saldo</p>
+            <p className={`mt-1 whitespace-nowrap text-[11px] font-black tabular-nums ${progress.pending > 0 ? "text-amber-200" : "text-emerald-300"}`}>
               {formatMoneyValue(progress.pending)}
             </p>
           </div>
         </div>
 
         <div
-          className={`overflow-hidden rounded-full border border-black bg-surface-inset ${summaryRow ? "mt-1 h-1" : "mt-1.5 h-1.5"}`}
+          className={`overflow-hidden rounded-full bg-black/30 ${summaryRow ? "mt-1 h-1" : "mt-1.5 h-1"}`}
         >
           <div
             className={`h-full rounded-full transition-[width] ${barFillClass(progress.status)}`}

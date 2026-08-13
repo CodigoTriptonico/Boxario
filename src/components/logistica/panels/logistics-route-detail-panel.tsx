@@ -20,6 +20,7 @@ import { canEditLogisticsTaskFields } from "@/lib/logistics-task-edit";
 import { estimateRouteStopEtaMinutes, formatEtaMinutes } from "@/lib/logistics-eta";
 import type { RouteMemberRow } from "@/lib/shipment-types";
 import type { LogisticsRouteRow, LogisticsRouteStopRow } from "@/lib/logistics-routing";
+import { routeAllowsPreDepartureStopReorder } from "@/lib/logistics-state-machine";
 import type { LogisticsTaskItem } from "@/components/logistica/types";
 import { routeStatusLabel, taskTypeShortLabel } from "@/components/logistica/lib/constants";
 import { formatSchedule } from "@/components/logistica/lib/formatters";
@@ -81,7 +82,7 @@ export function LogisticsRouteDetailPanel({
               <p className="text-base font-black text-[#f8fafc]">
                 {selectedRoute?.name || "Detalle ruta"}
               </p>
-              <p className="mt-0.5 truncate text-xs font-bold text-slate-500">
+              <p className="mt-0.5 break-words text-xs font-bold text-slate-500 sm:truncate">
                 {selectedRoute
                   ? `${selectedRoute.routeDate} · ${selectedRoute.stops.length} paradas`
                   : "Selecciona una ruta"}
@@ -100,7 +101,7 @@ export function LogisticsRouteDetailPanel({
         {selectedRoute ? (
           <div className={`grid gap-2 ${showTitle ? "mt-3" : ""}`}>
             <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto_auto]">
-              <InlineSearchPicker
+              {selectedRoute.status === "planned" ? <InlineSearchPicker
                 className="w-full min-w-0"
                 minWidthClass="w-full min-w-0"
                 compact={false}
@@ -113,7 +114,7 @@ export function LogisticsRouteDetailPanel({
                 ariaLabel="Chofer de ruta"
                 disabled={busyId === `driver:${selectedRoute.id}`}
                 leadingIcon={<Truck className="h-4 w-4 text-emerald-300" aria-hidden />}
-              />
+              /> : <div />}
               {selectedRoute.status === "draft" ? (
                 <button
                   type="button"
@@ -126,7 +127,7 @@ export function LogisticsRouteDetailPanel({
                   ) : (
                     <CheckCircle2 className="h-4 w-4" />
                   )}
-                  Publicar
+                  Cerrar ruta
                 </button>
               ) : null}
               <button
@@ -146,7 +147,7 @@ export function LogisticsRouteDetailPanel({
                 Cancelar
               </button>
             </div>
-            {routeVehiclePickerOptions.length ? (
+            {selectedRoute.status === "planned" && routeVehiclePickerOptions.length ? (
               <InlineSearchPicker
                 className="w-full min-w-0"
                 minWidthClass="w-full min-w-0"
@@ -202,24 +203,24 @@ export function LogisticsRouteDetailPanel({
                       {index + 1}
                     </span>
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-black text-[#f8fafc]">
+                      <p className="break-words text-sm font-black text-[#f8fafc] sm:truncate">
                         {task?.shipment.code || stop.address.name || stop.taskId}
                       </p>
-                      <p className="truncate text-xs font-bold text-slate-400">
+                      <p className="break-words text-xs font-bold text-slate-400 sm:truncate">
                         {task?.shipment.customer_name || stop.address.name}
                       </p>
                       {formatEtaMinutes(estimateRouteStopEtaMinutes(index + 1)) ? (
-                        <p className="truncate text-[11px] font-bold text-slate-500">
+                        <p className="break-words text-[11px] font-bold text-slate-500 sm:truncate">
                           ETA ~{formatEtaMinutes(estimateRouteStopEtaMinutes(index + 1))}
                         </p>
                       ) : null}
                     </div>
                   </div>
-                  <div className="flex shrink-0 gap-1">
+                  {routeAllowsPreDepartureStopReorder(selectedRoute.status) ? <div className="flex shrink-0 gap-1">
                     <button
                       type="button"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-black bg-surface-inset text-slate-300 disabled:opacity-40"
-                      disabled={index === 0 || busyId === `reorder:${stop.id}`}
+                      disabled={index === 0 || Boolean(busyId?.startsWith("reorder:"))}
                       onClick={() => void onMoveStop(stop, -1)}
                       aria-label="Subir parada"
                     >
@@ -230,14 +231,14 @@ export function LogisticsRouteDetailPanel({
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-black bg-surface-inset text-slate-300 disabled:opacity-40"
                       disabled={
                         index === selectedRoute.stops.length - 1 ||
-                        busyId === `reorder:${stop.id}`
+                        Boolean(busyId?.startsWith("reorder:"))
                       }
                       onClick={() => void onMoveStop(stop, 1)}
                       aria-label="Bajar parada"
                     >
                       <ArrowDown className="h-4 w-4" />
                     </button>
-                    <button
+                    {selectedRoute.status === "draft" ? <button
                       type="button"
                       className="inline-flex h-8 w-8 items-center justify-center rounded-md border border-black bg-surface-inset text-rose-200 disabled:opacity-40"
                       disabled={busyId === `remove:${stop.id}`}
@@ -249,8 +250,8 @@ export function LogisticsRouteDetailPanel({
                       ) : (
                         <Trash2 className="h-4 w-4" />
                       )}
-                    </button>
-                  </div>
+                    </button> : null}
+                  </div> : null}
                 </div>
                 <p className="mt-2 line-clamp-2 rounded-md border border-black bg-surface-inset px-2 py-1 text-xs font-bold leading-snug text-slate-300">
                   {stop.address.formattedAddress || "Sin direccion"}
@@ -334,7 +335,7 @@ export function LogisticsRouteDetailDrawer({
             <p className="text-[10px] font-black uppercase tracking-wide text-slate-500">
               Logistica
             </p>
-            <h2 className="truncate text-lg font-black text-[#f8fafc]">{selectedRoute.name}</h2>
+            <h2 className="break-words text-lg font-black text-[#f8fafc] sm:truncate">{selectedRoute.name}</h2>
             <p className="mt-0.5 text-sm font-bold text-slate-400">
               {selectedRoute.routeDate} · {selectedRoute.stops.length} paradas
             </p>

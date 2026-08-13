@@ -110,7 +110,7 @@ export function saleBoxStockLevel(snapshot: SaleBoxStockSnapshot): StockLevel {
 
 export function saleBoxStockTitle(snapshot: SaleBoxStockSnapshot) {
   if (snapshot.available <= 0) {
-    return "Sin stock en bodega (puedes vender igual)";
+    return "Sin stock disponible";
   }
 
   if (snapshot.available <= snapshot.minStock) {

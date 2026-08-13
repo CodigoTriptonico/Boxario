@@ -160,8 +160,16 @@ export function useInventoryItemLeafActions({
   async function handleSaveItemAdmin(draft: {
     name: string;
     sku: string;
+    barcode: string;
+    description: string;
     unit: string;
     minStock: string;
+    maxStock: string;
+    inventoryClass: "consumable" | "sellable" | "reusable" | "asset";
+    preferredSupplier: string;
+    requiresSerialTracking: boolean;
+    requiresLotTracking: boolean;
+    requiresExpiryTracking: boolean;
     isCommercial: boolean;
     isActive: boolean;
   }) {
@@ -180,8 +188,16 @@ export function useInventoryItemLeafActions({
       itemName: adminContext.treeItem.name,
       name: draft.name,
       sku: draft.sku,
+      barcode: draft.barcode,
+      description: draft.description,
       unit: draft.unit,
       minStock: Number(draft.minStock),
+      maxStock: draft.maxStock.trim() ? Number(draft.maxStock) : null,
+      inventoryClass: draft.inventoryClass,
+      preferredSupplier: draft.preferredSupplier,
+      requiresSerialTracking: draft.requiresSerialTracking,
+      requiresLotTracking: draft.requiresLotTracking,
+      requiresExpiryTracking: draft.requiresExpiryTracking,
       isCommercial: draft.isCommercial,
       isActive: draft.isActive,
     });
@@ -225,8 +241,16 @@ export function useInventoryItemLeafActions({
           ...item,
           name: draft.name.trim(),
           sku: draft.sku.trim() || undefined,
+          barcode: draft.barcode.trim() || undefined,
+          description: draft.description.trim() || undefined,
           unit: draft.unit,
           minStock: Number(draft.minStock) || 0,
+          maxStock: draft.maxStock.trim() ? Number(draft.maxStock) : null,
+          inventoryClass: draft.inventoryClass,
+          preferredSupplier: draft.preferredSupplier.trim() || undefined,
+          requiresSerialTracking: draft.requiresSerialTracking,
+          requiresLotTracking: draft.requiresLotTracking,
+          requiresExpiryTracking: draft.requiresExpiryTracking,
           isCommercial: draft.isCommercial,
           isActive: draft.isActive,
         };

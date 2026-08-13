@@ -3462,16 +3462,26 @@ export type Database = {
       }
       customer_route_assignment_requests: {
         Row: {
+          address_fingerprint: string | null
+          box_count: number
+          coverage_status: string
           created_at: string
           customer_id: string
           driver_id: string | null
           id: string
           organization_id: string
+          postal_code: string | null
           requested_by: string | null
           review_note: string
           reviewed_at: string | null
           reviewed_by: string | null
-          route_template_id: string
+          route_date: string
+          route_definition_id: string | null
+          route_id: string | null
+          route_name: string
+          route_schedule_id: string | null
+          route_template_id: string | null
+          route_weekday: number
           scheduled_at: string
           shipment_id: string
           status: string
@@ -3480,16 +3490,26 @@ export type Database = {
           zone_key: string
         }
         Insert: {
+          address_fingerprint?: string | null
+          box_count?: number
+          coverage_status?: string
           created_at?: string
           customer_id: string
           driver_id?: string | null
           id?: string
           organization_id: string
+          postal_code?: string | null
           requested_by?: string | null
           review_note?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
-          route_template_id: string
+          route_date: string
+          route_definition_id?: string | null
+          route_id?: string | null
+          route_name?: string
+          route_schedule_id?: string | null
+          route_template_id?: string | null
+          route_weekday: number
           scheduled_at: string
           shipment_id: string
           status?: string
@@ -3498,16 +3518,26 @@ export type Database = {
           zone_key: string
         }
         Update: {
+          address_fingerprint?: string | null
+          box_count?: number
+          coverage_status?: string
           created_at?: string
           customer_id?: string
           driver_id?: string | null
           id?: string
           organization_id?: string
+          postal_code?: string | null
           requested_by?: string | null
           review_note?: string
           reviewed_at?: string | null
           reviewed_by?: string | null
-          route_template_id?: string
+          route_date?: string
+          route_definition_id?: string | null
+          route_id?: string | null
+          route_name?: string
+          route_schedule_id?: string | null
+          route_template_id?: string | null
+          route_weekday?: number
           scheduled_at?: string
           shipment_id?: string
           status?: string
@@ -3549,6 +3579,27 @@ export type Database = {
             columns: ["reviewed_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_route_assignment_requests_route_definition_id_fkey"
+            columns: ["route_definition_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_route_assignment_requests_route_id_fkey"
+            columns: ["route_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_routes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "customer_route_assignment_requests_route_schedule_id_fkey"
+            columns: ["route_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_schedules"
             referencedColumns: ["id"]
           },
           {
@@ -4691,6 +4742,7 @@ export type Database = {
           id: string
           idempotency_key: string
           operation_type: string
+          request_hash: string | null
           result: Json | null
           status: string
           tenant_id: string
@@ -4703,6 +4755,7 @@ export type Database = {
           id?: string
           idempotency_key: string
           operation_type: string
+          request_hash?: string | null
           result?: Json | null
           status?: string
           tenant_id: string
@@ -4715,6 +4768,7 @@ export type Database = {
           id?: string
           idempotency_key?: string
           operation_type?: string
+          request_hash?: string | null
           result?: Json | null
           status?: string
           tenant_id?: string
@@ -5164,9 +5218,12 @@ export type Database = {
       inventory_items: {
         Row: {
           archived_at: string | null
+          barcode: string | null
           category_id: string
           created_at: string
+          description: string
           id: string
+          inventory_class: string
           is_active: boolean
           is_commercial: boolean
           kind: string
@@ -5174,6 +5231,10 @@ export type Database = {
           name: string
           organization_id: string
           photo_url: string
+          preferred_supplier: string
+          requires_expiry_tracking: boolean
+          requires_lot_tracking: boolean
+          requires_serial_tracking: boolean
           size: string | null
           sku: string | null
           subcategory: string | null
@@ -5181,9 +5242,12 @@ export type Database = {
         }
         Insert: {
           archived_at?: string | null
+          barcode?: string | null
           category_id: string
           created_at?: string
+          description?: string
           id?: string
+          inventory_class?: string
           is_active?: boolean
           is_commercial?: boolean
           kind: string
@@ -5191,6 +5255,10 @@ export type Database = {
           name: string
           organization_id: string
           photo_url?: string
+          preferred_supplier?: string
+          requires_expiry_tracking?: boolean
+          requires_lot_tracking?: boolean
+          requires_serial_tracking?: boolean
           size?: string | null
           sku?: string | null
           subcategory?: string | null
@@ -5198,9 +5266,12 @@ export type Database = {
         }
         Update: {
           archived_at?: string | null
+          barcode?: string | null
           category_id?: string
           created_at?: string
+          description?: string
           id?: string
+          inventory_class?: string
           is_active?: boolean
           is_commercial?: boolean
           kind?: string
@@ -5208,6 +5279,10 @@ export type Database = {
           name?: string
           organization_id?: string
           photo_url?: string
+          preferred_supplier?: string
+          requires_expiry_tracking?: boolean
+          requires_lot_tracking?: boolean
+          requires_serial_tracking?: boolean
           size?: string | null
           sku?: string | null
           subcategory?: string | null
@@ -5526,6 +5601,7 @@ export type Database = {
           avg_cost: number
           id: string
           item_id: string
+          max_stock: number | null
           min_stock: number
           organization_id: string
           reserved: number
@@ -5538,6 +5614,7 @@ export type Database = {
           avg_cost?: number
           id?: string
           item_id: string
+          max_stock?: number | null
           min_stock?: number
           organization_id: string
           reserved?: number
@@ -5550,6 +5627,7 @@ export type Database = {
           avg_cost?: number
           id?: string
           item_id?: string
+          max_stock?: number | null
           min_stock?: number
           organization_id?: string
           reserved?: number
@@ -5890,6 +5968,99 @@ export type Database = {
           },
         ]
       }
+      logistics_route_address_approvals: {
+        Row: {
+          address_fingerprint: string
+          approved_at: string
+          approved_by: string | null
+          created_at: string
+          customer_id: string
+          id: string
+          lat: number | null
+          lng: number | null
+          organization_id: string
+          place_id: string
+          postal_code: string | null
+          revocation_reason: string
+          revoked_at: string | null
+          revoked_by: string | null
+          route_definition_id: string
+          valid_from: string
+        }
+        Insert: {
+          address_fingerprint: string
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          customer_id: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          organization_id: string
+          place_id?: string
+          postal_code?: string | null
+          revocation_reason?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          route_definition_id: string
+          valid_from?: string
+        }
+        Update: {
+          address_fingerprint?: string
+          approved_at?: string
+          approved_by?: string | null
+          created_at?: string
+          customer_id?: string
+          id?: string
+          lat?: number | null
+          lng?: number | null
+          organization_id?: string
+          place_id?: string
+          postal_code?: string | null
+          revocation_reason?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          route_definition_id?: string
+          valid_from?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_route_address_approvals_approved_by_fkey"
+            columns: ["approved_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_address_approvals_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_address_approvals_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_address_approvals_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_address_approvals_route_definition_id_fkey"
+            columns: ["route_definition_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       logistics_route_change_audit: {
         Row: {
           actor_id: string | null
@@ -5957,6 +6128,79 @@ export type Database = {
             columns: ["stop_id"]
             isOneToOne: false
             referencedRelation: "logistics_route_stops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logistics_route_definitions: {
+        Row: {
+          archived_at: string | null
+          archived_by: string | null
+          color: string
+          coverage_mode: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_system_general: boolean
+          name: string
+          organization_id: string
+          status: string
+          system_weekday: number | null
+          updated_at: string
+          zone_name: string
+        }
+        Insert: {
+          archived_at?: string | null
+          archived_by?: string | null
+          color?: string
+          coverage_mode?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_system_general?: boolean
+          name: string
+          organization_id: string
+          status?: string
+          system_weekday?: number | null
+          updated_at?: string
+          zone_name?: string
+        }
+        Update: {
+          archived_at?: string | null
+          archived_by?: string | null
+          color?: string
+          coverage_mode?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_system_general?: boolean
+          name?: string
+          organization_id?: string
+          status?: string
+          system_weekday?: number | null
+          updated_at?: string
+          zone_name?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_route_definitions_archived_by_fkey"
+            columns: ["archived_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_definitions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_definitions_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -6038,6 +6282,226 @@ export type Database = {
             columns: ["stop_id"]
             isOneToOne: false
             referencedRelation: "logistics_route_stops"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logistics_route_postal_codes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          organization_id: string
+          postal_code: string
+          route_definition_id: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id: string
+          postal_code: string
+          route_definition_id: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          organization_id?: string
+          postal_code?: string
+          route_definition_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_route_postal_codes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_postal_codes_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_postal_codes_route_definition_id_fkey"
+            columns: ["route_definition_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logistics_route_coverage_places: {
+        Row: {
+          bounds: Json
+          created_at: string
+          created_by: string | null
+          display_name: string
+          id: string
+          kind: string
+          lat: number | null
+          lng: number | null
+          organization_id: string
+          parent_place_id: string | null
+          place_id: string
+          route_definition_id: string
+          selection_role: string
+        }
+        Insert: {
+          bounds?: Json
+          created_at?: string
+          created_by?: string | null
+          display_name: string
+          id?: string
+          kind: string
+          lat?: number | null
+          lng?: number | null
+          organization_id: string
+          parent_place_id?: string | null
+          place_id: string
+          route_definition_id: string
+          selection_role: string
+        }
+        Update: {
+          bounds?: Json
+          created_at?: string
+          created_by?: string | null
+          display_name?: string
+          id?: string
+          kind?: string
+          lat?: number | null
+          lng?: number | null
+          organization_id?: string
+          parent_place_id?: string | null
+          place_id?: string
+          route_definition_id?: string
+          selection_role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_route_coverage_places_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_coverage_places_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_coverage_places_route_definition_id_fkey"
+            columns: ["route_definition_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_definitions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      logistics_place_children_cache: {
+        Row: {
+          children: Json
+          fetched_at: string
+          parent_display_name: string
+          parent_place_id: string
+          updated_at: string
+        }
+        Insert: {
+          children?: Json
+          fetched_at?: string
+          parent_display_name?: string
+          parent_place_id: string
+          updated_at?: string
+        }
+        Update: {
+          children?: Json
+          fetched_at?: string
+          parent_display_name?: string
+          parent_place_id?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      logistics_route_schedules: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          default_driver_id: string | null
+          estimated_end_time: string | null
+          id: string
+          is_active: boolean
+          max_boxes: number | null
+          max_stops: number | null
+          organization_id: string
+          route_definition_id: string
+          start_time: string
+          updated_at: string
+          weekday: number
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          default_driver_id?: string | null
+          estimated_end_time?: string | null
+          id?: string
+          is_active?: boolean
+          max_boxes?: number | null
+          max_stops?: number | null
+          organization_id: string
+          route_definition_id: string
+          start_time: string
+          updated_at?: string
+          weekday: number
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          default_driver_id?: string | null
+          estimated_end_time?: string | null
+          id?: string
+          is_active?: boolean
+          max_boxes?: number | null
+          max_stops?: number | null
+          organization_id?: string
+          route_definition_id?: string
+          start_time?: string
+          updated_at?: string
+          weekday?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "logistics_route_schedules_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_schedules_default_driver_id_fkey"
+            columns: ["default_driver_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_schedules_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_schedules_route_definition_id_fkey"
+            columns: ["route_definition_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_definitions"
             referencedColumns: ["id"]
           },
         ]
@@ -6133,42 +6597,64 @@ export type Database = {
       }
       logistics_route_templates: {
         Row: {
+          covered_postal_codes: string[]
           created_at: string
           created_by: string | null
+          default_driver_id: string | null
           estimated_end_time: string | null
           id: string
+          max_boxes: number | null
+          max_stops: number | null
           name: string
           organization_id: string
           start_time: string | null
           updated_at: string
           weekday: number
+          zone_key: string
         }
         Insert: {
+          covered_postal_codes?: string[]
           created_at?: string
           created_by?: string | null
+          default_driver_id?: string | null
           estimated_end_time?: string | null
           id?: string
+          max_boxes?: number | null
+          max_stops?: number | null
           name: string
           organization_id: string
           start_time?: string | null
           updated_at?: string
           weekday: number
+          zone_key?: string
         }
         Update: {
+          covered_postal_codes?: string[]
           created_at?: string
           created_by?: string | null
+          default_driver_id?: string | null
           estimated_end_time?: string | null
           id?: string
+          max_boxes?: number | null
+          max_stops?: number | null
           name?: string
           organization_id?: string
           start_time?: string | null
           updated_at?: string
           weekday?: number
+          zone_key?: string
         }
         Relationships: [
           {
             foreignKeyName: "logistics_route_templates_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_route_templates_default_driver_id_fkey"
+            columns: ["default_driver_id"]
             isOneToOne: false
             referencedRelation: "profiles"
             referencedColumns: ["id"]
@@ -6203,6 +6689,8 @@ export type Database = {
           published_at: string | null
           published_by: string | null
           route_date: string
+          route_definition_id: string | null
+          route_schedule_id: string | null
           route_template_id: string | null
           started_at: string | null
           started_by: string | null
@@ -6234,6 +6722,8 @@ export type Database = {
           published_at?: string | null
           published_by?: string | null
           route_date: string
+          route_definition_id?: string | null
+          route_schedule_id?: string | null
           route_template_id?: string | null
           started_at?: string | null
           started_by?: string | null
@@ -6265,6 +6755,8 @@ export type Database = {
           published_at?: string | null
           published_by?: string | null
           route_date?: string
+          route_definition_id?: string | null
+          route_schedule_id?: string | null
           route_template_id?: string | null
           started_at?: string | null
           started_by?: string | null
@@ -6324,6 +6816,20 @@ export type Database = {
             columns: ["published_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_routes_route_definition_id_fkey"
+            columns: ["route_definition_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_definitions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "logistics_routes_route_schedule_id_fkey"
+            columns: ["route_schedule_id"]
+            isOneToOne: false
+            referencedRelation: "logistics_route_schedules"
             referencedColumns: ["id"]
           },
           {
@@ -6680,6 +7186,8 @@ export type Database = {
         Row: {
           default_driver_id: string | null
           estimated_end_time: string | null
+          max_boxes: number | null
+          max_stops: number | null
           organization_id: string
           start_time: string | null
           updated_at: string
@@ -6688,6 +7196,8 @@ export type Database = {
         Insert: {
           default_driver_id?: string | null
           estimated_end_time?: string | null
+          max_boxes?: number | null
+          max_stops?: number | null
           organization_id: string
           start_time?: string | null
           updated_at?: string
@@ -6696,6 +7206,8 @@ export type Database = {
         Update: {
           default_driver_id?: string | null
           estimated_end_time?: string | null
+          max_boxes?: number | null
+          max_stops?: number | null
           organization_id?: string
           start_time?: string | null
           updated_at?: string
@@ -6717,6 +7229,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      logistics_zcta_geometry_cache: {
+        Row: {
+          bounds: Json
+          census_vintage: string
+          fetched_at: string
+          geojson: Json
+          postal_code: string
+          simplified_tolerance: number | null
+          updated_at: string
+        }
+        Insert: {
+          bounds?: Json
+          census_vintage: string
+          fetched_at?: string
+          geojson: Json
+          postal_code: string
+          simplified_tolerance?: number | null
+          updated_at?: string
+        }
+        Update: {
+          bounds?: Json
+          census_vintage?: string
+          fetched_at?: string
+          geojson?: Json
+          postal_code?: string
+          simplified_tolerance?: number | null
+          updated_at?: string
+        }
+        Relationships: []
       }
       operational_exception_events: {
         Row: {
@@ -6990,48 +7532,66 @@ export type Database = {
       }
       organization_route_settings: {
         Row: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
           delivery_days: string[]
           delivery_ranges: string[]
+          driver_payment_methods: string[]
           empty_box_delivery_fee: string
           full_box_pickup_fee: string
+          late_pickup_fee: string
           linked_route_schedules: boolean
           logistics_fee_mode: string
           minimum_deposit: string
           organization_id: string
+          payment_reference_required_methods: string[]
           pending_allowed: boolean
           pickup_days: string[]
+          pickup_included_days: number
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
           updated_at: string
         }
         Insert: {
+          accepted_payment_methods?: string[]
+          default_payment_method?: string
           delivery_days?: string[]
           delivery_ranges?: string[]
+          driver_payment_methods?: string[]
           empty_box_delivery_fee?: string
           full_box_pickup_fee?: string
+          late_pickup_fee?: string
           linked_route_schedules?: boolean
           logistics_fee_mode?: string
           minimum_deposit?: string
           organization_id: string
+          payment_reference_required_methods?: string[]
           pending_allowed?: boolean
           pickup_days?: string[]
+          pickup_included_days?: number
           pickup_ranges?: string[]
           route_lead_time?: string
           schedule_suggestions?: Json
           updated_at?: string
         }
         Update: {
+          accepted_payment_methods?: string[]
+          default_payment_method?: string
           delivery_days?: string[]
           delivery_ranges?: string[]
+          driver_payment_methods?: string[]
           empty_box_delivery_fee?: string
           full_box_pickup_fee?: string
+          late_pickup_fee?: string
           linked_route_schedules?: boolean
           logistics_fee_mode?: string
           minimum_deposit?: string
           organization_id?: string
+          payment_reference_required_methods?: string[]
           pending_allowed?: boolean
           pickup_days?: string[]
+          pickup_included_days?: number
           pickup_ranges?: string[]
           route_lead_time?: string
           schedule_suggestions?: Json
@@ -8829,6 +9389,7 @@ export type Database = {
       shipment_payments: {
         Row: {
           amount: number
+          client_payment_id: string | null
           created_at: string
           created_by: string | null
           id: string
@@ -8840,6 +9401,7 @@ export type Database = {
         }
         Insert: {
           amount: number
+          client_payment_id?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -8851,6 +9413,7 @@ export type Database = {
         }
         Update: {
           amount?: number
+          client_payment_id?: string | null
           created_at?: string
           created_by?: string | null
           id?: string
@@ -10467,6 +11030,24 @@ export type Database = {
         }
         Returns: Json
       }
+      activate_logistics_route_weekday: {
+        Args: {
+          target_estimated_end_time: string
+          target_max_boxes: number
+          target_max_stops: number
+          target_org_id: string
+          target_start_time: string
+          target_weekday: number
+        }
+        Returns: {
+          enabled_days: string[]
+          estimated_end_time: string
+          max_boxes: number
+          max_stops: number
+          start_time: string
+          weekday: number
+        }[]
+      }
       admin_complete_logistics_task_exception: {
         Args: {
           p_reason: string
@@ -10491,6 +11072,7 @@ export type Database = {
         Args: { target_organization_id: string; target_tenant_id: string }
         Returns: boolean
       }
+      apply_late_pickup_fee: { Args: { p_shipment_id: string }; Returns: Json }
       apply_logistics_empty_box_salida: {
         Args: {
           p_actor_id: string
@@ -10609,6 +11191,10 @@ export type Database = {
         Args: { p_transfer_id: string; target_org_id: string }
         Returns: Json
       }
+      cancel_logistics_route_atomic: {
+        Args: { p_client_operation_id?: string; p_route_id: string }
+        Returns: Json
+      }
       change_agency_default_route: {
         Args: {
           change_reason: string
@@ -10654,6 +11240,7 @@ export type Database = {
           next_profit: number
           next_sale_kind: string
           payment_amount: number
+          payment_client_operation_id?: string
           payment_created_by: string
           payment_kind: string
           payment_method: string
@@ -10661,7 +11248,7 @@ export type Database = {
           target_organization_id: string
           target_shipment_id: string
         }
-        Returns: undefined
+        Returns: Json
       }
       complete_agency_visit_by_driver: {
         Args: {
@@ -10714,6 +11301,24 @@ export type Database = {
         }
         Returns: Json
       }
+      conductor_truck_inventory_move_atomic: {
+        Args: {
+          p_catalog_key: string
+          p_client_operation_id?: string
+          p_driver_id: string
+          p_item_id: string
+          p_item_label: string
+          p_item_name: string
+          p_mode: string
+          p_note: string
+          p_qty: number
+          p_route_id: string
+          p_source_vehicle_id: string
+          p_target_vehicle_id?: string
+          p_warehouse_id: string
+        }
+        Returns: Json
+      }
       confirm_agency_visit: {
         Args: {
           confirmation_reason: string
@@ -10723,6 +11328,10 @@ export type Database = {
           target_visit_id: string
         }
         Returns: Json
+      }
+      confirm_logistics_route_from_bookings: {
+        Args: { p_idempotency_key?: string; p_request_ids: string[] }
+        Returns: string
       }
       consume_rate_limit: {
         Args: {
@@ -10756,6 +11365,10 @@ export type Database = {
           target_org_id: string
         }
         Returns: Json
+      }
+      create_logistics_route_from_bookings: {
+        Args: { p_idempotency_key?: string; p_request_ids: string[] }
+        Returns: string
       }
       create_shipment_sale_atomic: {
         Args: { p_command: Json; p_idempotency_key: string }
@@ -10856,6 +11469,21 @@ export type Database = {
         Args: { target_matrix_id: string; target_tenant_id: string }
         Returns: undefined
       }
+      fail_conductor_task_atomic: {
+        Args: {
+          p_actor_id: string
+          p_captured_at: string
+          p_client_operation_id: string
+          p_driver_id: string
+          p_evidence_url: string
+          p_failure_reason: string
+          p_invoice_visible: boolean
+          p_note: string
+          p_organization_id: string
+          p_task_id: string
+        }
+        Returns: Json
+      }
       finalize_agency_daily_close: {
         Args: { target_closure_id: string }
         Returns: Json
@@ -10899,6 +11527,7 @@ export type Database = {
           id: string
           idempotency_key: string
           operation_type: string
+          request_hash: string | null
           result: Json | null
           status: string
           tenant_id: string
@@ -11039,6 +11668,26 @@ export type Database = {
         Args: { target_organization_id: string }
         Returns: Json
       }
+      load_statistics_dashboard: {
+        Args: {
+          comparison_from: string
+          comparison_to: string
+          period_from: string
+          period_to: string
+          requested_filters?: Json
+        }
+        Returns: Json
+      }
+      load_statistics_dashboard_v2: {
+        Args: {
+          comparison_from: string
+          comparison_to: string
+          period_from: string
+          period_to: string
+          requested_filters?: Json
+        }
+        Returns: Json
+      }
       logistics_task_transition_allowed: {
         Args: { p_from: string; p_to: string }
         Returns: boolean
@@ -11131,6 +11780,8 @@ export type Database = {
           published_at: string | null
           published_by: string | null
           route_date: string
+          route_definition_id: string | null
+          route_schedule_id: string | null
           route_template_id: string | null
           started_at: string | null
           started_by: string | null
@@ -11251,6 +11902,10 @@ export type Database = {
           reason_value: string
           target_pallet_id: string
         }
+        Returns: Json
+      }
+      reorder_logistics_route_stops_atomic: {
+        Args: { p_route_id: string; p_stop_ids: string[] }
         Returns: Json
       }
       replace_pricing_config: {
@@ -11388,16 +12043,22 @@ export type Database = {
           p_route_lead_time: string
         }
         Returns: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
           delivery_days: string[]
           delivery_ranges: string[]
+          driver_payment_methods: string[]
           empty_box_delivery_fee: string
           full_box_pickup_fee: string
+          late_pickup_fee: string
           linked_route_schedules: boolean
           logistics_fee_mode: string
           minimum_deposit: string
           organization_id: string
+          payment_reference_required_methods: string[]
           pending_allowed: boolean
           pickup_days: string[]
+          pickup_included_days: number
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -11420,16 +12081,22 @@ export type Database = {
           p_route_lead_time: string
         }
         Returns: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
           delivery_days: string[]
           delivery_ranges: string[]
+          driver_payment_methods: string[]
           empty_box_delivery_fee: string
           full_box_pickup_fee: string
+          late_pickup_fee: string
           linked_route_schedules: boolean
           logistics_fee_mode: string
           minimum_deposit: string
           organization_id: string
+          payment_reference_required_methods: string[]
           pending_allowed: boolean
           pickup_days: string[]
+          pickup_included_days: number
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -11449,16 +12116,22 @@ export type Database = {
           p_route_lead_time: string
         }
         Returns: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
           delivery_days: string[]
           delivery_ranges: string[]
+          driver_payment_methods: string[]
           empty_box_delivery_fee: string
           full_box_pickup_fee: string
+          late_pickup_fee: string
           linked_route_schedules: boolean
           logistics_fee_mode: string
           minimum_deposit: string
           organization_id: string
+          payment_reference_required_methods: string[]
           pending_allowed: boolean
           pickup_days: string[]
+          pickup_included_days: number
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -11478,16 +12151,102 @@ export type Database = {
           p_schedule_suggestions: Json
         }
         Returns: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
           delivery_days: string[]
           delivery_ranges: string[]
+          driver_payment_methods: string[]
           empty_box_delivery_fee: string
           full_box_pickup_fee: string
+          late_pickup_fee: string
           linked_route_schedules: boolean
           logistics_fee_mode: string
           minimum_deposit: string
           organization_id: string
+          payment_reference_required_methods: string[]
           pending_allowed: boolean
           pickup_days: string[]
+          pickup_included_days: number
+          pickup_ranges: string[]
+          route_lead_time: string
+          schedule_suggestions: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organization_route_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      save_sales_axis_settings_v2: {
+        Args: {
+          p_accepted_payment_methods: string[]
+          p_default_payment_method: string
+          p_driver_payment_methods: string[]
+          p_minimum_deposit: string
+          p_pending_allowed: boolean
+          p_reference_required_methods: string[]
+          p_schedule_suggestions: Json
+        }
+        Returns: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
+          delivery_days: string[]
+          delivery_ranges: string[]
+          driver_payment_methods: string[]
+          empty_box_delivery_fee: string
+          full_box_pickup_fee: string
+          late_pickup_fee: string
+          linked_route_schedules: boolean
+          logistics_fee_mode: string
+          minimum_deposit: string
+          organization_id: string
+          payment_reference_required_methods: string[]
+          pending_allowed: boolean
+          pickup_days: string[]
+          pickup_included_days: number
+          pickup_ranges: string[]
+          route_lead_time: string
+          schedule_suggestions: Json
+          updated_at: string
+        }
+        SetofOptions: {
+          from: "*"
+          to: "organization_route_settings"
+          isOneToOne: true
+          isSetofReturn: false
+        }
+      }
+      save_sales_axis_settings_v3: {
+        Args: {
+          p_accepted_payment_methods: string[]
+          p_default_payment_method: string
+          p_driver_payment_methods: string[]
+          p_late_pickup_fee: string
+          p_minimum_deposit: string
+          p_pending_allowed: boolean
+          p_pickup_included_days: number
+          p_reference_required_methods: string[]
+          p_schedule_suggestions: Json
+        }
+        Returns: {
+          accepted_payment_methods: string[]
+          default_payment_method: string
+          delivery_days: string[]
+          delivery_ranges: string[]
+          driver_payment_methods: string[]
+          empty_box_delivery_fee: string
+          full_box_pickup_fee: string
+          late_pickup_fee: string
+          linked_route_schedules: boolean
+          logistics_fee_mode: string
+          minimum_deposit: string
+          organization_id: string
+          payment_reference_required_methods: string[]
+          pending_allowed: boolean
+          pickup_days: string[]
+          pickup_included_days: number
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -11556,6 +12315,19 @@ export type Database = {
         }
         Returns: Json
       }
+      statistics_coverage_json: {
+        Args: {
+          available_count: number
+          coverage_key: string
+          coverage_label: string
+          total_count: number
+        }
+        Returns: Json
+      }
+      statistics_kpi_json: {
+        Args: { current_value: number; previous_value: number }
+        Returns: Json
+      }
       tenant_has_agency_module: {
         Args: { target_tenant_id: string }
         Returns: boolean
@@ -11563,6 +12335,17 @@ export type Database = {
       tenant_organization_access: {
         Args: { target_organization_id: string; target_tenant_id: string }
         Returns: boolean
+      }
+      transfer_inventory_bin_stock_atomic: {
+        Args: {
+          p_from_bin_id: string
+          p_item_id: string
+          p_qty: number
+          p_to_bin_id: string
+          p_warehouse_id: string
+          target_org_id: string
+        }
+        Returns: Json
       }
       transition_agency_status: {
         Args: {
@@ -11575,6 +12358,10 @@ export type Database = {
         }
         Returns: Json
       }
+      update_logistics_route_from_bookings: {
+        Args: { p_idempotency_key?: string; p_request_ids: string[] }
+        Returns: string
+      }
       update_logistics_task_atomic: {
         Args: {
           p_changes?: Json
@@ -11582,6 +12369,14 @@ export type Database = {
           p_task_id: string
         }
         Returns: Json
+      }
+      update_shipment_logistics_plan_atomic: {
+        Args: {
+          p_delivery_notes: string
+          p_logistics_plan: Json
+          p_shipment_id: string
+        }
+        Returns: undefined
       }
       user_can_access_warehouse: { Args: { wh_id: string }; Returns: boolean }
       user_has_permission: { Args: { perm_key: string }; Returns: boolean }
@@ -11720,4 +12515,3 @@ export const Constants = {
     Enums: {},
   },
 } as const
-

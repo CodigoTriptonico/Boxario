@@ -44,7 +44,7 @@ import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 
 const STOCK_SELECT =
-  "id, item_id, warehouse_id, stock, reserved, assigned, unavailable, min_stock, avg_cost, inventory_items!inner(id, name, kind, subcategory, size, location, unit, photo_url, category_id, inventory_categories(name))";
+  "id, item_id, warehouse_id, stock, reserved, assigned, unavailable, min_stock, max_stock, avg_cost, inventory_items!inner(id, name, kind, subcategory, size, location, unit, photo_url, sku, barcode, description, inventory_class, preferred_supplier, requires_serial_tracking, requires_lot_tracking, requires_expiry_tracking, is_commercial, is_active, archived_at, category_id, inventory_categories(name))";
 
 async function loadWarehouseInventoryCore(
   supabase: SupabaseClient,

@@ -10,8 +10,12 @@ const gridSource = readFileSync(
   join(root, "src/components/inventory/inventory-item-grid.tsx"),
   "utf8",
 );
-const contextMenuSource = readFileSync(
-  join(root, "src/components/inventory/inventory-item-context-menu.tsx"),
+const locationDrawerSource = readFileSync(
+  join(root, "src/components/inventory/inventory-bin-placement-drawer.tsx"),
+  "utf8",
+);
+const unitEditorSource = readFileSync(
+  join(root, "src/components/inventory/inventory-item-unit-editor-modal.tsx"),
   "utf8",
 );
 
@@ -20,7 +24,7 @@ describe("inventory units eval", () => {
     assert.match(inventoryActionSource, /updateInventoryItemUnitAction/);
     // Preferencia UI 2026-07-28: tarjetas muestran "N disponibles", no la unidad (piezas/cajas).
     assert.match(gridSource, /formatInventoryAvailableLabel/);
-    assert.match(contextMenuSource, /formatInventoryStockLabel/);
-    assert.match(contextMenuSource, /Unidad de medida/);
+    assert.match(locationDrawerSource, /formatInventoryStockLabel/);
+    assert.match(unitEditorSource, /Unidad de medida/);
   });
 });

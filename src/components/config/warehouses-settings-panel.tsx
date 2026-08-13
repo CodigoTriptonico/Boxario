@@ -267,7 +267,7 @@ export function WarehousesSettingsPanel({
                         ) : null}
                       </div>
                       {isPrincipal ? (
-                        <p className="mt-0.5 text-xs font-bold text-amber-300/90">
+                        <p className="mt-0.5 text-xs font-bold text-amber-300">
                           Bodega principal
                         </p>
                       ) : null}
@@ -305,7 +305,7 @@ export function WarehousesSettingsPanel({
                     </p>
                   </div>
                   {inactiveWarehouses.map((warehouse) => (
-                    <div key={warehouse.id} className={`${rowClass} opacity-80`}>
+                    <div key={warehouse.id} className={rowClass}>
                       <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-500">
                         <Building2 className="h-5 w-5" />
                       </span>

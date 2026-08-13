@@ -7,7 +7,6 @@ import { sessionHasPermission } from "@/lib/auth/permissions";
 import { requireAppSession } from "@/lib/auth/session";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
-import { recordInventoryMovementAtomic } from "@/lib/security/inventory-movement";
 import { readPositiveIntegerQty } from "@/lib/security/qty";
 import { DEFAULT_PAYMENT_METHOD, isPaymentMethod, type PaymentMethod } from "@/lib/payment-methods";
 import type { AppSession } from "@/lib/auth/types";
@@ -331,7 +330,7 @@ export async function loadTruckInventoryView(
     .filter(
       (route) =>
         route.assignedTo === driverId &&
-        route.routeDate === scopeDate &&
+        route.routeDate >= scopeDate &&
         (route.status === "planned" || route.status === "in_progress"),
     )
     .map((route) => ({
@@ -342,9 +341,11 @@ export async function loadTruckInventoryView(
       vehicleId: route.vehicleId,
       stopCount: route.stops.length,
     }));
+  const scopedRoutes = routes.filter((route) => route.routeDate === scopeDate);
   const selectedRouteId =
     (routeId && routes.some((route) => route.id === routeId) ? routeId : null) ||
-    routes.find((route) => route.status === "in_progress")?.id ||
+    scopedRoutes.find((route) => route.status === "in_progress")?.id ||
+    scopedRoutes[0]?.id ||
     routes[0]?.id ||
     null;
   const currentVehicleId = routes.find((route) => route.id === selectedRouteId)?.vehicleId || null;
@@ -408,37 +409,6 @@ export function truckLineFromStockItem(item: ConductorTruckStockItem): Conductor
   };
 }
 
-export async function recordConductorWarehouseMovement(
-  admin: Admin,
-  session: AppSession,
-  input: {
-    line: ConductorTruckInventoryLine;
-    type: "salida" | "devolucion" | "entrada";
-    qty: number;
-    note: string;
-    driverId: string;
-  },
-) {
-  requireLineStock(input.line);
-  const qty = readPositiveIntegerQty(input.qty);
-
-  if (!input.line.warehouseId || !input.line.itemId) {
-    throw new Error(`Stock no encontrado para ${input.line.label}`);
-  }
-
-  await recordInventoryMovementAtomic(admin, {
-    organizationId: session.organizationId,
-    warehouseId: input.line.warehouseId,
-    itemId: input.line.itemId,
-    itemName: input.line.itemName || input.line.label,
-    type: input.type,
-    qty,
-    note: input.note,
-    createdBy: session.userId,
-    assigneeId: input.driverId,
-  });
-}
-
 export function requireTruckVehicleId(view: ConductorTruckInventoryView) {
   if (!view.currentVehicleId) {
     throw new Error("Asigna un vehículo a la ruta antes de mover cajas del camión");
@@ -481,6 +451,52 @@ export async function insertTruckEvent(admin: Admin, session: AppSession, input:
       return;
     }
 
+    throw new Error(error.message);
+  }
+}
+
+/** Warehouse movement + truck event(s) in one SQL transaction. */
+export async function conductorTruckInventoryMoveAtomic(
+  supabase: Supabase,
+  input: {
+    driverId: string;
+    sourceVehicleId: string;
+    line: ConductorTruckInventoryLine;
+    qty: number;
+    note: string;
+    routeId?: string | null;
+    mode: "load" | "return_warehouse" | "transfer_vehicle";
+    targetVehicleId?: string | null;
+    clientOperationId?: string | null;
+  },
+) {
+  const qty = readPositiveIntegerQty(input.qty);
+  if (input.mode !== "transfer_vehicle") {
+    requireLineStock(input.line);
+    if (!input.line.warehouseId || !input.line.itemId) {
+      throw new Error(`Stock no encontrado para ${input.line.label}`);
+    }
+  } else if (!input.line.itemId) {
+    throw new Error(`Caja no encontrada para ${input.line.label}`);
+  }
+
+  const { error } = await supabase.rpc("conductor_truck_inventory_move_atomic", {
+    p_driver_id: input.driverId,
+    p_source_vehicle_id: input.sourceVehicleId,
+    p_warehouse_id: input.line.warehouseId || null,
+    p_item_id: input.line.itemId,
+    p_item_name: input.line.itemName || input.line.label,
+    p_catalog_key: input.line.catalogKey || "",
+    p_item_label: input.line.label,
+    p_qty: qty,
+    p_note: input.note,
+    p_route_id: input.routeId || input.line.routeIds[0] || null,
+    p_mode: input.mode,
+    p_target_vehicle_id: input.targetVehicleId || null,
+    p_client_operation_id: input.clientOperationId || null,
+  });
+
+  if (error) {
     throw new Error(error.message);
   }
 }

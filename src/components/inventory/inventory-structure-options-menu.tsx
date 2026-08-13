@@ -122,7 +122,7 @@ export function InventoryStructureOptionsMenu({
       style={{
         top: structureMenuPosition.top,
         left: structureMenuPosition.left,
-        width: STRUCTURE_MENU_WIDTH,
+        width: Math.min(STRUCTURE_MENU_WIDTH, document.documentElement.clientWidth - 16),
       }}
     >
       <p className="mb-2 text-[10px] font-black uppercase tracking-wide text-slate-500">

@@ -18,6 +18,8 @@ import { buildLogisticaShipmentDeepLink } from "@/lib/logistics-view";
 import { CUSTOMER_ROUTE_PENDING_APPROVAL_LABEL } from "@/lib/customer-route-verification";
 import {
   balanceDueFromShipment,
+  enviosActiveLegLogisticsTone,
+  enviosActiveLegLogisticsToneClass,
   quoteFromShipment,
   shipmentLogisticsBridgeLabel,
   shipmentLogisticsSteps,
@@ -48,6 +50,7 @@ export const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
   onLogisticsPatch,
   onStatusChange,
   onFullBoxReceivedAtOffice,
+  onRevertFullBoxOfficeReception,
   onProgramRoute,
   pendingRouteTaskIds,
   onLockedLeg,
@@ -91,15 +94,18 @@ export const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
               : "";
           const isExpanded = expandedShipmentIds.has(row.id);
           const isSelected = selectionEnabled && isShipmentSelected(row.id);
+          const logisticsToneClass = enviosActiveLegLogisticsToneClass(
+            enviosActiveLegLogisticsTone(row),
+          );
 
           return (
             <article
               key={row.id}
               className={`${listRowBaseClass} px-3 py-1.5 sm:px-4 ${
-                row.invoice_priority ? "bg-amber-950/15" : ""
-              } ${isSelected ? "bg-emerald-950/25 ring-1 ring-inset ring-emerald-500/60" : ""} ${
-                isExpanded ? "bg-surface-list-row-hover/80" : listRowHoverClass
-              }`}
+                logisticsToneClass ? `${logisticsToneClass} ` : ""
+              }${row.invoice_priority ? "bg-amber-950/15 " : ""}${
+                isSelected ? "bg-emerald-950/25 ring-1 ring-inset ring-emerald-500/60 " : ""
+              }${isExpanded ? "bg-surface-list-row-hover/80" : listRowHoverClass}`}
               onContextMenu={(event) => onShipmentContextMenu(event, row)}
             >
               <div
@@ -139,7 +145,7 @@ export const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
                           <CountryFlag name={row.country} size="xs" className="!h-3 !w-[18px] !rounded-sm" />
                           <span>{row.country}</span>
                         </span>
-                        {row.carrier ? <><span className="text-slate-600" aria-hidden>·</span><span className="inline-flex items-center gap-1 text-slate-400"><Package className="h-3 w-3 shrink-0 opacity-60" aria-hidden /><span className="tabular-nums">{row.carrier}</span></span></> : null}
+                        {row.carrier ? <><span className="text-slate-600" aria-hidden>·</span><span className="inline-flex items-center gap-1 text-slate-400"><Package className="h-3 w-3 shrink-0" aria-hidden /><span className="tabular-nums">{row.carrier}</span></span></> : null}
                       </div>
                     </div>
                   </div>
@@ -161,6 +167,7 @@ export const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
                     steps={progressSteps}
                     timings={timings}
                     row={row}
+                    requestedRouteTaskIds={pendingRouteTaskIds}
                     compact
                     singleLine
                     canEdit={canEditProgress}
@@ -176,6 +183,11 @@ export const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
                     onFullBoxReceivedAtOffice={
                       !isHistoryMode && canManageSales
                         ? (audit) => void onFullBoxReceivedAtOffice(row, audit)
+                        : undefined
+                    }
+                    onRevertFullBoxOfficeReception={
+                      !isHistoryMode && canManageSales
+                        ? (audit) => void onRevertFullBoxOfficeReception(row, audit)
                         : undefined
                     }
                     onProgramRoute={
@@ -198,7 +210,7 @@ export const EnviosShipmentRowsList = memo(function EnviosShipmentRowsList({
                 >
                   <div className="flex flex-wrap items-center gap-2">
                     {logisticsNotice ? (
-                      <span className="text-[10px] font-black text-amber-200/90">
+                      <span className="text-[10px] font-black text-amber-200">
                         {logisticsNotice}
                       </span>
                     ) : null}

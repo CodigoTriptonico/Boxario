@@ -44,7 +44,7 @@ function OnboardingCoachCountdownCard({
           {isRail ? null : (
             <div className="min-w-0 flex-1">
               <div className="flex items-center justify-between gap-2">
-                <p className="text-[10px] font-black uppercase tracking-wide text-emerald-300/90">
+                <p className="text-[10px] font-black uppercase tracking-wide text-emerald-300">
                   Próximo tip
                 </p>
                 <p className="text-[10px] font-black tabular-nums text-slate-400">

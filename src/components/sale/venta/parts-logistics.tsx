@@ -222,6 +222,13 @@ export function recipientShipmentSnapshot(recipient: Recipient): Record<string, 
     placeId: recipient.placeId,
     lat: recipient.lat,
     lng: recipient.lng,
+    exactEntranceLat: recipient.exactEntranceLat,
+    exactEntranceLng: recipient.exactEntranceLng,
+    exactEntranceConfirmedAt: recipient.exactEntranceConfirmedAt,
+    exactEntranceNote: recipient.exactEntranceNote,
+    exactEntrancePanoId: recipient.exactEntrancePanoId,
+    exactEntranceHeading: recipient.exactEntranceHeading,
+    exactEntrancePitch: recipient.exactEntrancePitch,
   };
 }
 

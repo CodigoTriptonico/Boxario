@@ -17,6 +17,7 @@ import { statusAfterRouteUnassign } from "@/lib/logistics-routing";
 import {
   canManageRoutes,
   insertStops,
+  routeTaskConstraintError,
   loadRouteById,
   loadTaskInputs,
   loadTaskRows,
@@ -124,6 +125,9 @@ export async function addLogisticsRouteStopWithReasonAction(input: {
     if (route.stops.some((stop) => stop.taskId === task.taskId && !stop.releasedAt)) {
       return ok(route);
     }
+
+    const constraintError = await routeTaskConstraintError(supabase, session, route, task);
+    if (constraintError) return fail(constraintError);
 
     const nextOrder = Math.max(0, ...route.stops.map((stop) => stop.order)) + 1;
     await insertStops(supabase, session, route.id, [task], nextOrder);

@@ -42,6 +42,7 @@ import {
 } from "@/lib/logistics-route-week";
 import { minScheduleDateInput } from "@/lib/schedule-date";
 import { scheduleAtToTimestamp, formatScheduleAtDisplay } from "@/lib/sale/schedule-time";
+import { resolveLogisticsDefaultDriverId } from "@/lib/logistics-default-driver";
 
 const taskTypeLabel: Record<string, string> = {
   deliver_empty_box: "Dejar caja vacía",
@@ -239,9 +240,14 @@ export function CustomerRouteApprovalPanel({
     draft.routeTemplateId = resolveDayRouteTemplateId({
       weekday,
       templates,
-      preferNotId: request.routeTemplateId,
+      preferNotId: request.routeTemplateId || undefined,
     });
-    draft.driverId = defaultDriverByWeekday[weekday] || "";
+    draft.driverId = resolveLogisticsDefaultDriverId({
+      weekday,
+      routeTemplateId: draft.routeTemplateId,
+      templates,
+      defaultDriverByWeekday,
+    });
     setReplacingId(request.id);
     setReplaceDraft(draft);
   }
@@ -252,15 +258,21 @@ export function CustomerRouteApprovalPanel({
       if (!current) {
         return current;
       }
+      const routeTemplateId = resolveDayRouteTemplateId({
+        weekday,
+        templates,
+        currentTemplateId: current.routeTemplateId,
+      });
       return {
         ...current,
         date,
-        routeTemplateId: resolveDayRouteTemplateId({
+        routeTemplateId,
+        driverId: resolveLogisticsDefaultDriverId({
           weekday,
+          routeTemplateId,
           templates,
-          currentTemplateId: current.routeTemplateId,
+          defaultDriverByWeekday,
         }),
-        driverId: defaultDriverByWeekday[weekday] || current.driverId || "",
       };
     });
   }
@@ -283,7 +295,12 @@ export function CustomerRouteApprovalPanel({
       ...replaceDraft,
       routeTemplateId: nextTemplateId,
       date: nextDate,
-      driverId: defaultDriverByWeekday[weekday] || replaceDraft.driverId || "",
+      driverId: resolveLogisticsDefaultDriverId({
+        weekday,
+        routeTemplateId: nextTemplateId,
+        templates,
+        defaultDriverByWeekday,
+      }),
     });
   }
 
@@ -455,7 +472,7 @@ export function CustomerRouteApprovalPanel({
             </span>
             <span className="inline-flex items-center gap-1 rounded-md border border-amber-700/50 bg-amber-400/10 px-1.5 py-0.5 text-[10px] font-black text-amber-100">
               {request.routeTemplateName}
-              {weekdayLabel ? <span className="text-amber-200/80">· {weekdayLabel}</span> : null}
+              {weekdayLabel ? <span className="text-amber-200">· {weekdayLabel}</span> : null}
             </span>
             <span className="text-[11px] font-bold text-slate-400">
               {formatScheduleAtDisplay(request.scheduledAt)}

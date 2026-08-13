@@ -3,9 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Loader2, Pencil, PlusCircle, Route, Trash2, X } from "lucide-react";
 import {
+  activateLogisticsRouteWeekdayAction,
   createLogisticsRouteTemplateAction,
   deleteLogisticsRouteTemplateAction,
+  setLogisticsRouteTemplateDefaultDriverAction,
   setLogisticsWeekdayDefaultDriverAction,
+  setLogisticsWeekdayCapacityAction,
   setLogisticsWeekdayScheduleAction,
   setLogisticsRouteWeekdayEnabledAction,
   updateLogisticsRouteTemplateAction,
@@ -51,10 +54,23 @@ export function LogisticsRouteCatalog({
   const [draftName, setDraftName] = useState("");
   const [draftStartTime, setDraftStartTime] = useState("");
   const [draftEstimatedEndTime, setDraftEstimatedEndTime] = useState("");
+  const [draftWithoutEnd, setDraftWithoutEnd] = useState(false);
+  const [draftLimitsCapacity, setDraftLimitsCapacity] = useState(false);
+  const [draftMaxStops, setDraftMaxStops] = useState("");
+  const [draftMaxBoxes, setDraftMaxBoxes] = useState("");
+  const [draftZoneKey, setDraftZoneKey] = useState("");
+  const [draftPostalCodes, setDraftPostalCodes] = useState("");
   const [editingDaySchedule, setEditingDaySchedule] = useState<number | null>(null);
+  const [activatingDay, setActivatingDay] = useState<number | null>(null);
   const [dayScheduleStart, setDayScheduleStart] = useState("");
   const [dayScheduleEnd, setDayScheduleEnd] = useState("");
+  const [dayWithoutEnd, setDayWithoutEnd] = useState(false);
+  const [dayLimitsCapacity, setDayLimitsCapacity] = useState(false);
+  const [dayMaxStops, setDayMaxStops] = useState("");
+  const [dayMaxBoxes, setDayMaxBoxes] = useState("");
   const [editingTemplate, setEditingTemplate] = useState<LogisticsRouteTemplateRow | null>(null);
+  const [editingTemplateWithoutEnd, setEditingTemplateWithoutEnd] = useState(false);
+  const [editingTemplateLimitsCapacity, setEditingTemplateLimitsCapacity] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
 
   useEffect(() => {
@@ -115,6 +131,34 @@ export function LogisticsRouteCatalog({
     onCatalogChange?.();
   }
 
+  async function setTemplateDefaultDriver(
+    template: LogisticsRouteTemplateRow,
+    driverId: string | null,
+  ) {
+    if (!canManage) return;
+
+    setBusy(`template-driver:${template.id}`);
+    const result = await setLogisticsRouteTemplateDefaultDriverAction({
+      templateId: template.id,
+      driverId,
+    });
+    setBusy(null);
+    if (!result.ok) {
+      notify.error(result.error);
+      return;
+    }
+
+    setTemplates((current) =>
+      current.map((entry) => (entry.id === result.data.id ? result.data : entry)),
+    );
+    notify.success(
+      result.data.defaultDriverId
+        ? "Conductor de subruta actualizado"
+        : "Conductor de subruta eliminado",
+    );
+    onCatalogChange?.();
+  }
+
   async function toggleDay(day: number) {
     if (!canManage) {
       return;
@@ -124,8 +168,25 @@ export function LogisticsRouteCatalog({
     if (!key) {
       return;
     }
+    if (activatingDay === day) {
+      setActivatingDay(null);
+      setEditingDaySchedule(null);
+      return;
+    }
 
     const enabled = !enabledDays.includes(key);
+    if (enabled) {
+      setSelectedDay(day);
+      setDayScheduleStart("");
+      setDayScheduleEnd("");
+      setDayWithoutEnd(false);
+      setDayLimitsCapacity(false);
+      setDayMaxStops("");
+      setDayMaxBoxes("");
+      setActivatingDay(day);
+      setEditingDaySchedule(day);
+      return;
+    }
     setBusy(`day:${day}`);
     const result = await setLogisticsRouteWeekdayEnabledAction({ day: key, enabled });
     setBusy(null);
@@ -137,11 +198,8 @@ export function LogisticsRouteCatalog({
 
     setEnabledDays(result.data);
     setSelectedDay(day);
-    if (enabled && !weekdayScheduleByWeekday[day]) {
-      setDayScheduleStart("");
-      setDayScheduleEnd("");
-      setEditingDaySchedule(day);
-    }
+    setActivatingDay(null);
+    setEditingDaySchedule(null);
     notify.success(enabled ? `${weekdayNames[day]} disponible` : `${weekdayNames[day]} no disponible`);
     onCatalogChange?.();
   }
@@ -151,30 +209,70 @@ export function LogisticsRouteCatalog({
     setSelectedDay(day);
     setDayScheduleStart(existing?.startTime || "");
     setDayScheduleEnd(existing?.estimatedEndTime || "");
+    setDayWithoutEnd(!existing?.estimatedEndTime);
+    setDayLimitsCapacity(Boolean(existing?.maxStops || existing?.maxBoxes));
+    setDayMaxStops(existing?.maxStops ? String(existing.maxStops) : "");
+    setDayMaxBoxes(existing?.maxBoxes ? String(existing.maxBoxes) : "");
+    setActivatingDay(null);
     setEditingDaySchedule(day);
   }
 
   async function saveDaySchedule(day: number) {
-    if (!dayScheduleStart || !dayScheduleEnd || dayScheduleStart >= dayScheduleEnd) {
+    if (!dayScheduleStart) {
+      notify.error("La hora de inicio es obligatoria");
+      return;
+    }
+    if (!dayWithoutEnd && (!dayScheduleEnd || dayScheduleStart >= dayScheduleEnd)) {
       notify.error("La hora de fin debe ser posterior a la hora de inicio");
       return;
     }
 
+    const maxStops = dayLimitsCapacity ? dayMaxStops : null;
+    const maxBoxes = dayLimitsCapacity ? dayMaxBoxes : null;
+
     setBusy(`schedule:${day}`);
-    const result = await setLogisticsWeekdayScheduleAction({
-      weekday: day,
-      startTime: dayScheduleStart,
-      estimatedEndTime: dayScheduleEnd,
-    });
+    if (activatingDay === day) {
+      const activationResult = await activateLogisticsRouteWeekdayAction({
+        weekday: day,
+        startTime: dayScheduleStart,
+        estimatedEndTime: dayWithoutEnd ? null : dayScheduleEnd,
+        maxStops,
+        maxBoxes,
+      });
+      setBusy(null);
+      if (!activationResult.ok) {
+        notify.error(activationResult.error);
+        return;
+      }
+      setEnabledDays(activationResult.data.enabledDays);
+      setWeekdayScheduleByWeekday((current) =>
+        current.map((schedule, index) => (index === day ? activationResult.data.schedule : schedule)),
+      );
+      setActivatingDay(null);
+      setEditingDaySchedule(null);
+      notify.success(`Ruta del ${weekdayNames[day]} activada`);
+      onCatalogChange?.();
+      return;
+    }
+    const [result, capacityResult] = await Promise.all([
+      setLogisticsWeekdayScheduleAction({ weekday: day, startTime: dayScheduleStart, estimatedEndTime: dayWithoutEnd ? null : dayScheduleEnd }),
+      setLogisticsWeekdayCapacityAction({ weekday: day, maxStops, maxBoxes }),
+    ]);
     setBusy(null);
 
     if (!result.ok) {
       notify.error(result.error);
       return;
     }
-
+    if (!capacityResult.ok) {
+      notify.error(capacityResult.error);
+      return;
+    }
     setWeekdayScheduleByWeekday((current) =>
-      current.map((schedule, index) => (index === day ? result.data : schedule)),
+      current.map((schedule, index) => (index === day ? {
+        ...result.data,
+        ...capacityResult.data,
+      } : schedule)),
     );
     setEditingDaySchedule(null);
     notify.success(`Horario general de ${weekdayNames[day]} guardado`);
@@ -183,8 +281,8 @@ export function LogisticsRouteCatalog({
 
   async function createRoute(name: string, startTime = draftStartTime, estimatedEndTime = draftEstimatedEndTime) {
     const trimmed = name.trim();
-    if (!trimmed || !startTime || !estimatedEndTime) {
-      notify.error("Completa el nombre y el horario operativo de la ruta");
+    if (!trimmed || !startTime || (!draftWithoutEnd && !estimatedEndTime)) {
+      notify.error("Completa el nombre y la hora de inicio de la ruta");
       return;
     }
 
@@ -193,7 +291,11 @@ export function LogisticsRouteCatalog({
       weekday: selectedDay,
       name: trimmed,
       startTime,
-      estimatedEndTime,
+      estimatedEndTime: draftWithoutEnd ? null : estimatedEndTime,
+      maxStops: draftLimitsCapacity ? draftMaxStops : null,
+      maxBoxes: draftLimitsCapacity ? draftMaxBoxes : null,
+      zoneKey: draftZoneKey,
+      coveredPostalCodes: draftPostalCodes,
     });
     setBusy(null);
 
@@ -206,6 +308,12 @@ export function LogisticsRouteCatalog({
     setDraftName("");
     setDraftStartTime("");
     setDraftEstimatedEndTime("");
+    setDraftWithoutEnd(false);
+    setDraftLimitsCapacity(false);
+    setDraftMaxStops("");
+    setDraftMaxBoxes("");
+    setDraftZoneKey("");
+    setDraftPostalCodes("");
     setCreating(false);
     notify.success("Ruta semanal creada");
     onCatalogChange?.();
@@ -217,8 +325,8 @@ export function LogisticsRouteCatalog({
     }
 
     const name = editingTemplate.name.trim();
-    if (!name || !editingTemplate.startTime || !editingTemplate.estimatedEndTime) {
-      notify.error("Completa el nombre y el horario operativo de la ruta");
+    if (!name || !editingTemplate.startTime || (!editingTemplateWithoutEnd && !editingTemplate.estimatedEndTime)) {
+      notify.error("Completa el nombre y la hora de inicio de la ruta");
       return;
     }
 
@@ -227,7 +335,11 @@ export function LogisticsRouteCatalog({
       templateId: editingTemplate.id,
       name,
       startTime: editingTemplate.startTime,
-      estimatedEndTime: editingTemplate.estimatedEndTime,
+      estimatedEndTime: editingTemplateWithoutEnd ? null : editingTemplate.estimatedEndTime,
+      maxStops: editingTemplateLimitsCapacity ? editingTemplate.maxStops : null,
+      maxBoxes: editingTemplateLimitsCapacity ? editingTemplate.maxBoxes : null,
+      zoneKey: editingTemplate.zoneKey,
+      coveredPostalCodes: editingTemplate.coveredPostalCodes,
     });
     setBusy(null);
 
@@ -240,6 +352,8 @@ export function LogisticsRouteCatalog({
       current.map((template) => (template.id === result.data.id ? result.data : template)),
     );
     setEditingTemplate(null);
+    setEditingTemplateWithoutEnd(false);
+    setEditingTemplateLimitsCapacity(false);
     notify.success("Ruta semanal actualizada");
     onCatalogChange?.();
   }
@@ -272,14 +386,11 @@ export function LogisticsRouteCatalog({
             Verde significa disponible para dejar y recoger cajas.
           </p>
         </div>
-        <div className="grid gap-2 p-3 sm:grid-cols-2 xl:grid-cols-7">
+        <div className="grid items-start gap-2 p-3 sm:grid-cols-2 xl:grid-cols-7">
           {logisticsWeekdayKeys.map((day, index) => {
             const enabled = enabledDays.includes(day);
             const selected = selectedDay === index;
             const weekdaySchedule = weekdayScheduleByWeekday[index];
-            const routeCount = templates.filter(
-              (template) => template.weekday === index,
-            ).length;
             const editingSchedule = editingDaySchedule === index;
 
             return (
@@ -300,7 +411,7 @@ export function LogisticsRouteCatalog({
                   >
                     <span className="block text-sm font-black text-[#f8fafc]">{day}</span>
                     <span className={`mt-0.5 block text-[11px] font-bold ${enabled ? "text-emerald-200" : "text-slate-500"}`}>
-                      {enabled ? "Disponible" : "No disponible"}
+                      {enabled ? "Disponible" : activatingDay === index ? "Completa el horario" : "No disponible"}
                     </span>
                   </button>
                   {canManage ? (
@@ -319,11 +430,11 @@ export function LogisticsRouteCatalog({
                     </button>
                   ) : null}
                 </div>
-                {enabled ? (
+                {enabled || editingSchedule ? (
                   <div className="grid gap-1.5 border-t border-black/60 pt-2">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-[10px] font-black uppercase text-slate-500">
-                        Horario general
+                        {activatingDay === index ? "Horario obligatorio" : "Horario general"}
                       </span>
                       {!editingSchedule && canManage ? (
                         <button
@@ -358,73 +469,92 @@ export function LogisticsRouteCatalog({
                               value={dayScheduleEnd}
                               ariaLabel={`Fin del horario general de ${weekdayNames[index]}`}
                               onChange={setDayScheduleEnd}
-                              disabled={busy === `schedule:${index}`}
+                              disabled={dayWithoutEnd || busy === `schedule:${index}`}
                               shellClassName="!px-1.5"
                             />
                           </label>
                         </div>
-                        <div className="grid grid-cols-2 gap-1.5">
-                          <button
-                            type="button"
-                            className={`${primaryButtonClass} !h-8 px-2 text-[10px]`}
-                            disabled={busy === `schedule:${index}`}
-                            onClick={() => void saveDaySchedule(index)}
-                          >
-                            {busy === `schedule:${index}` ? (
-                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                            ) : (
-                              <Check className="h-3.5 w-3.5" />
-                            )}
-                            Guardar
-                          </button>
-                          <button
-                            type="button"
-                            className={`${secondaryButtonClass} !h-8 px-2 text-[10px]`}
-                            disabled={busy === `schedule:${index}`}
-                            onClick={() => setEditingDaySchedule(null)}
-                          >
-                            <X className="h-3.5 w-3.5" />
-                            Cancelar
-                          </button>
-                        </div>
+                        <label className="flex items-center gap-2 rounded-md border border-black bg-surface-inset px-2 py-1.5 text-[10px] font-black text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={dayWithoutEnd}
+                            onChange={(event) => {
+                              setDayWithoutEnd(event.target.checked);
+                              if (event.target.checked) setDayScheduleEnd("");
+                            }}
+                            className="h-3.5 w-3.5 accent-emerald-400"
+                          />
+                          Sin hora de fin · hasta terminar la ruta
+                        </label>
+                        <label className="flex items-center gap-2 rounded-md border border-black bg-surface-inset px-2 py-1.5 text-[10px] font-black text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={dayLimitsCapacity}
+                            onChange={(event) => {
+                              setDayLimitsCapacity(event.target.checked);
+                              if (!event.target.checked) {
+                                setDayMaxStops("");
+                                setDayMaxBoxes("");
+                              }
+                            }}
+                            className="h-3.5 w-3.5 accent-emerald-400"
+                          />
+                          Limitar paradas y cajas
+                        </label>
+                        {dayLimitsCapacity ? (
+                          <div className="grid grid-cols-2 gap-1.5">
+                            <label className="grid min-w-0 gap-1"><span className="text-[9px] font-black uppercase text-slate-500">Max. paradas</span><input type="number" min="1" value={dayMaxStops} onChange={(event) => setDayMaxStops(event.target.value)} className="h-8 w-full min-w-0 max-w-full rounded-md border border-black bg-surface-inset px-2 text-xs font-bold text-white" /></label>
+                            <label className="grid min-w-0 gap-1"><span className="text-[9px] font-black uppercase text-slate-500">Max. cajas</span><input type="number" min="1" value={dayMaxBoxes} onChange={(event) => setDayMaxBoxes(event.target.value)} className="h-8 w-full min-w-0 max-w-full rounded-md border border-black bg-surface-inset px-2 text-xs font-bold text-white" /></label>
+                          </div>
+                        ) : null}
                       </div>
                     ) : (
-                      <button
-                        type="button"
-                        disabled={!canManage}
-                        onClick={() => openDaySchedule(index)}
-                        className="min-h-8 rounded-md border border-black bg-surface-inset px-2 text-left text-[11px] font-black text-slate-200 disabled:cursor-default"
-                      >
-                        {weekdaySchedule?.startTime && weekdaySchedule.estimatedEndTime
-                          ? `${formatTime12Hour(weekdaySchedule.startTime)}–${formatTime12Hour(weekdaySchedule.estimatedEndTime)}`
-                          : "Sin configurar"}
-                      </button>
+                      <>
+                        <button
+                          type="button"
+                          disabled={!canManage}
+                          onClick={() => openDaySchedule(index)}
+                          className="min-h-8 rounded-md border border-black bg-surface-inset px-2 text-left text-[11px] font-black text-slate-200 disabled:cursor-default"
+                        >
+                          {weekdaySchedule?.startTime
+                            ? weekdaySchedule.estimatedEndTime
+                              ? `${formatTime12Hour(weekdaySchedule.startTime)}–${formatTime12Hour(weekdaySchedule.estimatedEndTime)}`
+                              : `${formatTime12Hour(weekdaySchedule.startTime)} · hasta terminar`
+                            : "Sin configurar"}
+                        </button>
+                      </>
                     )}
                   </div>
                 ) : null}
-                <button
-                  type="button"
-                  onClick={() => setSelectedDay(index)}
-                  className="mt-auto flex items-center justify-between border-t border-black/60 pt-2 text-left text-[11px] font-black text-slate-400"
-                >
-                  {routeCount} {routeCount === 1 ? "ruta" : "rutas"}
-                  <span className="text-slate-200">Gestionar</span>
-                </button>
-                <div className="grid gap-1 border-t border-black/60 pt-2">
-                  <span className="text-[10px] font-black uppercase text-slate-500">Conductor por defecto</span>
-                  <InlineSearchPicker
-                    value={defaultDriverByWeekday[index] || ""}
-                    onChange={(driverId) => void setDefaultDriver(index, driverId || null)}
-                    options={driverOptions}
-                    placeholder="Sin conductor"
-                    searchPlaceholder="Buscar conductor..."
-                    emptyLabel="Sin conductores"
-                    ariaLabel={`Conductor predeterminado de ${weekdayNames[index]}`}
-                    disabled={!canManage || busy === `driver:${index}`}
-                    className="w-full min-w-0"
-                    minWidthClass="w-full min-w-0"
-                  />
-                </div>
+                {editingSchedule ? (
+                  <div className="grid grid-cols-2 gap-1.5 border-t border-black/60 pt-2">
+                    <button
+                      type="button"
+                      className={`${primaryButtonClass} !h-8 px-2 text-[10px]`}
+                      disabled={busy === `schedule:${index}`}
+                      onClick={() => void saveDaySchedule(index)}
+                    >
+                      {busy === `schedule:${index}` ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Check className="h-3.5 w-3.5" />
+                      )}
+                      {activatingDay === index ? "Activar" : "Guardar"}
+                    </button>
+                    <button
+                      type="button"
+                      className={`${secondaryButtonClass} !h-8 px-2 text-[10px]`}
+                      disabled={busy === `schedule:${index}`}
+                      onClick={() => {
+                        setEditingDaySchedule(null);
+                        setActivatingDay(null);
+                      }}
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      Cancelar
+                    </button>
+                  </div>
+                ) : null}
               </article>
             );
           })}
@@ -438,10 +568,10 @@ export function LogisticsRouteCatalog({
             <p className="mt-0.5 text-xs font-bold text-slate-500">
               {selectedDayEnabled
                 ? "El horario general se configura en la tarjeta del día. Aquí administra las rutas con nombre."
-                : "Estas rutas quedan guardadas, pero el dia no esta disponible."}
+                : "Aquí puedes administrar sus subrutas; no se usarán hasta activar el día."}
             </p>
           </div>
-          {canManage && selectedDayEnabled ? (
+          {canManage ? (
             <button
               type="button"
               className={`${primaryButtonClass} h-9 px-3 text-xs`}
@@ -449,6 +579,12 @@ export function LogisticsRouteCatalog({
                 setDraftName("");
                 setDraftStartTime("");
                 setDraftEstimatedEndTime("");
+                setDraftWithoutEnd(false);
+                setDraftLimitsCapacity(false);
+                setDraftMaxStops("");
+                setDraftMaxBoxes("");
+                setDraftZoneKey("");
+                setDraftPostalCodes("");
                 setCreating((current) => !current);
               }}
             >
@@ -458,9 +594,32 @@ export function LogisticsRouteCatalog({
           ) : null}
         </div>
 
+        {selectedTemplates.length === 0 ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black bg-surface-inset px-4 py-3">
+            <div className="min-w-0">
+              <p className="text-xs font-black text-slate-200">Conductor de la ruta general</p>
+              <p className="mt-0.5 text-[11px] font-bold text-slate-500">
+                Se usa únicamente mientras este día no tenga subrutas.
+              </p>
+            </div>
+            <InlineSearchPicker
+              value={defaultDriverByWeekday[selectedDay] || ""}
+              onChange={(driverId) => void setDefaultDriver(selectedDay, driverId || null)}
+              options={driverOptions}
+              placeholder="Sin conductor"
+              searchPlaceholder="Buscar conductor..."
+              emptyLabel="Sin conductores"
+              ariaLabel={`Conductor de la ruta general del ${weekdayNames[selectedDay]}`}
+              disabled={!canManage || busy === `driver:${selectedDay}`}
+              className="w-full sm:w-72"
+              minWidthClass="w-full sm:w-72"
+            />
+          </div>
+        ) : null}
+
         {creating ? (
           <form
-            className="grid gap-2 border-b border-black bg-surface-inset p-3 sm:grid-cols-[minmax(12rem,1fr)_9rem_9rem_auto_auto] sm:items-end"
+            className="grid gap-2 border-b border-black bg-surface-inset p-3 sm:grid-cols-2 xl:grid-cols-4 xl:items-end"
             onSubmit={(event) => {
               event.preventDefault();
               void createRoute(draftName);
@@ -484,15 +643,51 @@ export function LogisticsRouteCatalog({
                 onChange={setDraftStartTime}
               />
             </label>
+            <label className="grid gap-1"><span className="text-[10px] font-black uppercase text-slate-500">Zona</span><input value={draftZoneKey} onChange={(event) => setDraftZoneKey(event.target.value)} className="h-9 rounded-lg border border-black bg-surface-card px-3 text-sm font-bold text-white" placeholder="Ej. Riverside" /></label>
+            <label className="grid gap-1 xl:col-span-2"><span className="text-[10px] font-black uppercase text-slate-500">Codigos postales</span><input value={draftPostalCodes} onChange={(event) => setDraftPostalCodes(event.target.value)} className="h-9 rounded-lg border border-black bg-surface-card px-3 text-sm font-bold text-white" placeholder="92501, 92503, 92507" /></label>
             <label className="grid gap-1">
               <span className="text-[10px] font-black uppercase text-slate-500">Fin estimado</span>
               <TimePickerInput
                 value={draftEstimatedEndTime}
                 ariaLabel="Fin estimado de la ruta"
                 onChange={setDraftEstimatedEndTime}
+                disabled={draftWithoutEnd}
               />
             </label>
-            <button type="submit" className={`${primaryButtonClass} h-9 px-3 text-xs`} disabled={busy === "create" || !draftName.trim()}>
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-black bg-surface-card px-3 text-xs font-black text-slate-300">
+              <input
+                type="checkbox"
+                checked={draftWithoutEnd}
+                onChange={(event) => {
+                  setDraftWithoutEnd(event.target.checked);
+                  if (event.target.checked) setDraftEstimatedEndTime("");
+                }}
+                className="h-4 w-4 accent-emerald-400"
+              />
+              Sin hora de fin
+            </label>
+            <label className="flex h-9 items-center gap-2 rounded-lg border border-black bg-surface-card px-3 text-xs font-black text-slate-300 xl:col-span-2">
+              <input
+                type="checkbox"
+                checked={draftLimitsCapacity}
+                onChange={(event) => {
+                  setDraftLimitsCapacity(event.target.checked);
+                  if (!event.target.checked) {
+                    setDraftMaxStops("");
+                    setDraftMaxBoxes("");
+                  }
+                }}
+                className="h-4 w-4 accent-emerald-400"
+              />
+              Limitar paradas y cajas
+            </label>
+            {draftLimitsCapacity ? (
+              <div className="grid gap-2 sm:grid-cols-2 xl:col-span-2">
+                <label className="grid min-w-0 gap-1"><span className="text-[10px] font-black uppercase text-slate-500">Max. paradas</span><input type="number" min="1" value={draftMaxStops} onChange={(event) => setDraftMaxStops(event.target.value)} className="h-9 w-full min-w-0 max-w-full rounded-lg border border-black bg-surface-card px-3 text-sm font-bold text-white" /></label>
+                <label className="grid min-w-0 gap-1"><span className="text-[10px] font-black uppercase text-slate-500">Max. cajas</span><input type="number" min="1" value={draftMaxBoxes} onChange={(event) => setDraftMaxBoxes(event.target.value)} className="h-9 w-full min-w-0 max-w-full rounded-lg border border-black bg-surface-card px-3 text-sm font-bold text-white" /></label>
+              </div>
+            ) : null}
+            <button type="submit" className={`${primaryButtonClass} h-9 px-3 text-xs`} disabled={busy === "create" || !draftName.trim() || !draftStartTime || (!draftWithoutEnd && !draftEstimatedEndTime)}>
               Crear subruta
             </button>
             <button
@@ -509,6 +704,12 @@ export function LogisticsRouteCatalog({
           {selectedTemplates.length ? (
             selectedTemplates.map((template) => {
               const editing = editingTemplate?.id === template.id;
+              const routeDetails = [
+                template.zoneKey ? `Zona ${template.zoneKey}` : "",
+                template.maxStops ? `${template.maxStops} paradas` : "",
+                template.maxBoxes ? `${template.maxBoxes} cajas` : "",
+                template.coveredPostalCodes?.length ? `CP ${template.coveredPostalCodes.join(", ")}` : "",
+              ].filter(Boolean).join(" · ");
               return (
                 <article key={template.id} className="flex min-h-20 items-center gap-3 rounded-lg border border-black bg-surface-card px-3 py-2.5">
                   <Route className="h-5 w-5 shrink-0 text-emerald-300" aria-hidden />
@@ -547,21 +748,80 @@ export function LogisticsRouteCatalog({
                                   current ? { ...current, estimatedEndTime: event } : current,
                                 )
                               }
+                              disabled={editingTemplateWithoutEnd}
                             />
                           </label>
                         </div>
+                        <label className="flex items-center gap-2 rounded-md border border-black bg-surface-inset px-2 py-1.5 text-[10px] font-black text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={editingTemplateWithoutEnd}
+                            onChange={(event) => {
+                              setEditingTemplateWithoutEnd(event.target.checked);
+                              if (event.target.checked) {
+                                setEditingTemplate((current) => current ? { ...current, estimatedEndTime: "" } : current);
+                              }
+                            }}
+                            className="h-3.5 w-3.5 accent-emerald-400"
+                          />
+                          Sin hora de fin · hasta terminar
+                        </label>
+                        <label className="flex items-center gap-2 rounded-md border border-black bg-surface-inset px-2 py-1.5 text-[10px] font-black text-slate-300">
+                          <input
+                            type="checkbox"
+                            checked={editingTemplateLimitsCapacity}
+                            onChange={(event) => {
+                              setEditingTemplateLimitsCapacity(event.target.checked);
+                              if (!event.target.checked) {
+                                setEditingTemplate((current) => current ? { ...current, maxStops: null, maxBoxes: null } : current);
+                              }
+                            }}
+                            className="h-3.5 w-3.5 accent-emerald-400"
+                          />
+                          Limitar paradas y cajas
+                        </label>
+                        {editingTemplateLimitsCapacity ? (
+                          <div className="grid grid-cols-2 gap-2">
+                            <label className="grid min-w-0 gap-1"><span className="text-[10px] font-black uppercase text-slate-500">Max. paradas</span><input type="number" min="1" value={editingTemplate.maxStops || ""} onChange={(event) => setEditingTemplate((current) => current ? { ...current, maxStops: event.target.value ? Number(event.target.value) : null } : current)} className="h-8 w-full min-w-0 max-w-full rounded-md border border-black bg-surface-inset px-2 text-xs font-bold text-white" /></label>
+                            <label className="grid min-w-0 gap-1"><span className="text-[10px] font-black uppercase text-slate-500">Max. cajas</span><input type="number" min="1" value={editingTemplate.maxBoxes || ""} onChange={(event) => setEditingTemplate((current) => current ? { ...current, maxBoxes: event.target.value ? Number(event.target.value) : null } : current)} className="h-8 w-full min-w-0 max-w-full rounded-md border border-black bg-surface-inset px-2 text-xs font-bold text-white" /></label>
+                          </div>
+                        ) : null}
+                        <input value={editingTemplate.zoneKey || ""} onChange={(event) => setEditingTemplate((current) => current ? { ...current, zoneKey: event.target.value } : current)} placeholder="Zona" className="h-8 rounded-md border border-black bg-surface-inset px-2 text-xs font-bold text-white" />
+                        <input value={(editingTemplate.coveredPostalCodes || []).join(", ")} onChange={(event) => setEditingTemplate((current) => current ? { ...current, coveredPostalCodes: event.target.value.split(/[\s,;]+/).filter(Boolean) } : current)} placeholder="Codigos postales" className="h-8 rounded-md border border-black bg-surface-inset px-2 text-xs font-bold text-white" />
                       </div>
                     ) : (
                       <>
                         <p className="truncate text-sm font-black text-[#f8fafc]">{template.name}</p>
                         <p className="mt-1 text-xs font-bold text-slate-300">
-                          {template.startTime && template.estimatedEndTime
-                            ? `Horario: ${formatTime12Hour(template.startTime)} · fin estimado ${formatTime12Hour(template.estimatedEndTime)}`
+                          {template.startTime
+                            ? template.estimatedEndTime
+                              ? `Horario: ${formatTime12Hour(template.startTime)} · fin estimado ${formatTime12Hour(template.estimatedEndTime)}`
+                              : `Inicio ${formatTime12Hour(template.startTime)} · hasta terminar la ruta`
                             : "Horario operativo pendiente de configurar"}
                         </p>
+                        {routeDetails ? <p className="mt-0.5 truncate text-xs font-bold text-slate-500">{routeDetails}</p> : null}
                       </>
                     )}
                     <p className="mt-0.5 text-xs font-bold text-slate-500">Ruta semanal</p>
+                    <div className="mt-2 grid gap-1 border-t border-black/60 pt-2">
+                      <span className="text-[10px] font-black uppercase text-slate-500">
+                        Conductor por defecto
+                      </span>
+                      <InlineSearchPicker
+                        value={template.defaultDriverId || ""}
+                        onChange={(driverId) =>
+                          void setTemplateDefaultDriver(template, driverId || null)
+                        }
+                        options={driverOptions}
+                        placeholder="Sin conductor"
+                        searchPlaceholder="Buscar conductor..."
+                        emptyLabel="Sin conductores"
+                        ariaLabel={`Conductor predeterminado de ${template.name}`}
+                        disabled={!canManage || busy === `template-driver:${template.id}`}
+                        className="w-full min-w-0"
+                        minWidthClass="w-full min-w-0"
+                      />
+                    </div>
                   </div>
                   {canManage ? (
                     <div className="flex shrink-0 gap-1">
@@ -570,7 +830,11 @@ export function LogisticsRouteCatalog({
                           <Check className="h-4 w-4" />
                         </button>
                       ) : (
-                        <button type="button" className={`${secondaryButtonClass} h-8 w-8 p-0`} aria-label={`Renombrar ${template.name}`} onClick={() => setEditingTemplate(template)}>
+                        <button type="button" className={`${secondaryButtonClass} h-8 w-8 p-0`} aria-label={`Editar ${template.name}`} onClick={() => {
+                          setEditingTemplate(template);
+                          setEditingTemplateWithoutEnd(!template.estimatedEndTime);
+                          setEditingTemplateLimitsCapacity(Boolean(template.maxStops || template.maxBoxes));
+                        }}>
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                       )}
@@ -588,7 +852,9 @@ export function LogisticsRouteCatalog({
                 <Route className="mx-auto h-7 w-7 text-slate-600" />
                 <p className="mt-2 text-sm font-black text-slate-300">Sin subrutas para este día</p>
                 <p className="mt-1 text-xs font-bold text-slate-500">
-                  {selectedDayEnabled ? "El día funciona como ruta general. Crea subrutas sólo si necesitas dividirlo." : "Activa el día para crear subrutas."}
+                  {selectedDayEnabled
+                    ? "El día funciona como ruta general. Crea subrutas sólo si necesitas dividirlo."
+                    : "Crea una subruta aquí; quedará guardada hasta que actives el día."}
                 </p>
               </div>
             </div>

@@ -1,13 +1,18 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
+import { createOperationalRouteFromBookingsAction } from "@/app/actions/logistics-routes";
 import { PageLoading } from "@/components/page-loading";
 import { SupabaseRequiredBanner } from "@/components/supabase-required-banner";
 import { Panel, secondaryButtonClass } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
 import { usePageViewLayout } from "@/components/ui/ui-surface-preferences-provider";
+import {
+  findOpenRouteForBooking,
+  findPendingBookingGroupForTask,
+} from "@/lib/logistics-route-booking-groups";
 import { buildDriverPickerOptions, resolveRouteConfirmCopy } from "@/lib/logistics-view";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import type { LogisticsTaskItem, LogisticaClientProps } from "@/components/logistica/types";
@@ -35,13 +40,15 @@ import {
 import { LogisticsClientDialogs } from "@/components/logistica/panels/logistics-client-dialogs";
 import { LogisticsToolbar } from "@/components/logistica/panels/logistics-toolbar";
 import { LogisticsTasksBoard } from "@/components/logistica/panels/logistics-tasks-board";
-import { LogisticsRoutesView } from "@/components/logistica/panels/logistics-routes-view";
+import { LogisticsRoutesWorkspace } from "@/components/logistica/logistics-routes-workspace";
 
 export function LogisticaClient({
+  initialRoutesTab,
   initialShipments,
   initialRouteMembers,
   initialWarehouses,
   initialRoutes,
+  initialPendingBookings,
   initialTaskAddresses,
   initialRouteCatalog,
   canManageRoutes = false,
@@ -51,7 +58,9 @@ export function LogisticaClient({
   const notify = useNotify();
   const { layout: viewLayout } = usePageViewLayout("logistics.tasks");
   const searchParams = useSearchParams();
-  const isRoutesView = searchParams.get("view") === "rutas";
+  // La vista unificada es el punto de entrada de Logística. Se conserva el
+  // parámetro histórico para enlaces existentes a configuración.
+  const isRoutesView = true;
   const isWideLayout = useWideLogisticsLayout();
   const supabaseReady = isSupabaseConfigured();
 
@@ -61,22 +70,28 @@ export function LogisticaClient({
     warehouses,
     routes,
     vehicles,
+    pendingBookings,
+    pendingBookingsLoaded,
+    reviewedBookings,
+    reviewedBookingsLoaded,
     taskAddresses,
     routeCatalog,
     loaded,
     page,
     hasMore,
     routesLoading,
+    appliedRoutesFiltersKey,
     reloadAll,
-    reloadRouteCatalog,
     reloadRoutes,
     applyRouteFilters,
     reloadRoutesAndAddresses,
+    reloadRouteCatalog,
   } = useLogisticsData({
     initialShipments,
     initialRouteMembers,
     initialWarehouses,
     initialRoutes,
+    initialPendingBookings,
     initialTaskAddresses,
     initialRouteCatalog,
     supabaseReady,
@@ -106,6 +121,8 @@ export function LogisticaClient({
     setDateFilter,
     typeFilter,
     setTypeFilter,
+    assignmentFilter,
+    setAssignmentFilter,
     driverFilter,
     setDriverFilter,
     zoneFilter,
@@ -143,6 +160,7 @@ export function LogisticaClient({
     toggleTaskSelection,
     availableFilterWeekdays,
     defaultWeekdayFilter,
+    routeServerFiltersKey,
   } = useLogisticsFilters({
     routes,
     routeCatalog,
@@ -153,8 +171,15 @@ export function LogisticaClient({
     routeByTaskId,
     addressByTaskId,
     invoiceItems,
+    pendingBookings,
+    reviewedBookings,
     onRouteServerFiltersChange: applyRouteFilters,
   });
+
+  const routesAlignedWithFilters =
+    !routesLoading && appliedRoutesFiltersKey === routeServerFiltersKey;
+  const taskBoardDataReady =
+    routesAlignedWithFilters && pendingBookingsLoaded && reviewedBookingsLoaded;
 
   const [routeDetailDrawerOpen, setRouteDetailDrawerOpen] = useState(false);
   const [journalShipmentId, setJournalShipmentId] = useState<string | null>(null);
@@ -320,9 +345,68 @@ export function LogisticaClient({
     setRouteDetailDrawerOpen(false);
   }
 
+  function openRouteAssignmentFromTask(taskId: string) {
+    setSelectedTaskIds([taskId]);
+    setRouteAssignmentOpen(true);
+  }
+
+  const bookingOperationKeys = useRef(new Map<string, string>());
+
+  function resolveBookingActionForTask(taskId: string) {
+    const group = findPendingBookingGroupForTask(pendingBookings, taskId);
+    if (!group) {
+      return null;
+    }
+
+    const openRoute = findOpenRouteForBooking(routes, group.first);
+    return {
+      label: openRoute ? ("Agregar a ruta abierta" as const) : ("Crear ruta" as const),
+    };
+  }
+
+  async function createRouteFromTaskBooking(taskId: string) {
+    if (!canManageRoutes || busyId) {
+      return;
+    }
+
+    const group = findPendingBookingGroupForTask(pendingBookings, taskId);
+    if (!group) {
+      notify.error("Esta tarea no tiene una reserva pendiente");
+      return;
+    }
+
+    const idempotencyKey =
+      bookingOperationKeys.current.get(group.key) || crypto.randomUUID();
+    bookingOperationKeys.current.set(group.key, idempotencyKey);
+    setBusyId(`booking:${group.key}`);
+
+    const result = await createOperationalRouteFromBookingsAction({
+      bookingIds: group.items.map((item) => item.id),
+      idempotencyKey,
+    });
+
+    setBusyId(null);
+
+    if (!result.ok) {
+      notify.error(result.error);
+      return;
+    }
+
+    bookingOperationKeys.current.delete(group.key);
+    setSelectedRouteId(result.data.id);
+    await reloadAll();
+    notify.success(`Ruta abierta: ${result.data.name}`);
+  }
+
+  const routeRequestStatusByTaskId = useMemo(
+    () => new Map(reviewedBookings.map((booking) => [booking.taskId, booking.status])),
+    [reviewedBookings],
+  );
+
   const invoicePanelProps: Omit<LogisticsInvoicePanelProps, "item"> = {
     addressByTaskId,
     routeByTaskId,
+    routeRequestStatusByTaskId,
     highlightTaskId,
     selectedTaskIds,
     memberById,
@@ -380,18 +464,17 @@ export function LogisticaClient({
     ) : null;
 
   if (!loaded) {
-    return <PageLoading inline />;
-  }
-
-  if (isRoutesView) {
     return (
-      <LogisticsRoutesView
-        supabaseReady={supabaseReady}
-        routeCatalog={routeCatalog}
-        canManageRoutes={canManageRoutes}
-        routeMembers={routeMembers}
-        onCatalogChange={() => void reloadRouteCatalog()}
-      />
+      <Panel
+        title="Logistica"
+        hideHeader
+        clipContent={false}
+        className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
+        contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
+      >
+        <div className="mb-3 h-12 shrink-0 rounded-xl border border-black bg-surface-card-header" />
+        <PageLoading inline />
+      </Panel>
     );
   }
 
@@ -408,8 +491,24 @@ export function LogisticaClient({
       ) : null}
 
       {supabaseReady ? (
-        <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-          <LogisticsToolbar
+        isRoutesView ? (
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+            <div className="flex min-h-0 flex-1 pr-1">
+              <LogisticsRoutesWorkspace
+                key={`logistics-workspace-${searchParams.get("panel") || "operations"}-${searchParams.get("tab") || "confirmations"}`}
+                initialRoutes={routes}
+                initialBookings={pendingBookings}
+                routeCatalog={routeCatalog}
+                routeMembers={routeMembers}
+                canManage={canManageRoutes}
+                onCatalogChange={reloadRouteCatalog}
+                initialTab={initialRoutesTab}
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
+            <LogisticsToolbar
             agencyModuleEnabled={agencyModuleEnabled}
             operationScope={operationScope}
             setOperationScope={setOperationScope}
@@ -434,6 +533,8 @@ export function LogisticaClient({
             defaultWeekdayFilter={defaultWeekdayFilter}
             typeFilter={typeFilter}
             setTypeFilter={setTypeFilter}
+            assignmentFilter={assignmentFilter}
+            setAssignmentFilter={setAssignmentFilter}
             toolbarRoute={toolbarRoute}
             canManageRoutes={canManageRoutes}
             requestToolbarRouteDriverChange={requestToolbarRouteDriverChange}
@@ -455,20 +556,21 @@ export function LogisticaClient({
             failedTasksCount={failedTasks.length}
           />
 
-          <LogisticsTasksBoard
+            <LogisticsTasksBoard
             agencyModuleEnabled={agencyModuleEnabled}
             operationScope={operationScope}
-            canManageRoutes={canManageRoutes}
-            routeCatalog={routeCatalog}
-            routeMembers={routeMembers}
-            visibleInvoiceItems={visibleInvoiceItems}
-            viewLayout={viewLayout}
+            visibleInvoiceItems={taskBoardDataReady ? visibleInvoiceItems : []}
+            viewLayout={viewLayout === "excel" ? "rows" : viewLayout}
             invoicePanelProps={invoicePanelProps}
             showRouteHistory={showRouteHistory}
             failedFilter={failedFilter}
+            resolveBookingActionForTask={resolveBookingActionForTask}
+            onAssignTaskFromContext={openRouteAssignmentFromTask}
+            onCreateRouteFromBooking={(taskId) => void createRouteFromTaskBooking(taskId)}
+            loading={!taskBoardDataReady}
           />
 
-          {page > 0 || hasMore ? (
+            {page > 0 || hasMore ? (
             <div className="mt-3 flex shrink-0 items-center justify-between gap-2 border-t border-black pt-3">
               <button
                 type="button"
@@ -496,13 +598,14 @@ export function LogisticaClient({
                 Siguiente
               </button>
             </div>
-          ) : null}
-        </div>
+            ) : null}
+          </div>
+        )
       ) : null}
 
       {routeDetailDrawer ? createPortal(routeDetailDrawer, document.body) : null}
 
-      <LogisticsClientDialogs
+      {!isRoutesView ? <LogisticsClientDialogs
         busyId={busyId}
         canManageRoutes={canManageRoutes}
         routeMembers={routeMembers}
@@ -559,7 +662,7 @@ export function LogisticaClient({
         onConfirmLiveRouteReason={(reason) => void confirmLiveRouteReason(reason)}
         onCloseRouteAssignment={() => setRouteAssignmentOpen(false)}
         onAssignSelectedTasksToRoute={assignSelectedTasksToRoute}
-      />
+      /> : null}
     </Panel>
   );
 }

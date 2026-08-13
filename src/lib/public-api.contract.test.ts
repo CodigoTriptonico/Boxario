@@ -18,6 +18,8 @@ import type {
 import type {
   EnviosReadinessBucket,
   EnviosStatusFilterBucket,
+  EnviosStatusFilterOption,
+  EnviosStatusFilterValue,
   FullBoxPickupPlanStatus,
   ShipmentRouteAssignmentInfo,
 } from "@/lib/shipment-display";
@@ -42,6 +44,8 @@ type PublicApiTypeSurface = [
   ScheduleSuggestionModeAvailability,
   ScheduleSuggestionDayConfig,
   EnviosStatusFilterBucket,
+  EnviosStatusFilterOption,
+  EnviosStatusFilterValue,
   EnviosReadinessBucket,
   FullBoxPickupPlanStatus,
   ShipmentRouteAssignmentInfo,

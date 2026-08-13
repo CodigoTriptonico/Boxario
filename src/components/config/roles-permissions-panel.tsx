@@ -705,7 +705,7 @@ export function RolesPermissionsPanel({
               </button>
             </div>
             {roleUserCount > 0 ? (
-              <p className="text-xs font-bold text-amber-200/90 lg:col-span-2">
+              <p className="text-xs font-bold text-amber-200 lg:col-span-2">
                 Hay {roleUserCount} usuario(s) con este rol. Cámbiales el rol antes de
                 eliminarlo.
               </p>

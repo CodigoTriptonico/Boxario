@@ -8,6 +8,16 @@ export const logisticsWeekdayKeys = [
   "Dom",
 ] as const;
 
+export const logisticsWeekdayLabels = [
+  "Lunes",
+  "Martes",
+  "Miércoles",
+  "Jueves",
+  "Viernes",
+  "Sábado",
+  "Domingo",
+] as const;
+
 export type LogisticsWeekdayKey = (typeof logisticsWeekdayKeys)[number];
 
 export function isLogisticsWeekdayKey(value: unknown): value is LogisticsWeekdayKey {

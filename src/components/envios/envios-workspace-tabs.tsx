@@ -36,7 +36,7 @@ export function EnviosWorkspaceTabs({
               }`}
             >
               <span>{label}</span>
-              <span className={`tabular-nums ${selected ? "text-slate-950/70" : "text-slate-500"}`}>{count}</span>
+                  <span className={`tabular-nums ${selected ? "text-slate-950" : "text-app-text-muted"}`}>{count}</span>
             </button>
           );
         })}

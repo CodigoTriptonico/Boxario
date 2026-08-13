@@ -1,2 +1,4 @@
-/** Default page size for envíos / seguimiento shipment lists (server-side). */
-export const ENVIOS_SHIPMENTS_PAGE_SIZE = 50;
+import { SHIPMENTS_PAGE_SIZE } from "@/lib/shipments-pagination";
+
+/** Tamaño de página del flujo de Envíos; conserva el nombre público legado. */
+export const ENVIOS_SHIPMENTS_PAGE_SIZE = SHIPMENTS_PAGE_SIZE;

@@ -12,7 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
-import { ChevronDown, X } from "lucide-react";
+import { ChevronDown, ChevronRight, X } from "lucide-react";
 import { insetShellClass } from "@/components/ui-blocks";
 import { useFloatingPickerLifecycle } from "@/hooks/use-floating-picker-lifecycle";
 
@@ -26,6 +26,8 @@ export type InlineSearchPickerOption = {
   action?: boolean;
   /** Visible pero no seleccionable (p. ej. ya agregado al país). */
   disabled?: boolean;
+  /** Submenú tipo Windows (`>`): hijos seleccionables. */
+  children?: InlineSearchPickerOption[];
 };
 
 type PanelPosition = {
@@ -48,6 +50,89 @@ export function resolveInlineSearchPanelWidth(
   const viewportMax = Math.max(PANEL_MIN_WIDTH, viewportWidth - 16);
 
   return Math.min(Math.max(PANEL_MIN_WIDTH, triggerWidth, estimated), viewportMax);
+}
+
+export function findInlineSearchPickerOption(
+  options: readonly InlineSearchPickerOption[],
+  value: string,
+): InlineSearchPickerOption | undefined {
+  const clean = value.trim();
+  if (!clean) {
+    return undefined;
+  }
+
+  for (const option of options) {
+    if (option.children?.length) {
+      const child = option.children.find((entry) => entry.value === clean);
+      if (child) {
+        return child.value === option.value
+          ? option
+          : {
+              ...child,
+              label: `${option.label} · ${child.label}`,
+              searchText: `${option.label} ${child.label} ${child.searchText ?? ""}`,
+            };
+      }
+    }
+
+    if (option.value === clean) {
+      return option;
+    }
+  }
+
+  return undefined;
+}
+
+function optionSearchHaystack(option: InlineSearchPickerOption) {
+  const childText = (option.children || [])
+    .map((child) => `${child.label} ${child.searchText ?? ""}`)
+    .join(" ");
+  return `${option.label} ${option.searchText ?? ""} ${childText}`.toLowerCase();
+}
+
+function filterInlineSearchPickerOptions(
+  options: readonly InlineSearchPickerOption[],
+  query: string,
+) {
+  const normalized = normalizeSearch(query);
+
+  if (!normalized) {
+    return [...options];
+  }
+
+  const matches: InlineSearchPickerOption[] = [];
+
+  for (const option of options) {
+    if (!option.children?.length) {
+      if (optionSearchHaystack(option).includes(normalized)) {
+        matches.push(option);
+      }
+      continue;
+    }
+
+    const matchingChildren = option.children.filter((child) =>
+      `${option.label} ${child.label} ${child.searchText ?? ""}`
+        .toLowerCase()
+        .includes(normalized),
+    );
+
+    if (matchingChildren.length) {
+      for (const child of matchingChildren) {
+        matches.push({
+          ...child,
+          label:
+            child.value === option.value
+              ? option.label
+              : `${option.label} · ${child.label}`,
+          searchText: `${option.label} ${child.label}`,
+        });
+      }
+    } else if (optionSearchHaystack(option).includes(normalized)) {
+      matches.push(option);
+    }
+  }
+
+  return matches;
 }
 
 const shellBaseClass =
@@ -163,7 +248,8 @@ function InlineOptionsPanel({
   panelPosition,
   panelRef,
   panelWidth,
-  renderOption,
+  selectedValue,
+  onSelectOption,
 }: {
   emptyLabel: string;
   listboxId: string;
@@ -171,30 +257,157 @@ function InlineOptionsPanel({
   panelPosition: PanelPosition;
   panelRef: RefObject<HTMLDivElement | null>;
   panelWidth: number;
-  renderOption: (option: InlineSearchPickerOption) => ReactNode;
+  selectedValue: string;
+  onSelectOption: (option: InlineSearchPickerOption) => void;
 }) {
+  const [openSubmenuValue, setOpenSubmenuValue] = useState<string | null>(null);
+  const [submenuPosition, setSubmenuPosition] = useState<PanelPosition | null>(null);
+  const optionRefs = useRef<Record<string, HTMLButtonElement | null>>({});
+
+  const openSubmenu = useCallback((option: InlineSearchPickerOption) => {
+    if (!option.children?.length) {
+      setOpenSubmenuValue(null);
+      setSubmenuPosition(null);
+      return;
+    }
+
+    const button = optionRefs.current[option.value];
+    const rect = button?.getBoundingClientRect();
+    if (!rect) {
+      return;
+    }
+
+    const width = resolveInlineSearchPanelWidth(
+      160,
+      option.children.map((child) => child.label),
+    );
+    const left = Math.min(rect.right - 4, window.innerWidth - width - 8);
+    const top = Math.min(rect.top, window.innerHeight - 8 - option.children.length * 40);
+
+    setOpenSubmenuValue(option.value);
+    setSubmenuPosition({ top: Math.max(8, top), left: Math.max(8, left), width });
+  }, []);
+
+  const openSubmenuOption = options.find((option) => option.value === openSubmenuValue);
+
   return (
     <div
       ref={panelRef}
       id={listboxId}
       role="listbox"
       data-inline-search-picker-panel
-      className="fixed z-[170] overflow-hidden rounded-lg border border-black bg-[#101820] shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+      className="fixed z-[170] overflow-visible rounded-lg border border-black bg-[#101820] shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
       style={{
         top: panelPosition.top,
         left: panelPosition.left,
         width: panelWidth,
       }}
     >
-      <ul className="max-h-52 overflow-y-auto py-1">
+      <ul className="max-h-52 overflow-y-auto overflow-x-visible py-1">
         {options.length ? (
-          options.map(renderOption)
+          options.map((option) => {
+            const hasChildren = Boolean(option.children?.length);
+            const selected =
+              option.value === selectedValue ||
+              option.children?.some((child) => child.value === selectedValue);
+            const isDisabled = Boolean(option.disabled);
+            const submenuOpen = openSubmenuValue === option.value;
+
+            return (
+              <li key={`${option.value}:${option.label}`}>
+                <button
+                  type="button"
+                  role="option"
+                  aria-selected={Boolean(selected)}
+                  aria-disabled={isDisabled}
+                  disabled={isDisabled}
+                  ref={(element) => {
+                    optionRefs.current[option.value] = element;
+                  }}
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => {
+                    if (hasChildren) {
+                      openSubmenu(option);
+                    } else {
+                      setOpenSubmenuValue(null);
+                      setSubmenuPosition(null);
+                    }
+                  }}
+                  onClick={() => {
+                    if (hasChildren) {
+                      // Parent click selects the whole bucket; hover opens the submenu.
+                      onSelectOption(option);
+                      return;
+                    }
+
+                    onSelectOption(option);
+                  }}
+                  className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                    isDisabled
+                      ? "cursor-not-allowed text-slate-600"
+                      : option.action
+                        ? "text-emerald-300 hover:bg-emerald-400/10"
+                        : selected || submenuOpen
+                          ? "bg-emerald-400/15 text-emerald-100"
+                          : "text-slate-200 hover:bg-surface-card-header/80"
+                  }`}
+                >
+                  {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
+                  <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
+                    {option.label}
+                  </span>
+                  {option.trailing ? (
+                    <span className="shrink-0">{option.trailing}</span>
+                  ) : null}
+                  {hasChildren ? (
+                    <ChevronRight className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
+                  ) : null}
+                </button>
+              </li>
+            );
+          })
         ) : (
           <li className="px-3 py-4 text-center text-sm font-bold text-slate-500">
             {emptyLabel}
           </li>
         )}
       </ul>
+
+      {openSubmenuOption?.children?.length && submenuPosition ? (
+        <div
+          role="menu"
+          data-inline-search-picker-submenu
+          className="fixed z-[180] overflow-hidden rounded-lg border border-black bg-[#101820] py-1 shadow-[0_16px_40px_rgba(0,0,0,0.45)]"
+          style={{
+            top: submenuPosition.top,
+            left: submenuPosition.left,
+            width: submenuPosition.width,
+          }}
+          onMouseDown={(event) => event.preventDefault()}
+        >
+          {openSubmenuOption.children.map((child) => {
+            const selected = child.value === selectedValue;
+            return (
+              <button
+                key={`${child.value}:${child.label}`}
+                type="button"
+                role="menuitemradio"
+                aria-checked={selected}
+                onClick={() => onSelectOption(child)}
+                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
+                  selected
+                    ? "bg-emerald-400/15 text-emerald-100"
+                    : "text-slate-200 hover:bg-surface-card-header/80"
+                }`}
+              >
+                <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
+                  {child.label}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -255,20 +468,12 @@ export function InlineSearchPicker({
     searchRef,
   } = useInlinePickerState({ disabled, onClose: resetQuery });
 
-  const activeOption = options.find((option) => option.value === value);
+  const activeOption = findInlineSearchPickerOption(options, value);
 
-  const filteredOptions = useMemo(() => {
-    const normalized = normalizeSearch(query);
-
-    if (!normalized) {
-      return options;
-    }
-
-    return options.filter((option) => {
-      const haystack = `${option.label} ${option.searchText ?? ""}`.toLowerCase();
-      return haystack.includes(normalized);
-    });
-  }, [options, query]);
+  const filteredOptions = useMemo(
+    () => filterInlineSearchPickerOptions(options, query),
+    [options, query],
+  );
 
   const selectOption = useCallback(
     (option: InlineSearchPickerOption) => {
@@ -323,41 +528,8 @@ export function InlineSearchPicker({
         panelPosition={panelPosition}
         panelRef={panelRef}
         panelWidth={panelWidth}
-        renderOption={(option) => {
-          const selected = option.value === value;
-          const isDisabled = Boolean(option.disabled);
-
-          return (
-            <li key={option.value}>
-              <button
-                type="button"
-                role="option"
-                aria-selected={selected}
-                aria-disabled={isDisabled}
-                disabled={isDisabled}
-                onMouseDown={(event) => event.preventDefault()}
-                onClick={() => selectOption(option)}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold transition ${
-                  isDisabled
-                    ? "cursor-not-allowed text-slate-600"
-                    : option.action
-                      ? "text-emerald-300 hover:bg-emerald-400/10"
-                      : selected
-                        ? "bg-emerald-400/15 text-emerald-100"
-                        : "text-slate-200 hover:bg-surface-card-header/80"
-                }`}
-              >
-                {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
-                <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
-                  {option.label}
-                </span>
-                {option.trailing ? (
-                  <span className="shrink-0">{option.trailing}</span>
-                ) : null}
-              </button>
-            </li>
-          );
-        }}
+        selectedValue={value}
+        onSelectOption={selectOption}
       />
     ) : null;
 
@@ -375,7 +547,7 @@ export function InlineSearchPicker({
         style={lockedWidth ? { width: lockedWidth } : undefined}
       >
         {triggerIcon ? (
-          <span className="shrink-0 text-emerald-400/80">{triggerIcon}</span>
+          <span className="shrink-0 text-emerald-400">{triggerIcon}</span>
         ) : null}
         {open ? (
           <input
@@ -415,18 +587,33 @@ export function InlineSearchPicker({
             {triggerLabel}
           </button>
         )}
-        <button
-          type="button"
-          disabled={disabled}
-          className={`${trailingSlotClass} text-slate-400 disabled:cursor-not-allowed`}
-          aria-label={open ? "Cerrar" : "Abrir"}
-          onClick={() => (open ? close() : openPicker())}
-        >
-          <ChevronDown
-            className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
-            aria-hidden
-          />
-        </button>
+        {value.trim() && !open ? (
+          <button
+            type="button"
+            disabled={disabled}
+            className={`${trailingSlotClass} text-slate-500 hover:text-slate-300 disabled:cursor-not-allowed`}
+            aria-label="Quitar filtro"
+            onClick={(event) => {
+              event.stopPropagation();
+              onChange("");
+            }}
+          >
+            <X className="h-3.5 w-3.5" aria-hidden />
+          </button>
+        ) : (
+          <button
+            type="button"
+            disabled={disabled}
+            className={`${trailingSlotClass} text-slate-400 disabled:cursor-not-allowed`}
+            aria-label={open ? "Cerrar" : "Abrir"}
+            onClick={() => (open ? close() : openPicker())}
+          >
+            <ChevronDown
+              className={`h-4 w-4 transition ${open ? "rotate-180" : ""}`}
+              aria-hidden
+            />
+          </button>
+        )}
       </div>
       {mounted && panel ? createPortal(panel, document.body) : null}
     </div>
@@ -480,18 +667,10 @@ export function InlineSearchCombobox({
     searchRef,
   } = useInlinePickerState({ disabled });
 
-  const filteredOptions = useMemo(() => {
-    const normalized = normalizeSearch(value);
-
-    if (!normalized) {
-      return options;
-    }
-
-    return options.filter((option) => {
-      const haystack = `${option.label} ${option.searchText ?? ""}`.toLowerCase();
-      return haystack.includes(normalized);
-    });
-  }, [options, value]);
+  const filteredOptions = useMemo(
+    () => filterInlineSearchPickerOptions(options, value),
+    [options, value],
+  );
 
   const activeOption = useMemo(() => {
     const normalized = normalizeSearch(value);
@@ -500,7 +679,10 @@ export function InlineSearchCombobox({
       return undefined;
     }
 
-    return options.find((option) => normalizeSearch(option.label) === normalized);
+    return (
+      findInlineSearchPickerOption(options, value) ||
+      options.find((option) => normalizeSearch(option.label) === normalized)
+    );
   }, [options, value]);
 
   const selectOption = useCallback(
@@ -541,24 +723,8 @@ export function InlineSearchCombobox({
         panelPosition={panelPosition}
         panelRef={panelRef}
         panelWidth={panelWidth}
-        renderOption={(option) => (
-          <li key={option.value}>
-            <button
-              type="button"
-              role="option"
-              aria-selected={normalizeSearch(value) === normalizeSearch(option.label)}
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => selectOption(option)}
-              className="flex w-full items-center gap-2 px-3 py-2 text-left text-sm font-bold text-slate-200 transition hover:bg-surface-card-header/80"
-            >
-              {option.icon ? <span className="shrink-0">{option.icon}</span> : null}
-              <span className="min-w-0 flex-1 whitespace-normal break-words capitalize">
-                {option.label}
-              </span>
-              {option.trailing ? <span className="shrink-0">{option.trailing}</span> : null}
-            </button>
-          </li>
-        )}
+        selectedValue={value}
+        onSelectOption={selectOption}
       />
     ) : null;
 

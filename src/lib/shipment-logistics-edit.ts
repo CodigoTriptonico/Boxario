@@ -4,6 +4,7 @@ import {
   EMPTY_BOX_DRIVER_MODE,
   EMPTY_BOX_OFFICE_MODE,
   FULL_BOX_DRIVER_MODE,
+  FULL_BOX_OFFICE_MODE,
 } from "@/lib/sale-logistics-modes";
 import {
   logisticsDriverTaskCount,
@@ -140,6 +141,28 @@ export function fullBoxLegLockReason(row: ShipmentRow) {
   }
 
   return "";
+}
+
+/** True when office full-box reception can still be undone (no later transit milestones). */
+export function canRevertFullBoxOfficeReception(row: ShipmentRow) {
+  if (row.sale_kind === "empty_box_deposit") {
+    return false;
+  }
+
+  if (!row.full_box_collected_at && !row.office_received_at) {
+    return false;
+  }
+
+  if (row.departed_at || row.shipped_at || row.delivered_at) {
+    return false;
+  }
+
+  if (row.status !== "En oficina") {
+    return false;
+  }
+
+  const mode = String(planLeg(row.logistics_plan, "fullBox")?.mode || "");
+  return mode === FULL_BOX_OFFICE_MODE || Boolean(row.office_received_at);
 }
 
 function buildLegPatch(

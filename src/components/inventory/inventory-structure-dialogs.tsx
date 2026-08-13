@@ -1,7 +1,10 @@
 "use client";
 
 import { InventoryBinPlacementDrawer } from "@/components/inventory/inventory-bin-placement-drawer";
-import { InventoryItemAdminModal } from "@/components/inventory/inventory-item-admin-modal";
+import {
+  InventoryItemAdminModal,
+  type InventoryItemAdminDraft,
+} from "@/components/inventory/inventory-item-admin-modal";
 import { InventoryNewItemPopover } from "@/components/inventory/inventory-new-item-popover";
 import { InventoryStructureOptionsMenu } from "@/components/inventory/inventory-structure-options-menu";
 import type { ItemContextMenu } from "@/lib/inventory-structure-utils";
@@ -48,14 +51,7 @@ type InventoryStructureDialogsProps = {
   adminContext: ItemContextMenu | null;
   adminSaving: boolean;
   onCloseAdmin: () => void;
-  onSaveAdmin: (draft: {
-    name: string;
-    sku: string;
-    unit: string;
-    minStock: string;
-    isCommercial: boolean;
-    isActive: boolean;
-  }) => Promise<void>;
+  onSaveAdmin: (draft: InventoryItemAdminDraft) => Promise<void>;
   binPlacementOpen: boolean;
   binPlacementContext: ItemContextMenu | null;
   warehouseId?: string;

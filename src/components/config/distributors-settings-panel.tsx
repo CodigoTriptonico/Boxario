@@ -221,7 +221,7 @@ export function DistributorsSettingsPanel({
         </span>
       }
     >
-      <div className="grid grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4">
+      <div className="grid grid-cols-[repeat(auto-fit,minmax(min(100%,320px),1fr))] gap-4">
         {selectedDistributorBoxes.map((box) => {
           const publicPrice =
             selectedDistributorCountryData?.boxes.find(

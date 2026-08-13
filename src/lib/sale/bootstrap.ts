@@ -23,6 +23,7 @@ import {
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 
 export type VentaBootstrapData = {
+  nextInvoiceSequence: number;
   senders: SaleSender[];
   shortcuts: SaleShortcuts;
   countryBoxes: Record<string, string[][]>;
@@ -39,6 +40,25 @@ export type VentaBootstrapData = {
   };
   organizationBranding: OrganizationBranding;
 };
+
+async function loadNextInvoiceSequenceForSession(session: AppSession) {
+  const supabase = await createScopedSupabase(session);
+  if (!supabase) {
+    return 1;
+  }
+
+  const { data, error } = await supabase
+    .from("organization_invoice_counters")
+    .select("last_number")
+    .eq("organization_id", session.organizationId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  return Math.max(1, Number(data?.last_number || 0) + 1);
+}
 
 async function loadSaleBoxStockForSession(session: AppSession) {
   const supabase = await createScopedSupabase(session);
@@ -62,11 +82,12 @@ export async function loadVentaBootstrap(
   session: AppSession,
   customerParams?: ListCustomersParams,
 ): Promise<VentaBootstrapData> {
-  const [customers, shortcuts, pricingConfig, boxStockByKey] = await Promise.all([
+  const [customers, shortcuts, pricingConfig, boxStockByKey, nextInvoiceSequence] = await Promise.all([
     listCustomersForSession(session, customerParams),
     listSaleShortcutsForSession(session),
     loadPricingConfigForSession(session),
     loadSaleBoxStockForSession(session),
+    loadNextInvoiceSequenceForSession(session),
   ]);
 
   const salePricing = salePricingFromConfig(
@@ -75,6 +96,7 @@ export async function loadVentaBootstrap(
   );
 
   return {
+    nextInvoiceSequence,
     senders: customers.map(customerRowToSender),
     shortcuts,
     countryBoxes: salePricing.countryBoxes,

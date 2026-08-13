@@ -5,10 +5,11 @@ import { ENVIOS_STATUS_FILTER_OPTIONS } from "@/lib/shipment-display";
 
 describe("resolveInlineSearchPanelWidth", () => {
   it("expands narrow triggers to fit envios status bucket labels", () => {
-    const width = resolveInlineSearchPanelWidth(
-      128,
-      ENVIOS_STATUS_FILTER_OPTIONS.map((option) => option.label),
-    );
+    const labels = ENVIOS_STATUS_FILTER_OPTIONS.flatMap((option) => [
+      option.label,
+      ...(option.children?.map((child) => child.label) || []),
+    ]);
+    const width = resolveInlineSearchPanelWidth(128, labels);
 
     assert.ok(width >= 200);
     assert.ok(width >= "En tránsito".length * 6);

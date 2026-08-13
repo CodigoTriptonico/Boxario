@@ -5,6 +5,7 @@ import {
   createContext,
   useCallback,
   useContext,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -12,21 +13,33 @@ import {
 
 export type NotificationTone = "success" | "error" | "info";
 
+export type NotifyOptions = {
+  /** Acción de Deshacer; alarga la duración del toast. */
+  undo?: {
+    label?: string;
+    onUndo: () => void | Promise<void>;
+  };
+  durationMs?: number;
+};
+
 type NotificationItem = {
   id: string;
   message: string;
   tone: NotificationTone;
+  undoLabel?: string;
+  onUndo?: () => void | Promise<void>;
 };
 
 type NotifyInput = {
-  success: (message: string) => void;
-  error: (message: string) => void;
-  info: (message: string) => void;
+  success: (message: string, options?: NotifyOptions) => void;
+  error: (message: string, options?: NotifyOptions) => void;
+  info: (message: string, options?: NotifyOptions) => void;
 };
 
 const NotificationContext = createContext<NotifyInput | null>(null);
 
 const AUTO_DISMISS_MS = 4500;
+const UNDO_DISMISS_MS = 8000;
 const MAX_VISIBLE = 5;
 
 const toneStyles: Record<
@@ -51,6 +64,17 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   const [items, setItems] = useState<NotificationItem[]>([]);
   const timersRef = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
 
+  useEffect(() => {
+    const timers = timersRef.current;
+
+    return () => {
+      for (const timer of timers.values()) {
+        clearTimeout(timer);
+      }
+      timers.clear();
+    };
+  }, []);
+
   const dismiss = useCallback((id: string) => {
     const timer = timersRef.current.get(id);
 
@@ -63,7 +87,7 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
   }, []);
 
   const push = useCallback(
-    (message: string, tone: NotificationTone) => {
+    (message: string, tone: NotificationTone, options?: NotifyOptions) => {
       const trimmed = message.trim();
 
       if (!trimmed) {
@@ -75,12 +99,23 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
           ? crypto.randomUUID()
           : `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+      const item: NotificationItem = {
+        id,
+        message: trimmed,
+        tone,
+        undoLabel: options?.undo ? options.undo.label || "Deshacer" : undefined,
+        onUndo: options?.undo?.onUndo,
+      };
+
       setItems((current) => {
-        const next = [...current, { id, message: trimmed, tone }];
+        const next = [...current, item];
         return next.length > MAX_VISIBLE ? next.slice(-MAX_VISIBLE) : next;
       });
 
-      const timer = setTimeout(() => dismiss(id), AUTO_DISMISS_MS);
+      const duration =
+        options?.durationMs ??
+        (options?.undo ? UNDO_DISMISS_MS : AUTO_DISMISS_MS);
+      const timer = setTimeout(() => dismiss(id), duration);
       timersRef.current.set(id, timer);
     },
     [dismiss],
@@ -88,12 +123,26 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
 
   const notify = useMemo<NotifyInput>(
     () => ({
-      success: (message) => push(message, "success"),
-      error: (message) => push(message, "error"),
-      info: (message) => push(message, "info"),
+      success: (message, options) => push(message, "success", options),
+      error: (message, options) => push(message, "error", options),
+      info: (message, options) => push(message, "info", options),
     }),
     [push],
   );
+
+  async function handleUndo(item: NotificationItem) {
+    if (!item.onUndo) {
+      return;
+    }
+
+    dismiss(item.id);
+
+    try {
+      await item.onUndo();
+    } catch {
+      push("No se pudo deshacer la acción. Inténtalo nuevamente.", "error");
+    }
+  }
 
   return (
     <NotificationContext.Provider value={notify}>
@@ -114,13 +163,22 @@ export function NotificationProvider({ children }: { children: React.ReactNode }
               role="status"
             >
               <Icon className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-              <p className="min-w-0 flex-1 text-sm font-bold leading-snug">
-                {item.message}
-              </p>
+              <div className="min-w-0 flex-1">
+                <p className="text-sm font-bold leading-snug">{item.message}</p>
+                {item.onUndo && item.undoLabel ? (
+                  <button
+                    type="button"
+                    onClick={() => void handleUndo(item)}
+                    className="mt-2 rounded-md border border-current/30 bg-white/5 px-2.5 py-1 text-xs font-black underline-offset-2 transition hover:bg-white/10 hover:underline focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
+                  >
+                    {item.undoLabel}
+                  </button>
+                ) : null}
+              </div>
               <button
                 type="button"
                 onClick={() => dismiss(item.id)}
-                className="shrink-0 rounded-md p-1 text-current/70 transition hover:bg-white/10 hover:text-current"
+                className="shrink-0 rounded-md p-1 text-current transition hover:bg-white/10 hover:text-current focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-current"
                 aria-label="Cerrar notificación"
               >
                 <X className="h-4 w-4" />

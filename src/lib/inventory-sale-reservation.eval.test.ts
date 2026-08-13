@@ -6,6 +6,10 @@ import { readShipmentActionsSource } from "@/test-utils/shipment-actions-source"
 
 const root = process.cwd();
 const shipmentsSource = readShipmentActionsSource(root);
+const shipmentCreateSource = readFileSync(
+  join(root, "src/app/actions/shipments-create.ts"),
+  "utf8",
+);
 const migrationSource = readFileSync(
   join(root, "supabase/migrations/102_inventory_sale_reservations.sql"),
   "utf8",
@@ -17,8 +21,9 @@ const atomicSaleMigration = readFileSync(
 
 describe("inventory sale reservation eval", () => {
   it("reserves empty-box stock when a sale is created", () => {
-    assert.match(shipmentsSource, /atomicSaleInventoryCommand/);
-    assert.match(shipmentsSource, /shouldReserveEmptyBoxStockOnSale/);
+    assert.match(shipmentCreateSource, /atomicSaleInventoryCommand/);
+    assert.match(shipmentCreateSource, /mode: deduct \? "deduct" : "reserve"/);
+    assert.doesNotMatch(shipmentCreateSource, /shouldReserveEmptyBoxStockOnSale|emptyBoxStockReserved/);
     assert.match(shipmentsSource, /create_shipment_sale_atomic/);
     assert.match(atomicSaleMigration, /insert into public\.inventory_sale_reservations/i);
   });

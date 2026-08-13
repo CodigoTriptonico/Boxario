@@ -79,6 +79,7 @@ const report = {
   notifications: false,
   reactivation: false,
   adminException: false,
+  failAtomic: false,
   e2e: false,
 };
 
@@ -898,6 +899,203 @@ try {
   assert.equal(reactCheck.rows[0].open_stops, 0);
   report.reactivation = true;
   console.log("OK reactivation cleanup semantics");
+
+  // --- L-H5: fail_conductor_task_atomic ---
+  const failShipment = randomUUID();
+  const failTaskId = randomUUID();
+  const failRoute = randomUUID();
+  const failStop = randomUUID();
+  const failCode = `INV-QA-FAIL-${randomUUID().slice(0, 6)}`;
+  await client.query(
+    `
+    insert into public.shipments (id, organization_id, code, customer_name, country, carrier)
+    values ($1, $2, $3, 'Cliente QA Fail', 'Mexico', 'QA')
+  `,
+    [failShipment, ctx.organization_id, failCode],
+  );
+  await client.query(
+    `
+    insert into public.shipment_logistics_tasks (
+      id, organization_id, shipment_id, task_type, status, assigned_to,
+      scheduled_at, schedule_confirmation_status, warehouse_id
+    ) values (
+      $1, $2, $3, 'deliver_empty_box', 'assigned', $4,
+      $5::date + time '15:00', 'confirmed', $6
+    )
+  `,
+    [failTaskId, ctx.organization_id, failShipment, driverA, today, ctx.warehouse_id],
+  );
+  await client.query(
+    `
+    insert into public.logistics_routes (
+      id, organization_id, route_date, name, status, assigned_to, vehicle_id, warehouse_id,
+      started_at, started_lat, started_lng
+    ) values (
+      $1, $2, $3::date, 'QA Fail Route', 'in_progress', $4, $5, $6,
+      now(), 34.41, -118.50
+    )
+  `,
+    [failRoute, ctx.organization_id, today, driverA, vehicleA, ctx.warehouse_id],
+  );
+  await client.query(
+    `
+    insert into public.logistics_route_stops (
+      id, organization_id, route_id, task_id, stop_order, lat, lng
+    ) values ($1, $2, $3, $4, 1, 34.41, -118.50)
+  `,
+    [failStop, ctx.organization_id, failRoute, failTaskId],
+  );
+
+  const failOp = randomUUID();
+  await authenticated(driverA, async () => {
+    const first = await client.query(
+      `
+      select public.fail_conductor_task_atomic(
+        $1, $2, $3, 'nota', 'Cliente no contesto', '', $4, now(), false, $3
+      ) as result
+    `,
+      [ctx.organization_id, failTaskId, driverA, failOp],
+    );
+    assert.equal(first.rows[0].result.replayed, false);
+    assert.equal(first.rows[0].result.status, "cancelled");
+
+    const second = await client.query(
+      `
+      select public.fail_conductor_task_atomic(
+        $1, $2, $3, 'nota', 'Cliente no contesto', '', $4, now(), false, $3
+      ) as result
+    `,
+      [ctx.organization_id, failTaskId, driverA, failOp],
+    );
+    assert.equal(second.rows[0].result.replayed, true);
+  });
+
+  const failState = await client.query(
+    `
+    select
+      t.status as task_status,
+      s.outcome as stop_outcome,
+      (select count(*)::int from public.shipment_logistics_task_attempts
+        where task_id = $1 and client_operation_id = $2::uuid) as attempt_count
+    from public.shipment_logistics_tasks t
+    join public.logistics_route_stops s on s.task_id = t.id and s.released_at is null
+    where t.id = $1
+  `,
+    [failTaskId, failOp],
+  );
+  assert.equal(failState.rows[0].task_status, "cancelled");
+  assert.equal(failState.rows[0].stop_outcome, "failed");
+  assert.equal(failState.rows[0].attempt_count, 1);
+
+  await authenticated(driverA, async () => {
+    await expectDatabaseError("fail_conflict", /ATTEMPT_CONFLICT/, async () => {
+      await client.query(
+        `
+        select public.fail_conductor_task_atomic(
+          $1, $2, $3, 'otra nota', 'Cliente no contesto', '', $4, now(), false, $3
+        )
+      `,
+        [ctx.organization_id, failTaskId, driverA, failOp],
+      );
+    });
+  });
+
+  // Rollback of fail mutation: force error after insert path via invalid op on executable task
+  const failShip2 = randomUUID();
+  const failTask2 = randomUUID();
+  const failRoute2 = randomUUID();
+  const failStop2 = randomUUID();
+  await client.query(
+    `
+    insert into public.shipments (id, organization_id, code, customer_name, country, carrier)
+    values ($1, $2, $3, 'Cliente QA Fail2', 'Mexico', 'QA')
+  `,
+    [failShip2, ctx.organization_id, `INV-QA-F2-${randomUUID().slice(0, 6)}`],
+  );
+  await client.query(
+    `
+    insert into public.shipment_logistics_tasks (
+      id, organization_id, shipment_id, task_type, status, assigned_to,
+      scheduled_at, schedule_confirmation_status, warehouse_id
+    ) values (
+      $1, $2, $3, 'deliver_empty_box', 'assigned', $4,
+      $5::date + time '16:00', 'confirmed', $6
+    )
+  `,
+    [failTask2, ctx.organization_id, failShip2, driverA, today, ctx.warehouse_id],
+  );
+  await client.query(
+    `
+    insert into public.logistics_routes (
+      id, organization_id, route_date, name, status, assigned_to, vehicle_id, warehouse_id,
+      started_at, started_lat, started_lng
+    ) values (
+      $1, $2, $3::date, 'QA Fail Route 2', 'in_progress', $4, $5, $6,
+      now(), 34.41, -118.50
+    )
+  `,
+    [failRoute2, ctx.organization_id, today, driverA, vehicleA, ctx.warehouse_id],
+  );
+  await client.query(
+    `
+    insert into public.logistics_route_stops (
+      id, organization_id, route_id, task_id, stop_order, lat, lng
+    ) values ($1, $2, $3, $4, 1, 34.41, -118.50)
+  `,
+    [failStop2, ctx.organization_id, failRoute2, failTask2],
+  );
+
+  await authenticated(driverB, async () => {
+    await expectDatabaseError("fail_scope_open", /FORBIDDEN|TASK_NOT_ASSIGNED/, async () => {
+      await client.query(
+        `
+        select public.fail_conductor_task_atomic(
+          $1, $2, $3, 'nota', 'Cliente no contesto', '', $4, now(), false, $3
+        )
+      `,
+        [ctx.organization_id, failTask2, driverB, randomUUID()],
+      );
+    });
+  });
+
+  await authenticated(driverA, async () => {
+    await expectDatabaseError("fail_reason", /FAILURE_REASON_REQUIRED/, async () => {
+      await client.query(
+        `
+        select public.fail_conductor_task_atomic(
+          $1, $2, $3, 'nota', '', '', $4, now(), false, $3
+        )
+      `,
+        [ctx.organization_id, failTask2, driverA, randomUUID()],
+      );
+    });
+  });
+  const unchanged = await client.query(
+    `
+    select
+      (select status from public.shipment_logistics_tasks where id = $1) as task_status,
+      (select count(*)::int from public.shipment_logistics_task_attempts where task_id = $1) as attempts
+  `,
+    [failTask2],
+  );
+  assert.equal(unchanged.rows[0].task_status, "assigned");
+  assert.equal(unchanged.rows[0].attempts, 0);
+
+  await authenticated(driverA, async () => {
+    await expectDatabaseError("fail_already", /TASK_CANCELLED/, async () => {
+      await client.query(
+        `
+        select public.fail_conductor_task_atomic(
+          $1, $2, $3, 'nota', 'Cliente no contesto', '', $4, now(), false, $3
+        )
+      `,
+        [ctx.organization_id, failTaskId, driverA, randomUUID()],
+      );
+    });
+  });
+
+  report.failAtomic = true;
+  console.log("OK L-H5 fail_conductor_task_atomic");
 
   // --- Mini E2E complete routeA stop C remains ---
   await client.query(

@@ -4,7 +4,16 @@ import type { PricingCountryConfig, PricingRouteConfig } from "@/lib/pricing/typ
 
 export type SaleLogisticsFeesPayload = Pick<
   PricingRouteConfig,
-  "emptyBoxDeliveryFee" | "fullBoxPickupFee" | "minimumDeposit" | "logisticsFeeMode"
+  | "emptyBoxDeliveryFee"
+  | "fullBoxPickupFee"
+  | "minimumDeposit"
+  | "pickupIncludedDays"
+  | "latePickupFee"
+  | "logisticsFeeMode"
+  | "acceptedPaymentMethods"
+  | "driverPaymentMethods"
+  | "defaultPaymentMethod"
+  | "referenceRequiredMethods"
 >;
 
 export function saleCountryBoxesFromCountries(countries: PricingCountryConfig[]) {
@@ -40,6 +49,12 @@ export function saleLogisticsFeesFromRouteConfig(routeConfig: PricingRouteConfig
     emptyBoxDeliveryFee: routeConfig.emptyBoxDeliveryFee,
     fullBoxPickupFee: routeConfig.fullBoxPickupFee,
     minimumDeposit: routeConfig.minimumDeposit,
+    pickupIncludedDays: routeConfig.pickupIncludedDays,
+    latePickupFee: routeConfig.latePickupFee,
     logisticsFeeMode: "per_trip",
+    acceptedPaymentMethods: routeConfig.acceptedPaymentMethods,
+    driverPaymentMethods: routeConfig.driverPaymentMethods,
+    defaultPaymentMethod: routeConfig.defaultPaymentMethod,
+    referenceRequiredMethods: routeConfig.referenceRequiredMethods,
   };
 }

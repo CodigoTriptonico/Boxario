@@ -10,6 +10,7 @@ import {
   driverChangeDialogCopy,
   driverLabel,
   formatLogisticsTaskStatusLabel,
+  findLogisticsRouteForShipmentTasks,
   isClosedLogisticsStatus,
   logisticsUnroutedTaskCardClass,
   logisticsScheduleDisplayParts,
@@ -78,6 +79,17 @@ describe("logistics view", () => {
     assert.equal(isClosedLogisticsStatus("completed"), true);
     assert.equal(isClosedLogisticsStatus("cancelled"), true);
     assert.equal(isClosedLogisticsStatus("assigned"), false);
+  });
+
+  it("finds a loaded route from any shipment logistics task", () => {
+    const routeInfo = { route: { id: "route-1", status: "completed" }, stop: { id: "stop-1" } };
+    const map = new Map([["task-b", routeInfo]]);
+
+    assert.equal(
+      findLogisticsRouteForShipmentTasks([{ id: "task-a" }, { id: "task-b" }], map),
+      routeInfo,
+    );
+    assert.equal(findLogisticsRouteForShipmentTasks([{ id: "task-a" }], map), undefined);
   });
 
   it("shows assigned status with driver name", () => {

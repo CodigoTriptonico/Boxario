@@ -31,6 +31,12 @@ describe("inset field styling", () => {
     assert.match(globalsCss, /input\.inset-field[\s\S]*background:\s*transparent/);
   });
 
+  it("shows one rounded focus treatment for compound inset controls", () => {
+    assert.match(globalsCss, /\.inset-shell:focus-within[\s\S]*border-color:\s*var\(--app-focus-ring\)/);
+    assert.match(globalsCss, /\.inset-shell:focus-within[\s\S]*box-shadow:\s*0 0 0 1px var\(--app-focus-ring\)/);
+    assert.match(globalsCss, /\.inset-shell \.inset-field:focus-visible[\s\S]*outline:\s*none !important/);
+  });
+
   it("marks shared picker and date shells as inset-shell", () => {
     assert.match(uiBlocks, /export const insetShellClass = "inset-shell"/);
     assert.match(inlineSearchPicker, /insetShellClass/);

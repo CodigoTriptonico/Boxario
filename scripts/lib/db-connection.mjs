@@ -25,7 +25,7 @@ function resolvePgConnectionConfig() {
   }
 
   const host = process.env.SUPABASE_DB_HOST || "127.0.0.1";
-  const port = process.env.SUPABASE_DB_PORT || "54322";
+  const port = process.env.SUPABASE_DB_PORT || "60022";
   const password = process.env.SUPABASE_DB_PASSWORD || "postgres";
 
   return {
@@ -36,13 +36,63 @@ function resolvePgConnectionConfig() {
   };
 }
 
-export async function connectPg() {
-  const config = resolvePgConnectionConfig();
-  const client = new pg.Client({
-    connectionString: config.connectionString,
-    ssl: config.ssl,
-  });
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
 
-  await client.connect();
-  return { client, ...config };
+function isTransientPgError(error) {
+  const message = String(error?.message || error || "").toLowerCase();
+  return (
+    message.includes("connection terminated") ||
+    message.includes("connection refused") ||
+    message.includes("econnrefused") ||
+    message.includes("econnreset") ||
+    message.includes("timeout") ||
+    message.includes("starting up") ||
+    message.includes("the database system is not yet accepting connections") ||
+    message.includes("could not connect to server")
+  );
+}
+
+/**
+ * Connects to local Postgres, retrying while Supabase containers finish booting.
+ */
+export async function connectPg(options = {}) {
+  const config = resolvePgConnectionConfig();
+  const maxAttempts = options.maxAttempts ?? 30;
+  const delayMs = options.delayMs ?? 2_000;
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    const client = new pg.Client({
+      connectionString: config.connectionString,
+      ssl: config.ssl,
+      connectionTimeoutMillis: 5_000,
+    });
+
+    try {
+      await client.connect();
+      await client.query("select 1");
+      return { client, ...config };
+    } catch (error) {
+      lastError = error;
+      try {
+        await client.end();
+      } catch {
+        // ignore cleanup errors while postgres is still booting
+      }
+
+      if (attempt >= maxAttempts || !isTransientPgError(error)) {
+        break;
+      }
+
+      const detail = error instanceof Error ? error.message : String(error);
+      console.log(
+        `Postgres aún no responde (${attempt}/${maxAttempts}): ${detail}`,
+      );
+      await sleep(delayMs);
+    }
+  }
+
+  throw lastError;
 }

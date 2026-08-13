@@ -1,7 +1,7 @@
 "use server";
 
 import { requireAppSession } from "@/lib/auth/session";
-import { sessionHasPermission } from "@/lib/auth/permissions";
+import { canAccessWarehouse, sessionHasPermission } from "@/lib/auth/permissions";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { createSupabaseAdminClient } from "@/lib/supabase/admin";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
@@ -11,6 +11,7 @@ import {
   type InventoryCustodyServerSnapshot,
 } from "@/lib/inventory-custody";
 import type { PhysicalPackageStatus } from "@/lib/physical-packages";
+import { stockRowsToItems, type DbStockRow } from "@/lib/inventory-backend";
 
 type AgencyRow = {
   id: string;
@@ -37,13 +38,23 @@ type PackageStatusCountRow = {
   count: number | string | null;
 };
 
-export async function loadInventoryCustodySnapshotAction(): Promise<
+const CUSTODY_STOCK_PAGE_SIZE = 500;
+const CUSTODY_STOCK_SELECT =
+  "id, item_id, warehouse_id, stock, reserved, assigned, unavailable, min_stock, max_stock, avg_cost, inventory_items!inner(id, name, kind, subcategory, size, location, unit, photo_url, sku, barcode, description, inventory_class, preferred_supplier, requires_serial_tracking, requires_lot_tracking, requires_expiry_tracking, is_commercial, is_active, archived_at, category_id, inventory_categories(name))";
+
+export async function loadInventoryCustodySnapshotAction(input: {
+  warehouseId: string;
+}): Promise<
   ActionResult<InventoryCustodyServerSnapshot>
 > {
   try {
     const session = await requireAppSession();
 
     if (!sessionHasPermission(session, "inventory.view")) {
+      throw new Error("FORBIDDEN");
+    }
+
+    if (!canAccessWarehouse(session, input.warehouseId)) {
       throw new Error("FORBIDDEN");
     }
 
@@ -55,6 +66,31 @@ export async function loadInventoryCustodySnapshotAction(): Promise<
     }
 
     const agencyRows: InventoryCustodyAgencyRow[] = [];
+    const warehouseStockRows: DbStockRow[] = [];
+    let stockOffset = 0;
+
+    while (true) {
+      const { data: stockPage, error: stockError } = await supabase
+        .from("inventory_stock")
+        .select(CUSTODY_STOCK_SELECT)
+        .eq("organization_id", session.organizationId)
+        .eq("warehouse_id", input.warehouseId)
+        .order("id", { ascending: true })
+        .range(stockOffset, stockOffset + CUSTODY_STOCK_PAGE_SIZE - 1);
+
+      if (stockError) {
+        throw new Error(stockError.message);
+      }
+
+      const rows = (stockPage || []) as unknown as DbStockRow[];
+      warehouseStockRows.push(...rows);
+
+      if (rows.length < CUSTODY_STOCK_PAGE_SIZE) {
+        break;
+      }
+
+      stockOffset += CUSTODY_STOCK_PAGE_SIZE;
+    }
 
     if (admin && session.agencyModuleEnabled) {
       const { data: agencies, error: agenciesError } = await admin
@@ -148,6 +184,7 @@ export async function loadInventoryCustodySnapshotAction(): Promise<
       agencyModuleEnabled: session.agencyModuleEnabled,
       agencyRows,
       fullPackageCounts: buildInventoryCustodyFullCounts(counts),
+      warehouseItems: stockRowsToItems(warehouseStockRows),
     });
   } catch (error) {
     return fail(actionErrorMessage(error));

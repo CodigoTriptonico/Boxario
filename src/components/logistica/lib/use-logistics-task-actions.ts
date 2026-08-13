@@ -143,9 +143,15 @@ export function useLogisticsTaskActions({
     }
 
     setConfirmingScheduleTask(null);
-    setSelectedRouteId(result.data.id);
+    if (result.data.routeId) {
+      setSelectedRouteId(result.data.routeId);
+    }
     await reloadAll();
-    notify.success("Tarea confirmada y agregada a la ruta");
+    notify.success(
+      result.data.outcome === "template_confirmed"
+        ? "Tarea confirmada dentro de la plantilla"
+        : "Tarea confirmada y agregada a la ruta",
+    );
   }
 
   async function saveDriverChange(task: LogisticsTaskItem, nextAssignedTo: string | null) {

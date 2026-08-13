@@ -44,7 +44,7 @@ export function inventarioReturnActionLabel(returnTo: string) {
         return `Volver a precios de ${country}`;
       }
 
-      return "Volver a Costos";
+      return "Volver a Ventas";
     }
 
     if (url.pathname === "/venta") {

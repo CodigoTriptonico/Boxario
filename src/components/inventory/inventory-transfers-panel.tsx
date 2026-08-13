@@ -5,19 +5,19 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   cancelInventoryWarehouseTransferAction,
   createInventoryWarehouseTransferAction,
+  listInventoryTransferableItemsAction,
   listInventoryWarehouseTransfersAction,
   receiveInventoryWarehouseTransferAction,
+  type InventoryTransferableItem,
 } from "@/app/actions/inventory-transfers";
 import { inputClass, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
 import {
-  availableWarehouseTransferQty,
   inventoryWarehouseTransferDirection,
   inventoryWarehouseTransferStatusLabels,
   validateWarehouseTransferInput,
   type InventoryWarehouseTransfer,
 } from "@/lib/inventory-warehouse-transfers";
-import { inventoryItemFilterOptions } from "@/lib/inventory-stock";
 import type { InventoryStockItem } from "@/lib/inventory-stock";
 
 type WarehouseOption = {
@@ -58,6 +58,16 @@ export function InventoryTransfersPanel({
   const [submitting, setSubmitting] = useState(false);
   const [actionId, setActionId] = useState("");
   const [transfers, setTransfers] = useState<InventoryWarehouseTransfer[]>([]);
+  const [transferableItems, setTransferableItems] = useState<InventoryTransferableItem[]>(
+    () =>
+      items
+        .map((item) => ({
+          id: item.id,
+          label: item.name,
+          availableQty: Math.max(0, item.stock - item.reserved),
+        }))
+        .filter((item) => item.availableQty > 0),
+  );
   const [toWarehouseId, setToWarehouseId] = useState("");
   const [itemId, setItemId] = useState("");
   const [qty, setQty] = useState("1");
@@ -68,16 +78,12 @@ export function InventoryTransfersPanel({
     [warehouseId, warehouses],
   );
 
-  const itemOptions = useMemo(() => inventoryItemFilterOptions(items), [items]);
-
   const selectedItem = useMemo(
-    () => items.find((item) => item.id === itemId) || null,
-    [itemId, items],
+    () => transferableItems.find((item) => item.id === itemId) || null,
+    [itemId, transferableItems],
   );
 
-  const availableQty = selectedItem
-    ? availableWarehouseTransferQty(selectedItem)
-    : 0;
+  const availableQty = selectedItem?.availableQty || 0;
 
   const reload = useCallback(async () => {
     if (!warehouseId) {
@@ -85,7 +91,10 @@ export function InventoryTransfersPanel({
     }
 
     setLoading(true);
-    const result = await listInventoryWarehouseTransfersAction({ warehouseId });
+    const [result, itemsResult] = await Promise.all([
+      listInventoryWarehouseTransfersAction({ warehouseId }),
+      listInventoryTransferableItemsAction({ warehouseId }),
+    ]);
     setLoading(false);
 
     if (!result.ok) {
@@ -95,6 +104,12 @@ export function InventoryTransfersPanel({
 
     setTransfers(result.data);
     onTransfersChange?.(result.data);
+
+    if (itemsResult.ok) {
+      setTransferableItems(itemsResult.data);
+    } else {
+      notify.error(itemsResult.error);
+    }
   }, [notify, onTransfersChange, warehouseId]);
 
   useEffect(() => {
@@ -223,9 +238,9 @@ export function InventoryTransfersPanel({
               onChange={(event) => setItemId(event.target.value)}
             >
               <option value="">Producto...</option>
-              {itemOptions.map((option) => (
-                <option key={option.value} value={option.value}>
-                  {option.label}
+              {transferableItems.map((option) => (
+                <option key={option.id} value={option.id}>
+                  {option.label} · {option.availableQty} disponibles
                 </option>
               ))}
             </select>

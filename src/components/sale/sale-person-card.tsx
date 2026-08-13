@@ -14,7 +14,7 @@ import {
 } from "@/components/sale/venta-parts";
 
 export const salePersonCardEmptyClass =
-  "col-span-full flex min-h-[5.25rem] items-center justify-center rounded-xl border border-amber-800/40 bg-[#2f281f] px-4 text-center text-sm font-black text-amber-100/85";
+  "col-span-full flex min-h-[5.25rem] items-center justify-center rounded-xl border border-amber-800/40 bg-[#2f281f] px-4 text-center text-sm font-black text-amber-100";
 
 export const salePersonRowEmptyClass =
   "px-4 py-8 text-center text-sm font-black text-slate-400";
@@ -58,7 +58,7 @@ function SalePersonAddressBlock({
           neutral ? "text-slate-600" : variant.addressEmpty
         }`}
       >
-        <p className="text-sm font-bold text-current opacity-40">Sin dirección registrada</p>
+        <p className="text-sm font-bold text-current">Sin dirección registrada</p>
       </div>
     );
   }
@@ -121,9 +121,13 @@ export function SalePersonCard({
       tabIndex={0}
       {...contextProps}
       onClick={onClick}
-      onKeyDown={onKeyDown}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onKeyDown?.(event);
+        }
+      }}
       onContextMenu={onContextMenu}
-      className={`group flex h-full min-h-[12.5rem] w-full min-w-0 cursor-pointer flex-col items-center p-4 text-center focus-visible:outline-none ${shellClass}${className ? ` ${className}` : ""}`}
+      className={`group flex h-full min-h-[12.5rem] w-full min-w-0 touch-manipulation cursor-pointer flex-col items-center p-4 text-center focus-visible:outline-none ${shellClass}${className ? ` ${className}` : ""}`}
     >
       <div className="flex min-h-0 w-full flex-1 flex-col items-center gap-2.5">
         {onIconClick ? (
@@ -135,7 +139,7 @@ export function SalePersonCard({
               event.stopPropagation();
               onIconClick(event);
             }}
-            className={`flex h-11 w-11 shrink-0 items-center justify-center text-slate-950 transition hover:scale-105 active:scale-95 ${variant.iconWell}`}
+            className={`flex h-11 w-11 touch-manipulation shrink-0 items-center justify-center text-slate-950 transition hover:scale-105 active:scale-95 ${variant.iconWell}`}
           >
             <User className="h-5 w-5" />
           </button>
@@ -178,16 +182,18 @@ export function SalePersonCard({
 
         <div className="flex min-h-[1.125rem] w-full items-center justify-center">
           {hint ? (
-            <SalePersonHintControl
-              hint={hint}
-              highlighted={hintHighlighted}
-              onClick={onHintClick}
-              className={
-                hintHighlighted
-                  ? variant.hintHighlighted
-                  : variant.hint
-              }
-            />
+            <span>
+              <SalePersonHintControl
+                hint={hint}
+                highlighted={hintHighlighted}
+                onClick={onHintClick}
+                className={
+                  hintHighlighted
+                    ? variant.hintHighlighted
+                    : variant.hint
+                }
+              />
+            </span>
           ) : null}
         </div>
       </div>
@@ -202,7 +208,7 @@ export function SalePersonCard({
               event.stopPropagation();
               onQuickSale();
             }}
-            className={`inline-flex h-7 items-center justify-center gap-1 rounded-md px-2.5 text-[11px] font-black text-slate-950 transition active:scale-[0.98] ${variant.quickSale}`}
+            className={`inline-flex h-7 touch-manipulation items-center justify-center gap-1 rounded-md px-2.5 text-[11px] font-black text-slate-950 transition active:scale-[0.98] ${variant.quickSale}`}
           >
             <Package className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
             Venta rápida
@@ -261,12 +267,16 @@ export function SalePersonRow({
       tabIndex={0}
       {...contextProps}
       onClick={onClick}
-      onKeyDown={onKeyDown}
+      onKeyDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onKeyDown?.(event);
+        }
+      }}
       onContextMenu={onContextMenu}
-      className={`${listRowBaseClass} px-3 py-2.5 sm:px-4 sm:py-3 ${variant.focusRing} ${listRowHoverClass}${className ? ` ${className}` : ""}`}
+      className={`${listRowBaseClass} touch-manipulation cursor-pointer px-3 py-2.5 sm:px-4 sm:py-3 ${variant.focusRing} ${listRowHoverClass}${className ? ` ${className}` : ""}`}
       data-sale-person-row
     >
-      <div className="grid w-full min-w-0 cursor-pointer grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden sm:gap-x-3">
+      <div className="grid w-full min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden sm:gap-x-3">
         {onIconClick ? (
           <button
             type="button"
@@ -276,7 +286,7 @@ export function SalePersonRow({
               event.stopPropagation();
               onIconClick(event);
             }}
-            className={`flex h-9 w-9 shrink-0 items-center justify-center text-slate-950 transition hover:scale-105 active:scale-95 ${variant.iconWell}`}
+            className={`flex h-9 w-9 touch-manipulation shrink-0 items-center justify-center text-slate-950 transition hover:scale-105 active:scale-95 ${variant.iconWell}`}
           >
             <User className="h-4 w-4" />
           </button>
@@ -291,13 +301,13 @@ export function SalePersonRow({
         <div className="min-w-0 py-0.5">
           <p className="flex min-w-0 items-center gap-2">
             <Flag country={country} />
-            <span className="truncate text-base font-black leading-tight text-[#f8fafc]">
+            <span className="min-w-0 break-words text-base font-black leading-tight text-[#f8fafc] sm:truncate">
               {name}
             </span>
           </p>
-          <div className="mt-1 flex min-w-0 items-start gap-1.5 overflow-hidden text-xs font-bold leading-snug text-slate-500">
+          <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs font-bold leading-snug text-slate-500 sm:overflow-hidden">
             <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1 whitespace-nowrap text-[11px] sm:truncate sm:text-xs">{phone}</span>
+            <span className="min-w-0 flex-1 break-words text-[11px] sm:truncate sm:text-xs">{phone}</span>
           </div>
           {addressLines.length ? (
             <div
@@ -309,7 +319,7 @@ export function SalePersonRow({
                 {addressLines.map((line, index) => (
                   <p
                     key={`${line}-${index}`}
-                    className={`truncate text-xs font-bold leading-snug ${
+                    className={`break-words text-xs font-bold leading-snug sm:truncate ${
                       index === 0 ? "text-slate-300" : "text-slate-500"
                     }`}
                   >
@@ -319,17 +329,13 @@ export function SalePersonRow({
               </div>
             </div>
           ) : (
-            <p className="mt-1 truncate text-xs font-bold leading-snug text-slate-600">
+            <p className="mt-1 break-words text-xs font-bold leading-snug text-slate-600 sm:truncate">
               Sin dirección
             </p>
           )}
         </div>
 
-        <div
-          className="flex shrink-0 items-center justify-end gap-2"
-          onClick={(event) => event.stopPropagation()}
-          onKeyDown={(event) => event.stopPropagation()}
-        >
+        <div className="flex shrink-0 items-center justify-end gap-2">
           {hint ? (
             <SalePersonHintControl
               hint={hint}
@@ -347,7 +353,7 @@ export function SalePersonRow({
                 event.stopPropagation();
                 onQuickSale();
               }}
-              className={`inline-flex h-9 items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-black text-slate-950 transition active:scale-[0.98] sm:h-10 sm:px-3.5 sm:text-sm ${variant.quickSale}`}
+              className={`inline-flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-black text-slate-950 transition active:scale-[0.98] sm:h-10 sm:px-3.5 sm:text-sm ${variant.quickSale}`}
             >
               <Package className="h-4 w-4 shrink-0" strokeWidth={2.25} />
               <span>Rápido</span>
@@ -381,7 +387,7 @@ function SalePersonHintControl({
             event.stopPropagation();
             onClick();
           }}
-          className={`inline-flex h-8 items-center rounded-md border px-2 text-[11px] font-black transition hover:brightness-110 sm:h-9 sm:px-2.5 sm:text-xs ${
+          className={`inline-flex h-8 touch-manipulation items-center rounded-md border px-2 text-[11px] font-black transition hover:brightness-110 sm:h-9 sm:px-2.5 sm:text-xs ${
             highlighted
               ? "border-amber-600/40 bg-amber-400/15 text-amber-200"
               : "border-amber-950/50 bg-amber-400/10 text-amber-200"
@@ -407,7 +413,7 @@ function SalePersonHintControl({
           event.stopPropagation();
           onClick();
         }}
-        className={`text-xs font-black uppercase tracking-wide underline decoration-dotted underline-offset-2 transition hover:opacity-80 ${className}`}
+        className={`touch-manipulation text-xs font-black uppercase tracking-wide underline decoration-dotted underline-offset-2 transition ${className}`}
         title={`Ver historial: ${hint}`}
         aria-label={`Ver historial: ${hint}`}
       >

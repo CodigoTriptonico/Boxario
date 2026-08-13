@@ -15,6 +15,7 @@ import type { VentaData } from "@/components/sale/venta/use-venta-data";
 import type { VentaFlow } from "@/components/sale/venta/use-venta-flow";
 import type { VentaSelectionBase } from "@/components/sale/venta/use-venta-selection-base";
 import type { VentaEffects } from "@/components/sale/venta/use-venta-effects";
+import type { ExactEntranceDraft } from "@/components/sale/sale-exact-entrance-step";
 
 type VentaFormsContext = VentaCore & VentaFoundation & VentaData & VentaFlow & VentaSelectionBase & VentaEffects;
 
@@ -137,7 +138,10 @@ export function useVentaForms(context: VentaFormsContext) {
     setActiveStep("client");
   }
 
-  async function createClient(options?: { skipAddressVerification?: boolean; }) {
+  async function createClient(options?: {
+    skipAddressVerification?: boolean;
+    exactEntrance?: ExactEntranceDraft | null;
+  }) {
     const phones = normalizePhoneList(newClientPhones);
 
     if (!phones.length) {
@@ -205,6 +209,13 @@ export function useVentaForms(context: VentaFormsContext) {
       addressVerified: !options?.skipAddressVerification && clientAddressValidation.status === "valid",
       lat: options?.skipAddressVerification ? null : clientAddressValidation.lat ?? null,
       lng: options?.skipAddressVerification ? null : clientAddressValidation.lng ?? null,
+      exactEntranceLat: options?.exactEntrance?.lat ?? null,
+      exactEntranceLng: options?.exactEntrance?.lng ?? null,
+      exactEntranceNote: options?.exactEntrance?.note || "",
+      exactEntrancePanoId: options?.exactEntrance?.panoId || "",
+      exactEntranceHeading: options?.exactEntrance?.heading ?? null,
+      exactEntrancePitch: options?.exactEntrance?.pitch ?? null,
+      exactEntranceConfirmedAt: options?.exactEntrance ? new Date().toISOString() : "",
     };
 
     if (isSupabaseConfigured()) {
@@ -232,6 +243,12 @@ export function useVentaForms(context: VentaFormsContext) {
           addressVerified: payload.addressVerified,
           lat: payload.lat,
           lng: payload.lng,
+          exactEntranceLat: payload.exactEntranceLat,
+          exactEntranceLng: payload.exactEntranceLng,
+          exactEntranceNote: payload.exactEntranceNote,
+          exactEntrancePanoId: payload.exactEntrancePanoId,
+          exactEntranceHeading: payload.exactEntranceHeading,
+          exactEntrancePitch: payload.exactEntrancePitch,
         })
         : await createCustomerAction(payload);
 
@@ -257,6 +274,10 @@ export function useVentaForms(context: VentaFormsContext) {
       id: nextLocalId("local"),
       ...payload,
       referredByCustomerId: payload.referredByCustomerId,
+      createdAt:
+        (editingCustomerId
+          ? senderList.find((sender) => sender.id === editingCustomerId)?.createdAt
+          : undefined) || new Date().toISOString(),
       cardStyle:
         (editingCustomerId
           ? senderList.find((sender) => sender.id === editingCustomerId)?.cardStyle
@@ -274,7 +295,10 @@ export function useVentaForms(context: VentaFormsContext) {
     finishClientSave(nextSender, !editingCustomerId);
   }
 
-  async function createRecipient(options?: { skipAddressVerification?: boolean; }) {
+  async function createRecipient(options?: {
+    skipAddressVerification?: boolean;
+    exactEntrance?: ExactEntranceDraft | null;
+  }) {
     if (
       !selectedSender ||
       !newRecipientFirstName.trim() ||
@@ -332,6 +356,13 @@ export function useVentaForms(context: VentaFormsContext) {
         !options?.skipAddressVerification && recipientAddressValidation.status === "valid",
       lat: options?.skipAddressVerification ? null : recipientAddressValidation.lat ?? null,
       lng: options?.skipAddressVerification ? null : recipientAddressValidation.lng ?? null,
+      exactEntranceLat: options?.exactEntrance?.lat ?? null,
+      exactEntranceLng: options?.exactEntrance?.lng ?? null,
+      exactEntranceNote: options?.exactEntrance?.note || "",
+      exactEntrancePanoId: options?.exactEntrance?.panoId || "",
+      exactEntranceHeading: options?.exactEntrance?.heading ?? null,
+      exactEntrancePitch: options?.exactEntrance?.pitch ?? null,
+      exactEntranceConfirmedAt: options?.exactEntrance ? new Date().toISOString() : "",
     };
 
     let nextRecipient: Recipient;
@@ -382,11 +413,24 @@ export function useVentaForms(context: VentaFormsContext) {
         addressVerified: result.data.addressVerified,
         lat: result.data.lat,
         lng: result.data.lng,
+        exactEntranceLat: result.data.exactEntranceLat,
+        exactEntranceLng: result.data.exactEntranceLng,
+        exactEntranceConfirmedAt: result.data.exactEntranceConfirmedAt,
+        exactEntranceNote: result.data.exactEntranceNote,
+        exactEntrancePanoId: result.data.exactEntrancePanoId,
+        exactEntranceHeading: result.data.exactEntranceHeading,
+        exactEntrancePitch: result.data.exactEntrancePitch,
+        createdAt: result.data.createdAt,
       };
     } else {
       nextRecipient = {
         id: editingRecipientId || nextLocalId("local-r"),
         ...recipientPayload,
+        createdAt:
+          (editingRecipientId
+            ? activeSender?.recipients.find((recipient) => recipient.id === editingRecipientId)
+              ?.createdAt
+            : undefined) || new Date().toISOString(),
         cardStyle:
           (editingRecipientId
             ? activeSender?.recipients.find((recipient) => recipient.id === editingRecipientId)

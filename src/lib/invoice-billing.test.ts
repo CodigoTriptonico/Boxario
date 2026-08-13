@@ -40,17 +40,15 @@ describe("logistics additional charges", () => {
     assert.equal(billing.quotedTotal, "$327");
   });
 
-  it("requires a reason only when the suggestion changes", () => {
-    const suggested = { enabled: true, amount: "$15", reason: "" };
-    const changed = { enabled: true, amount: "$10", reason: "" };
-    assert.equal(logisticsAdditionalChargeRequiresReason(suggested, "$15"), false);
-    assert.equal(logisticsAdditionalChargeIsValid(suggested, "$15"), true);
-    assert.equal(logisticsAdditionalChargeRequiresReason(changed, "$15"), true);
-    assert.equal(logisticsAdditionalChargeIsValid(changed, "$15"), false);
-    assert.equal(
-      logisticsAdditionalChargeIsValid({ ...changed, reason: "Descuento autorizado" }, "$15"),
-      true,
-    );
+  it("requires amount and reason when the additional charge is enabled", () => {
+    const charge = { enabled: true, amount: "$18", reason: "Acceso especial" };
+    assert.equal(logisticsAdditionalChargeRequiresReason(charge), true);
+    assert.equal(logisticsAdditionalChargeRequiresReason({ enabled: false, amount: "$0", reason: "" }), false);
+    assert.equal(logisticsAdditionalChargeIsValid(charge), true);
+    assert.equal(logisticsAdditionalChargeIsValid({ enabled: true, amount: "$18", reason: "" }), false);
+    assert.equal(logisticsAdditionalChargeIsValid({ enabled: true, amount: "$0", reason: "Acceso" }), false);
+    assert.equal(logisticsAdditionalChargeIsValid({ enabled: true, amount: "", reason: "" }), false);
+    assert.equal(logisticsAdditionalChargeIsValid({ enabled: false, amount: "$0", reason: "" }), true);
   });
 });
 
@@ -156,6 +154,8 @@ describe("invoice-billing", () => {
     assert.equal(billing.boxSubtotal, "$150");
     assert.equal(billing.emptyBoxDelivery, "$0");
     assert.equal(billing.quotedTotal, "$150");
+    assert.equal(billing.minimumDeposit, "$60");
+    assert.equal(billing.depositRequired, "$60");
   });
 
   it("allows paying more than the minimum deposit", () => {

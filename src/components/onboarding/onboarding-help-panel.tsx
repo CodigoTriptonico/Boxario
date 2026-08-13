@@ -10,7 +10,7 @@ export function OnboardingHelpPanel({ help, className = "" }: OnboardingHelpPane
     <div
       className={`rounded-lg border border-sky-700/25 bg-sky-950/25 px-3 py-2.5 ${className}`}
     >
-      <p className="text-[10px] font-black uppercase tracking-wide text-sky-300/90">
+      <p className="text-[10px] font-black uppercase tracking-wide text-sky-300">
         ¿Qué es esto?
       </p>
       <p className="mt-1 text-xs font-bold leading-relaxed text-slate-200">{help.what}</p>
@@ -18,7 +18,7 @@ export function OnboardingHelpPanel({ help, className = "" }: OnboardingHelpPane
         <span className="text-slate-500">Para qué sirve: </span>
         {help.why}
       </p>
-      <p className="mt-2 text-[11px] font-bold leading-relaxed text-emerald-200/90">
+      <p className="mt-2 text-[11px] font-bold leading-relaxed text-emerald-200">
         Tip: {help.tip}
       </p>
     </div>

@@ -22,6 +22,7 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
     invoiceBilling,
     invoiceBillingForPayment,
     logisticsPlanReady,
+    logisticsFees,
     nextInvoiceNumber,
     notify,
     organizationBranding,
@@ -69,7 +70,7 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
                   role="alert"
                 >
                   <p className="text-sm font-black text-amber-100">
-                    El invoice quedó creado, pero falta enviar una ruta a Logística.
+                    La venta y el invoice quedaron guardados. Falta completar el envío a Logística.
                   </p>
                   {routeAssignmentRetries.map((retry) =>
                     retry.error ? (
@@ -280,7 +281,7 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
                   onClick={() => {
                     setInvoicePaymentMethod(
                       invoiceBilling && parseMoneyValue(invoiceBilling.payNow) > 0
-                        ? defaultSalePaymentSelection()
+                        ? defaultSalePaymentSelection(logisticsFees.defaultPaymentMethod)
                         : "pending",
                     );
                     setInvoicePaymentNote("");

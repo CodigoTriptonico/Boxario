@@ -39,6 +39,7 @@ La UI nunca es autoridad de dinero, stock, permisos, ni estados críticos.
 | Esquema, RLS, RPC, triggers | `supabase/migrations/*.sql` |
 | Documentación de reglas | `docs/REGLAS_NEGOCIO_Y_DEPENDENCIAS.md` |
 | UI / mensajes | `docs/GUIA_ESTILO_UI.md` |
+| Interacción / acciones críticas | `docs/GUIA_INTERACCION_Y_ACCIONES_CRITICAS.md` |
 | Infra / compatibilidad | `docs/DECISIONES_TECNICAS_Y_COMPATIBILIDAD.md` |
 | Mapa funcional | `docs/MAPA_FUNCIONAL_ACTUAL.md` |
 
@@ -109,7 +110,7 @@ Mapa rápido de archivos que suelen cambiar al extender el producto (sin alterar
 | Dominio / actions | + `npm run test:gate` · `npm run check:architecture` |
 | Schema / RPC / RLS | + `npm run quality:db` (requiere Supabase local) |
 | Tipos DB | `npm run codegen:db-types` · `npm run check:db-types` |
-| Antes de PR | `npm run quality:gate` (+ `quality:db` si tocó datos) |
+| Antes de PR | `npm run quality:gate` (+ `quality:db` si tocó datos). En remoto, Actions corre `quality:gate` en cada PR / push a `main`. |
 
 ## Contabilidad
 

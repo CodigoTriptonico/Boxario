@@ -28,4 +28,12 @@ describe("conductor driver payment eval", () => {
     assert.doesNotMatch(clientSource, /dialog\.task\.depositDue > 0[\s\S]{0,100}dialog\.task\.balanceDue/);
     assert.match(paymentSource, /Math\.min\(money\(input\.depositDue\), money\(input\.balanceDue\)\)/);
   });
+
+  it("offers an outstanding deposit again at pickup and records why no money was received", () => {
+    assert.doesNotMatch(paymentSource, /taskType !== "deliver_empty_box"/);
+    assert.match(paymentSource, /input\.choice === "none"/);
+    assert.match(paymentSource, /input\.note/);
+    assert.match(clientSource, /Motivo de cobro pendiente/);
+    assert.match(actionSource, /note,/);
+  });
 });

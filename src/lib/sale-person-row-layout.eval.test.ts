@@ -34,14 +34,18 @@ describe("sale person row layout eval", () => {
     assert.equal(senderListSource.includes("SalePersonListToolbar"), true);
     assert.equal(senderListSource.includes("SalePersonRow"), true);
     assert.equal(senderListSource.includes("SalePersonCard"), true);
+    assert.equal(senderListSource.includes("SalePersonExcelTable"), true);
     assert.equal(senderListSource.includes('viewLayout === "rows"'), true);
+    assert.equal(senderListSource.includes('viewLayout === "excel"'), true);
     assert.equal(senderListSource.includes("onViewLayoutToggle"), false);
     assert.equal(recipientListSource.includes("SalePersonRow"), true);
     assert.equal(recipientListSource.includes("SalePersonCard"), true);
+    assert.equal(recipientListSource.includes("SalePersonExcelTable"), true);
     assert.equal(recipientListSource.includes("flowPersonRowListSlotClass"), true);
     assert.equal(recipientListSource.includes("SalePersonAddRow"), false);
     assert.equal(recipientListSource.includes("SalePersonAddCard"), false);
     assert.equal(recipientListSource.includes('viewLayout === "rows"'), true);
+    assert.equal(recipientListSource.includes('viewLayout === "excel"'), true);
   });
 
   it("scrolls person lists inside the viewport while toolbar stays fixed", () => {
@@ -65,13 +69,38 @@ describe("sale person row layout eval", () => {
     assert.equal(personCardSource.includes("salePersonAddressLines"), true);
     assert.equal(personCardSource.includes("break-words sm:truncate"), true);
     assert.equal(personCardSource.includes("whitespace-nowrap text-[11px]"), true);
-    assert.equal(ventaPartsSource.includes("min-w-max items-start gap-0 lg:min-w-0 lg:w-full"), true);
+    assert.equal(ventaPartsSource.includes("grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0"), true);
     assert.equal(ventaPartsSource.includes("max-sm:hidden"), true);
     assert.equal(ventaPartsSource.includes("hidden lg:mt-[2.125rem] lg:flex"), true);
     assert.match(
       personCardSource,
-      /inline-flex h-9 items-center[\s\S]*?sm:h-10[\s\S]*?>\s*<Package[\s\S]*?>\s*<span>Rápido<\/span>/,
+      /inline-flex h-9[^"`]*items-center[\s\S]*?sm:h-10[\s\S]*?>\s*<Package[\s\S]*?>\s*<span>Rápido<\/span>/,
     );
+  });
+
+  it("uses direct touch surfaces without pointer-event layers or global pointerup capture", () => {
+    const rowSource = personCardSource.slice(
+      personCardSource.indexOf("export function SalePersonRow"),
+    );
+    const cardSource = personCardSource.slice(
+      0,
+      personCardSource.indexOf("export function SalePersonRow"),
+    );
+
+    assert.match(rowSource, /role="button"[\s\S]*?onClick=\{onClick\}/);
+    assert.match(cardSource, /role="button"[\s\S]*?onClick=\{onClick\}/);
+    assert.match(rowSource, /touch-manipulation cursor-pointer/);
+    assert.match(cardSource, /touch-manipulation cursor-pointer/);
+    assert.doesNotMatch(personCardSource, /pointer-events-none relative z-10/);
+    assert.doesNotMatch(personCardSource, /absolute inset-0 z-0 cursor-pointer/);
+    assert.doesNotMatch(ventaClientSource, /addEventListener\("pointerup"/);
+    assert.doesNotMatch(ventaClientSource, /addEventListener\("mouseup"/);
+    assert.doesNotMatch(ventaClientSource, /onMouseUpCapture=/);
+    assert.doesNotMatch(
+      ventaClientSource,
+      /customersLoading \? " pointer-events-none/,
+    );
+    assert.match(flowStylesSource, /flowToolbarInlineCreateClass[\s\S]*?touch-manipulation/);
   });
 
   it("shows the destination country flag beside the person name in rows", () => {

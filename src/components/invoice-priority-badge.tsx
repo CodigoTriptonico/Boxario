@@ -30,7 +30,7 @@ export function InvoicePriorityBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-200/90 ${className}`}
+      className={`inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-wide text-amber-200 ${className}`}
       title="Prioridad"
     >
       <Star

@@ -3,9 +3,10 @@
 import { Search } from "lucide-react";
 import { memo } from "react";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
-import { insetShellClass } from "@/components/ui-blocks";
+import { insetShellClass, panelToolbarClass } from "@/components/ui-blocks";
 import { EnviosReadinessActions } from "@/components/envios/envios-readiness-actions";
 import type { EnviosFiltersToolbarProps } from "@/components/envios/types";
+import { enviosStatusFilterDisplayLabel } from "@/lib/shipment-display";
 
 export const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
   workspaceTabs,
@@ -34,7 +35,7 @@ export const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
   const isHistoryMode = mode === "history";
 
   return (
-    <div className="mb-3 shrink-0 rounded-xl border border-black bg-surface-card-header p-2">
+    <div className={`${panelToolbarClass} mb-3`}>
       <div className="flex w-full items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         {workspaceTabs}
 
@@ -94,6 +95,11 @@ export const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
             searchPlaceholder="Buscar estado..."
             emptyLabel="Sin estados"
             ariaLabel="Filtrar por estado de envío"
+            formatSelectedLabel={(option, placeholder) =>
+              option
+                ? enviosStatusFilterDisplayLabel(option.value) || option.label
+                : placeholder
+            }
           />
         ) : null}
 

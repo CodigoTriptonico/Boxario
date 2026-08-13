@@ -3,11 +3,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { ReadonlyURLSearchParams } from "next/navigation";
 import type { LogisticsRouteCatalog as LogisticsRouteCatalogData } from "@/app/actions/logistics-routes";
+import type { CustomerRouteAssignmentRequestRow } from "@/app/actions/customer-route-assignments/types";
 import type { RouteMemberRow } from "@/lib/shipment-types";
 import type { LogisticsRouteRow } from "@/lib/logistics-routing";
 import {
   buildDriverPickerOptions,
   buildLogisticsDayRouteFilterOptions,
+  findLogisticsRouteForShipmentTasks,
   formatLogisticsTaskStatusLabel,
   matchesLogisticsDateFilter,
   matchesLogisticsRouteTemplateFilter,
@@ -17,8 +19,6 @@ import {
   sortLogisticsInvoiceItemsByPriority,
 } from "@/lib/logistics-view";
 import {
-  defaultLogisticsWeekdayFilter,
-  enabledWeekdayIndexes,
   logisticsEnabledWeekdayFilterOptions,
   selectWeekdayDate,
 } from "@/lib/logistics-day-route";
@@ -33,6 +33,22 @@ import {
 import { taskTypeLabel } from "@/components/logistica/lib/constants";
 import type { LogisticsInvoiceItem, LogisticsTaskItem, TaskAddressMeta } from "@/components/logistica/types";
 
+export type LogisticsAssignmentFilter = "" | "unassigned" | "rejected" | "deferred";
+
+function logisticsContentDate(value: string | null | undefined) {
+  return String(value || "").match(/\d{4}-\d{2}-\d{2}/)?.[0] || "";
+}
+
+function matchesAssignmentFilter(
+  filter: LogisticsAssignmentFilter,
+  reviewedStatus: CustomerRouteAssignmentRequestRow["status"] | undefined,
+  hasAssignedRoute: boolean,
+) {
+  if (!filter) return true;
+  if (filter === "unassigned") return !reviewedStatus && !hasAssignedRoute;
+  return reviewedStatus === filter;
+}
+
 export function useLogisticsFilters({
   routes,
   routeCatalog,
@@ -43,6 +59,8 @@ export function useLogisticsFilters({
   routeByTaskId,
   addressByTaskId,
   invoiceItems,
+  pendingBookings,
+  reviewedBookings,
   onRouteServerFiltersChange,
 }: {
   routes: LogisticsRouteRow[];
@@ -54,17 +72,28 @@ export function useLogisticsFilters({
   routeByTaskId: Map<string, { route: LogisticsRouteRow; stop: import("@/lib/logistics-routing").LogisticsRouteStopRow }>;
   addressByTaskId: Map<string, TaskAddressMeta>;
   invoiceItems: LogisticsInvoiceItem[];
+  pendingBookings: CustomerRouteAssignmentRequestRow[];
+  reviewedBookings: CustomerRouteAssignmentRequestRow[];
   onRouteServerFiltersChange?: (filters: ListLogisticsRoutesOptions) => void;
 }) {
   const appliedDeepLinkRef = useRef(false);
-  const weekdayFilterInitializedRef = useRef(false);
 
   const [query, setQuery] = useState("");
-  const [todayDate] = useState(() => formatScheduleDateInput(new Date()));
-  const [weekdayFilter, setWeekdayFilter] = useState<number | null>(null);
+  const [initialDayFilters] = useState(() => {
+    const today = formatScheduleDateInput(new Date());
+    return {
+      todayDate: today,
+      weekdayFilter: null as number | null,
+      dateFilter: "",
+      initialized: true,
+    };
+  });
+  const [todayDate] = useState(() => initialDayFilters.todayDate);
+  const [weekdayFilter, setWeekdayFilter] = useState<number | null>(() => initialDayFilters.weekdayFilter);
   const [routeTemplateFilter, setRouteTemplateFilter] = useState("");
-  const [dateFilter, setDateFilter] = useState("");
+  const [dateFilter, setDateFilter] = useState(() => initialDayFilters.dateFilter);
   const [typeFilter, setTypeFilter] = useState("");
+  const [assignmentFilter, setAssignmentFilter] = useState<LogisticsAssignmentFilter>("");
   const [driverFilter, setDriverFilter] = useState("");
   const [zoneFilter, setZoneFilter] = useState("");
   const [failedFilter, setFailedFilter] = useState(false);
@@ -75,22 +104,69 @@ export function useLogisticsFilters({
   const [highlightTaskId, setHighlightTaskId] = useState<string | null>(null);
   const [selectedTaskIds, setSelectedTaskIds] = useState<string[]>([]);
   const [routeAssignmentOpen, setRouteAssignmentOpen] = useState(false);
+  const weekdayFilterInitializedRef = useRef(initialDayFilters.initialized);
 
   const memberById = useMemo(() => {
     return new Map(routeMembers.map((member) => [member.id, member.label]));
   }, [routeMembers]);
+
+  const pendingBookingTaskIds = useMemo(
+    () => new Set(pendingBookings.map((booking) => booking.taskId)),
+    [pendingBookings],
+  );
+  const reviewedBookingByTaskId = useMemo(
+    () => new Map(reviewedBookings.map((booking) => [booking.taskId, booking])),
+    [reviewedBookings],
+  );
 
   const filterDriverPickerOptions = useMemo(
     () => buildDriverPickerOptions(routeMembers, "Todo chofer"),
     [routeMembers],
   );
 
-  const todayWeekday = getLogisticsWeekdayIndex(todayDate);
+  const availableFilterWeekdays = useMemo(() => {
+    const weekdays = new Set<number>();
+    const addDate = (value: string | null | undefined) => {
+      const date = logisticsContentDate(value);
+      if (date) weekdays.add(getLogisticsWeekdayIndex(date));
+    };
 
-  const availableFilterWeekdays = useMemo(
-    () => enabledWeekdayIndexes(routeCatalog?.enabledDays || []),
-    [routeCatalog?.enabledDays],
-  );
+    for (const item of invoiceItems) {
+      const task = item.currentTask || item.nextTask;
+      if (!task) continue;
+      const routeInfo = routeByTaskId.get(task.id);
+      const reviewedBooking = reviewedBookingByTaskId.get(task.id);
+      addDate(
+        routeInfo?.route.routeDate ||
+        reviewedBooking?.routeDate ||
+        task.scheduledAt ||
+        task.requestedScheduleAt,
+      );
+    }
+    for (const booking of pendingBookings) addDate(booking.routeDate);
+    for (const route of routes) addDate(route.routeDate);
+
+    return Array.from(weekdays).sort((left, right) => left - right);
+  }, [invoiceItems, pendingBookings, reviewedBookingByTaskId, routeByTaskId, routes]);
+
+  useEffect(() => {
+    if (
+      weekdayFilterInitializedRef.current &&
+      weekdayFilter != null &&
+      !availableFilterWeekdays.includes(weekdayFilter)
+    ) {
+      queueMicrotask(() => {
+        // A route-calendar change must never move the operator to another
+        // day and hide existing invoices. Clear the now-invalid focus instead.
+        setWeekdayFilter(null);
+        setRouteTemplateFilter("");
+        setDateFilter("");
+      });
+    }
+  }, [
+    availableFilterWeekdays,
+    weekdayFilter,
+  ]);
 
   const weekdayFilterOptions = useMemo(
     () => logisticsEnabledWeekdayFilterOptions(availableFilterWeekdays),
@@ -128,47 +204,18 @@ export function useLogisticsFilters({
     });
   }, [dateFilter, filterAnchorDate, routeTemplateFilter, routes]);
 
-  function selectWeekdayFilter(next: number | null) {
+  function selectWeekdayFilter(next: number | null, selectedDate?: string) {
     setWeekdayFilter(next);
     setRouteTemplateFilter("");
-    setDateFilter(next == null ? "" : selectWeekdayDate(next, todayDate));
+    setDateFilter(next == null ? "" : selectedDate || selectWeekdayDate(next, todayDate));
   }
-
-  useEffect(() => {
-    const frame = requestAnimationFrame(() => {
-      if (!availableFilterWeekdays.length) {
-        weekdayFilterInitializedRef.current = false;
-        setWeekdayFilter((current) => (current == null ? current : null));
-        setRouteTemplateFilter("");
-        setDateFilter("");
-        return;
-      }
-
-      if (!weekdayFilterInitializedRef.current) {
-        weekdayFilterInitializedRef.current = true;
-        const initial = defaultLogisticsWeekdayFilter(availableFilterWeekdays, todayWeekday);
-        setWeekdayFilter(initial);
-        setRouteTemplateFilter("");
-        setDateFilter(initial == null ? "" : selectWeekdayDate(initial, todayDate));
-        return;
-      }
-
-      setWeekdayFilter((current) => {
-        if (current == null || availableFilterWeekdays.includes(current)) {
-          return current;
-        }
-        const next = defaultLogisticsWeekdayFilter(availableFilterWeekdays, todayWeekday);
-        setRouteTemplateFilter("");
-        setDateFilter(next == null ? "" : selectWeekdayDate(next, todayDate));
-        return next;
-      });
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [availableFilterWeekdays, todayDate, todayWeekday]);
 
   const taskSearchOptions = useMemo(
     () =>
-      invoiceItems.map((item) => {
+      invoiceItems.filter((item) => {
+        const task = item.currentTask || item.nextTask;
+        return Boolean(task);
+      }).map((item) => {
         const task = item.currentTask || item.nextTask;
         const address = task ? addressByTaskId.get(task.id) : undefined;
 
@@ -207,20 +254,29 @@ export function useLogisticsFilters({
         const task = item.currentTask;
         const fallbackTask = item.currentTask || item.nextTask;
         const address = fallbackTask ? addressByTaskId.get(fallbackTask.id) : undefined;
-        const routeInfo = task ? routeByTaskId.get(task.id) : undefined;
+        const hasPendingBooking = Boolean(fallbackTask && pendingBookingTaskIds.has(fallbackTask.id));
+        const reviewedBooking = fallbackTask
+          ? reviewedBookingByTaskId.get(fallbackTask.id)
+          : undefined;
+        const reviewedStatus = reviewedBooking?.status;
+        const routeInfo =
+          findLogisticsRouteForShipmentTasks(item.shipment.logisticsTasks, routeByTaskId) ||
+          (fallbackTask ? routeByTaskId.get(fallbackTask.id) : undefined);
+        const hasOperationalRoute = Boolean(routeInfo);
+        const hasAssignedRoute = hasOperationalRoute || hasPendingBooking;
         const dateMatches = matchesLogisticsWeekdayFilter({
           weekdayFilter,
           scheduledAt: task?.scheduledAt || task?.requestedScheduleAt || null,
-          routeDate: routeInfo?.route.routeDate,
+          routeDate: routeInfo?.route.routeDate || reviewedBooking?.routeDate,
         });
         const routeMatches = matchesLogisticsRouteTemplateFilter({
           routeTemplateIdFilter: routeTemplateFilter,
-          routeTemplateId: routeInfo?.route.routeTemplateId,
+          routeTemplateId: routeInfo?.route.routeTemplateId || reviewedBooking?.routeTemplateId,
         });
         const calendarMatches = matchesLogisticsDateFilter({
           dateFilter,
           scheduledAt: task?.scheduledAt || task?.requestedScheduleAt || null,
-          routeDate: routeInfo?.route.routeDate,
+          routeDate: routeInfo?.route.routeDate || reviewedBooking?.routeDate,
         });
         const haystack = [
           item.shipment.code,
@@ -241,26 +297,39 @@ export function useLogisticsFilters({
           .join(" ")
           .toLowerCase();
 
-        return (
+        const matchesCommon =
           dateMatches &&
           routeMatches &&
           calendarMatches &&
           (!cleanQuery || haystack.includes(cleanQuery)) &&
           (!cleanType || item.step.stepType === cleanType) &&
-          (!cleanDriver || task?.assignedTo === cleanDriver || routeInfo?.route.assignedTo === cleanDriver) &&
-          (!cleanZone || address?.zoneKey === cleanZone)
-        );
+          (!cleanDriver ||
+            task?.assignedTo === cleanDriver ||
+            routeInfo?.route.assignedTo === cleanDriver) &&
+          (!cleanZone || address?.zoneKey === cleanZone);
+
+        // Historial: invoices that rode a completed route (loaded via statusMode=history).
+        // Activas: work queue still without an operational route or pending route booking.
+        if (showRouteHistory) {
+          return hasOperationalRoute && matchesCommon;
+        }
+
+        return matchesAssignmentFilter(assignmentFilter, reviewedStatus, hasAssignedRoute) && matchesCommon;
       }),
     );
   }, [
     addressByTaskId,
+    assignmentFilter,
     dateFilter,
     driverFilter,
     invoiceItems,
     memberById,
+    pendingBookingTaskIds,
+    reviewedBookingByTaskId,
     query,
     routeByTaskId,
     routeTemplateFilter,
+    showRouteHistory,
     typeFilter,
     weekdayFilter,
     zoneFilter,
@@ -275,19 +344,24 @@ export function useLogisticsFilters({
     return allTasks.filter((task) => {
       const address = addressByTaskId.get(task.id);
       const routeInfo = routeByTaskId.get(task.id);
+      const hasOperationalRoute = Boolean(routeInfo);
+      const hasPendingBooking = pendingBookingTaskIds.has(task.id);
+      const hasAssignedRoute = hasOperationalRoute || hasPendingBooking;
+      const reviewedBooking = reviewedBookingByTaskId.get(task.id);
+      const reviewedStatus = reviewedBooking?.status;
       const dateMatches = matchesLogisticsWeekdayFilter({
         weekdayFilter,
         scheduledAt: task.scheduledAt || task.requestedScheduleAt || null,
-        routeDate: routeInfo?.route.routeDate,
+        routeDate: routeInfo?.route.routeDate || reviewedBooking?.routeDate,
       });
       const routeMatches = matchesLogisticsRouteTemplateFilter({
         routeTemplateIdFilter: routeTemplateFilter,
-        routeTemplateId: routeInfo?.route.routeTemplateId,
+        routeTemplateId: routeInfo?.route.routeTemplateId || reviewedBooking?.routeTemplateId,
       });
       const calendarMatches = matchesLogisticsDateFilter({
         dateFilter,
         scheduledAt: task.scheduledAt || task.requestedScheduleAt || null,
-        routeDate: routeInfo?.route.routeDate,
+        routeDate: routeInfo?.route.routeDate || reviewedBooking?.routeDate,
       });
       const haystack = [
         task.shipment.code,
@@ -309,6 +383,8 @@ export function useLogisticsFilters({
         .toLowerCase();
 
       return (
+        (showRouteHistory ? hasOperationalRoute : true) &&
+        matchesAssignmentFilter(assignmentFilter, reviewedStatus, hasAssignedRoute) &&
         dateMatches &&
         routeMatches &&
         calendarMatches &&
@@ -321,12 +397,16 @@ export function useLogisticsFilters({
   }, [
     addressByTaskId,
     allTasks,
+    assignmentFilter,
     dateFilter,
     driverFilter,
     memberById,
+    pendingBookingTaskIds,
     query,
+    reviewedBookingByTaskId,
     routeByTaskId,
     routeTemplateFilter,
+    showRouteHistory,
     typeFilter,
     weekdayFilter,
     zoneFilter,
@@ -446,15 +526,15 @@ export function useLogisticsFilters({
     return routes.find((route) => route.id === selectedRouteId) || filteredRoutes[0] || null;
   }, [filteredRoutes, routes, selectedRouteId]);
 
-  const defaultWeekdayFilter = defaultLogisticsWeekdayFilter(availableFilterWeekdays, todayWeekday);
-  const defaultDateFilter =
-    defaultWeekdayFilter == null ? "" : selectWeekdayDate(defaultWeekdayFilter, todayDate);
+  const defaultWeekdayFilter = null;
+  const defaultDateFilter = "";
   const hasFilters = Boolean(
     query.trim() ||
       weekdayFilter !== defaultWeekdayFilter ||
       routeTemplateFilter ||
       dateFilter !== defaultDateFilter ||
       typeFilter ||
+      assignmentFilter ||
       driverFilter ||
       zoneFilter ||
       failedFilter,
@@ -502,6 +582,8 @@ export function useLogisticsFilters({
     setDateFilter,
     typeFilter,
     setTypeFilter,
+    assignmentFilter,
+    setAssignmentFilter,
     driverFilter,
     setDriverFilter,
     zoneFilter,
@@ -541,5 +623,6 @@ export function useLogisticsFilters({
     toggleTaskSelection,
     availableFilterWeekdays,
     defaultWeekdayFilter,
+    routeServerFiltersKey,
   };
 }

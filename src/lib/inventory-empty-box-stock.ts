@@ -77,24 +77,6 @@ export function readEmptyBoxQuoteLinesFromPlan(value: unknown): EmptyBoxQuoteLin
   ];
 }
 
-function emptyBoxStockAlreadyDeducted(plan: Record<string, unknown>) {
-  const emptyBox = asRecord(plan.emptyBox);
-  return Boolean(emptyBox.stockDeductedAt);
-}
-
-export function emptyBoxStockReserved(plan: Record<string, unknown>) {
-  const emptyBox = asRecord(plan.emptyBox);
-  return Boolean(emptyBox.stockReservedAt);
-}
-
-export function shouldReserveEmptyBoxStockOnSale(plan: Record<string, unknown>) {
-  if (emptyBoxStockAlreadyDeducted(plan)) {
-    return false;
-  }
-
-  return readEmptyBoxQuoteLinesFromPlan(plan).length > 0;
-}
-
 export function availableEmptyBoxStock(row: Pick<EmptyBoxStockMatchRow, "stock" | "reserved">) {
   return Math.max(0, Number(row.stock) - Number(row.reserved));
 }
@@ -102,6 +84,7 @@ export function availableEmptyBoxStock(row: Pick<EmptyBoxStockMatchRow, "stock" 
 export function matchEmptyBoxQuoteLinesToStock(
   quoteLines: ReadonlyArray<EmptyBoxQuoteLine>,
   stockRows: ReadonlyArray<EmptyBoxStockMatchRow>,
+  options: { validateAvailability?: boolean } = {},
 ): MatchedEmptyBoxDeduction[] {
   return quoteLines.map((quote) => {
     const normalizedBox = normalizeInventoryText(quote.label);
@@ -131,7 +114,7 @@ export function matchEmptyBoxQuoteLinesToStock(
     const quantity = Math.max(Math.floor(Number(quote.quantity) || 1), 1);
     const available = availableEmptyBoxStock(match);
 
-    if (available < quantity) {
+    if (options.validateAvailability !== false && available < quantity) {
       throw new Error(`Stock insuficiente para ${quote.label}`);
     }
 

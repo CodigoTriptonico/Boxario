@@ -1,7 +1,6 @@
 import { PackageCheck, PackageOpen } from "lucide-react";
 import type { LogisticsTaskStatus, LogisticsTaskType } from "@/lib/shipment-types";
 import type { LogisticsRouteStatus } from "@/lib/logistics-routing";
-import type { ShipmentRow } from "@/lib/shipment-types";
 import type { LogisticsTaskItem } from "@/components/logistica/types";
 import { LOGISTICS_FIELD_BASE, taskActionVerb } from "@/components/logistica/lib/constants";
 
@@ -61,20 +60,6 @@ export function taskTypeIcon(taskType: LogisticsTaskType, className = "h-4 w-4")
 
 export function invoiceActionLabel(taskType: LogisticsTaskType) {
   return taskActionVerb[taskType];
-}
-
-export function invoiceEvidenceLabel(shipment: ShipmentRow) {
-  const evidence = shipment.invoiceBoxEvidence;
-
-  if (evidence?.incidentBoxes) {
-    return { label: "Invoice no visible", tone: "border-rose-700/70 bg-rose-400/15 text-rose-100" };
-  }
-
-  if (evidence && evidence.markedBoxes === evidence.totalBoxes) {
-    return { label: "Invoice confirmado", tone: "border-emerald-700/70 bg-emerald-400/15 text-emerald-100" };
-  }
-
-  return { label: "Invoice por confirmar", tone: "border-amber-700/70 bg-amber-400/15 text-amber-100" };
 }
 
 export function invoiceActionFieldClass() {

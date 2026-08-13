@@ -18,6 +18,8 @@ Actualizado 2026-08-02 (Fase 3B: contrato Knip). Solo falsos positivos / API pú
 | `ScheduleSuggestionModeAvailability` | `src/lib/sale/schedule-suggestions.ts` | Forma de disponibilidad por modo | `public-api.contract.test` · validación interna + UI config | Con cambios de sugerencias |
 | `ScheduleSuggestionDayConfig` | `src/lib/sale/schedule-suggestions.ts` | Config por día | `public-api.contract.test` · persistencia de sugerencias | Con cambios de sugerencias |
 | `EnviosStatusFilterBucket` | `src/lib/shipment-display.ts` | Buckets de filtro UI | `public-api.contract.test` · Envios display API | Con rediseño de filtros |
+| `EnviosStatusFilterOption` | `src/lib/shipment-display.ts` | Opción anidada del picker de estado | `public-api.contract.test` · Envios display API | Con rediseño de filtros |
+| `EnviosStatusFilterValue` | `src/lib/shipment-display.ts` | Valores del picker (padres + subestados) | `public-api.contract.test` · Envios display API | Con rediseño de filtros |
 | `EnviosReadinessBucket` | `src/lib/shipment-display.ts` | Buckets de readiness | `public-api.contract.test` · Envios display API | Con rediseño de readiness |
 | `FullBoxPickupPlanStatus` | `src/lib/shipment-display.ts` | Estado de plan pickup | `public-api.contract.test` · display / logística | Con cambios de plan |
 | `ShipmentRouteAssignmentInfo` | `src/lib/shipment-display.ts` | Info de asignación a ruta | `public-api.contract.test` · display / envíos | Con cambios de assignment |

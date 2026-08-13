@@ -22,20 +22,16 @@ export function resolveSurfaceContextFromPathname(pathname: string): UiSurfaceCo
     return "warehouse.pallets";
   }
 
-  if (pathname.startsWith("/logistica")) {
-    return "logistics.tasks";
+  if (pathname === "/logistica") {
+    return "logistics.confirmations";
   }
 
-  if (pathname.startsWith("/seguimiento") || pathname.startsWith("/envios")) {
+  if (pathname === "/seguimiento" || pathname === "/envios") {
     return "shipments.tracking";
   }
 
   if (pathname.startsWith("/conductor/tareas")) {
     return "conductor.tasks";
-  }
-
-  if (pathname.startsWith("/estadisticas") || pathname.startsWith("/vendedores")) {
-    return "stats.sales";
   }
 
   if (pathname.startsWith("/time-clock")) {

@@ -30,6 +30,7 @@ import {
 import type { PricingCountryConfig } from "@/lib/pricing/types";
 import type { PricingPromotionConfig } from "@/lib/pricing-promotions";
 import { parseMoneyValue } from "@/lib/logistics-fees";
+import type { PricingFlushPendingSave } from "@/hooks/use-pricing-backend";
 import type { useNotify } from "@/hooks/use-notify";
 import { useConfigCountryPricingActions } from "@/components/config/use-config-country-pricing-actions";
 import { useConfigCountryPricingEffects } from "@/components/config/use-config-country-pricing-effects";
@@ -44,7 +45,7 @@ type PricingBackend = {
   setDistributorPrices: React.Dispatch<
     React.SetStateAction<Record<string, Record<string, PricingCountryConfig["boxes"]>>>
   >;
-  flushPendingSave: () => void | Promise<void>;
+  flushPendingSave: PricingFlushPendingSave;
   pricingLoaded: boolean;
   pricingError: string | null;
 };
@@ -70,6 +71,7 @@ export function useConfigCountryPricing({
     promotions,
     setPromotions,
     catalogProducts,
+    distributorPrices,
     setDistributorPrices,
     flushPendingSave,
     pricingLoaded,
@@ -271,8 +273,10 @@ export function useConfigCountryPricing({
 
   const actions = useConfigCountryPricingActions({
     notify,
+    countries,
     setCountries,
     setPromotions,
+    distributorPrices,
     setDistributorPrices,
     flushPendingSave,
     selectedCountry,

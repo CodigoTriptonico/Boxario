@@ -16,11 +16,15 @@ export function CompactInfoDisclosure({
   children,
   align = "left",
   title,
+  tone = "slate",
+  compact = false,
 }: {
   ariaLabel: string;
   children: React.ReactNode;
   align?: FloatingPanelAlign;
   title?: string;
+  tone?: "slate" | "sky";
+  compact?: boolean;
 }) {
   const [open, setOpen] = useState(false);
   const mounted = useHydrated();
@@ -39,8 +43,8 @@ export function CompactInfoDisclosure({
         trigger: triggerRect,
         panelWidth: 320,
         panelHeight: panelRef.current?.scrollHeight || 160,
-        viewportWidth: window.innerWidth,
-        viewportHeight: window.innerHeight,
+        viewportWidth: document.documentElement.clientWidth,
+        viewportHeight: document.documentElement.clientHeight,
         align,
       }),
     );
@@ -135,7 +139,7 @@ export function CompactInfoDisclosure({
         aria-label={ariaLabel}
         aria-expanded={open}
         aria-controls={open ? panelId : undefined}
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-slate-600 text-xs font-black text-slate-300 transition hover:border-slate-400 hover:bg-surface-inset hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300"
+        className={`flex shrink-0 items-center justify-center rounded-full border text-xs font-black transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 ${compact ? "h-6 w-6" : "h-8 w-8"} ${tone === "sky" ? "border-sky-500/60 text-sky-200 hover:border-sky-300 hover:bg-sky-900/60 hover:text-white focus-visible:outline-sky-300" : "border-slate-600 text-slate-300 hover:border-slate-400 hover:bg-surface-inset hover:text-white focus-visible:outline-slate-300"}`}
       >
         !
       </button>

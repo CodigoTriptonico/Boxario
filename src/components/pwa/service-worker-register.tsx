@@ -69,7 +69,13 @@ export function ServiceWorkerRegister() {
               return;
             }
 
-            sessionStorage.removeItem(DEV_SERVICE_WORKER_RELOAD_FLAG);
+            // Mientras el documento siga controlado por el worker anterior,
+            // conserva la marca. En desarrollo React monta los efectos dos
+            // veces; quitarla aqui habilitaba otra recarga en el segundo
+            // montaje y dejaba el celular en un bucle sin tiempo para tocar.
+            if (!hasAppController) {
+              sessionStorage.removeItem(DEV_SERVICE_WORKER_RELOAD_FLAG);
+            }
           })
           .catch(() => undefined);
       }

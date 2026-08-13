@@ -23,6 +23,7 @@ import {
 } from "@/lib/ui-surface-palettes";
 import {
   addCustomPaletteToPreferences,
+  defaultUiSurfacePreferences,
   paletteIdForContext,
   readUiSurfacePreferences,
   removeCustomPaletteFromPreferences,
@@ -48,6 +49,7 @@ type UiSurfacePreferencesContextValue = {
   removeCustomPalette: (paletteId: UiSurfacePaletteId) => void;
   resetContextPalette: (contextId: UiSurfaceContextId) => void;
   resetAllContextPalettes: () => void;
+  /** El contexto solo determina capacidades; el modo guardado es global. */
   viewLayoutForContext: (contextId: UiSurfaceContextId) => ViewLayout;
   setViewLayoutForContext: (contextId: UiSurfaceContextId, layout: ViewLayout) => void;
   toggleViewLayoutForContext: (contextId: UiSurfaceContextId) => void;
@@ -56,9 +58,22 @@ type UiSurfacePreferencesContextValue = {
 const UiSurfacePreferencesContext = createContext<UiSurfacePreferencesContextValue | null>(null);
 
 export function UiSurfacePreferencesProvider({ children }: { children: ReactNode }) {
-  const [preferences, setPreferences] = useState<UiSurfacePreferences>(() =>
-    readUiSurfacePreferences(),
+  // El primer render del navegador debe coincidir con el HTML del servidor.
+  // Leer localStorage aqui provocaba una hidratacion distinta por dispositivo:
+  // en el celular quedaba visible el HTML, pero sin eventos React funcionales.
+  const [preferences, setPreferences] = useState<UiSurfacePreferences>(
+    defaultUiSurfacePreferences,
   );
+
+  useEffect(() => {
+    const hydrationTimer = window.setTimeout(() => {
+      setPreferences(readUiSurfacePreferences());
+    }, 0);
+
+    return () => {
+      window.clearTimeout(hydrationTimer);
+    };
+  }, []);
 
   const customPaletteMap = useMemo(
     () => customPalettesToMap(preferences.customPalettes),
@@ -198,6 +213,10 @@ export function usePageListRowPalette(contextId: UiSurfaceContextId) {
   return palette;
 }
 
+/**
+ * Expone el modo global con la caída compatible de la superficie actual.
+ * Se conserva el nombre por compatibilidad con los consumidores existentes.
+ */
 export function usePageViewLayout(contextId: UiSurfaceContextId) {
   const { viewLayoutForContext, toggleViewLayoutForContext, setViewLayoutForContext } =
     useUiSurfacePreferences();

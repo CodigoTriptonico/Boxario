@@ -6,24 +6,30 @@ import { describe, it } from "node:test";
 import { readLogisticaClientSource } from "@/test-utils/logistica-client-source";
 
 const componentSource = readLogisticaClientSource();
+const routesWorkspaceSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-routes-workspace.tsx"),
+  "utf8",
+);
+const routePanelSource = readFileSync(
+  join(dirname(fileURLToPath(import.meta.url)), "../components/config/ventas-rutas-panel.tsx"),
+  "utf8",
+);
 
 const fleetAdminSource = readFileSync(
-  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-fleet-admin-client.tsx"),
+  join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/fleet/logistics-fleet-admin-client-view.tsx"),
   "utf8",
 );
 
 function invoiceCardSource() {
-  const cardStart = componentSource.indexOf("function renderInvoiceCard");
+  const cardStart = componentSource.indexOf("export function LogisticsInvoiceCard");
   assert.notEqual(cardStart, -1);
-  const cardEnd = componentSource.indexOf("function renderInvoiceRow", cardStart);
+  const cardEnd = componentSource.indexOf("export function", cardStart + 1);
   assert.notEqual(cardEnd, -1);
   return componentSource.slice(cardStart, cardEnd);
 }
 
 function logisticsToolbarSource() {
-  const taskPanelStart = componentSource.indexOf('className="flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"');
-  assert.notEqual(taskPanelStart, -1);
-  const toolbarStart = componentSource.indexOf("<div className={`${panelToolbarClass}", taskPanelStart);
+  const toolbarStart = componentSource.lastIndexOf("<div className={`${panelToolbarClass}");
   const listStart = componentSource.indexOf(
     'className={`${panelListScrollClass}',
     toolbarStart,
@@ -168,7 +174,8 @@ describe("logistica single-action invoice card eval", () => {
     assert.equal(componentSource.includes("activeInvoiceItems.map((item) => renderInvoiceCard(item))"), false);
     assert.equal(componentSource.includes("unassignedInvoiceItems.map((item) => renderInvoiceCard(item))"), false);
     assert.equal(componentSource.includes("assignedInvoiceItems.map((item) => renderInvoiceCard(item))"), false);
-    assert.equal(componentSource.includes("visibleInvoiceItems.map((item) => renderInvoiceCard(item))"), true);
+    assert.equal(componentSource.includes("visibleInvoiceItems.map((item) => ("), true);
+    assert.equal(componentSource.includes("<LogisticsInvoiceCard"), true);
     assert.equal(componentSource.includes("LOGISTICS_INVOICE_CARD_GRID_CLASS"), true);
     assert.equal(componentSource.includes("panelListScrollClass"), true);
     assert.equal(componentSource.includes("panelListStackClass"), true);
@@ -206,15 +213,17 @@ describe("logistica single-action invoice card eval", () => {
     assert.equal(main.includes("4+ dias"), false);
   });
 
-  it("keeps only search and filters in the permanent mobile toolbar", () => {
+  it("keeps mobile compact and combines desktop scheduling into the toolbar row", () => {
     const toolbar = logisticsToolbarSource();
 
     assert.equal(toolbar.includes("panelToolbarClass"), true);
-    assert.equal(toolbar.includes("flex min-w-0 flex-wrap items-center gap-2"), true);
+    assert.equal(toolbar.includes("flex min-w-0 flex-wrap items-center gap-1.5 xl:flex-nowrap"), true);
     assert.equal(toolbar.includes("order-2 min-w-0 flex-[1_1_calc(100%-3.5rem)]"), true);
-    assert.equal(toolbar.includes("order-3 !hidden w-full min-w-0 grid-cols-2"), true);
-    assert.equal(toolbar.includes("order-1 !hidden lg:order-none lg:ml-auto lg:!block"), true);
-    assert.equal(toolbar.includes("!hidden w-[11.5rem]"), true);
+    assert.equal(toolbar.includes("order-3 !hidden w-full min-w-0 flex-wrap"), true);
+    assert.equal(toolbar.includes("xl:flex-1 xl:flex-nowrap xl:border-l"), true);
+    assert.equal(toolbar.includes("Programación"), true);
+    assert.equal(toolbar.includes("order-1 !hidden lg:order-none lg:!inline-flex"), true);
+    assert.equal(toolbar.includes('className="w-[11rem] shrink-0'), true);
     assert.equal(toolbar.includes("lg:!hidden"), true);
     assert.equal(toolbar.includes("lg:grid-cols-[auto_minmax(18rem,1.4fr)"), false);
     assert.equal(toolbar.includes('className="grid gap-3"'), false);
@@ -222,16 +231,181 @@ describe("logistica single-action invoice card eval", () => {
       toolbar.includes("inline-flex h-11 items-center gap-2 rounded-md border border-black bg-surface-inset px-2"),
       false
     );
-    assert.ok(toolbar.indexOf("<InlineSearchCombobox") < toolbar.indexOf("<LogisticsSectionNav"));
+    assert.ok(toolbar.indexOf("<LogisticsSectionNav") < toolbar.indexOf("<InlineSearchCombobox"));
   });
 
-  it("keeps section nav aligned to the right on fleet admin pages", () => {
-    assert.equal(componentSource.includes('<LogisticsSectionNav active="routes"'), true);
-    assert.equal(componentSource.includes('className="ml-auto"'), true);
+  it("keeps desktop filters readable in the compact row", () => {
+    const toolbar = logisticsToolbarSource();
+
+    assert.equal(toolbar.includes('className="min-w-[11rem] flex-[1_1_15rem]"'), true);
+    assert.equal(toolbar.includes("Todos los días"), true);
+    assert.equal(toolbar.includes("lg:w-[30rem]"), true);
+    assert.equal(toolbar.includes("xl:flex-nowrap"), true);
+    assert.ok(
+      toolbar.indexOf('ariaLabel="Filtrar por fecha"') <
+        toolbar.indexOf('ariaLabel="Filtrar por ruta del día"'),
+    );
+  });
+
+  it("keeps section nav first and aligned to the left on every logistics page", () => {
+    assert.equal(routesWorkspaceSource.includes('<LogisticsSectionNav active="routes"'), true);
+    assert.equal(routesWorkspaceSource.includes("<VentasRutasPanel canManage={canManage} onCatalogChange={onCatalogChange} />"), true);
+    assert.equal(routesWorkspaceSource.includes("flex min-w-0 flex-wrap items-center gap-2"), true);
+    assert.equal(routesWorkspaceSource.includes("ml-auto flex shrink-0 items-center gap-2"), false);
+    assert.equal(routesWorkspaceSource.includes("Selecciona una ruta para ver sus cajas"), false);
+    assert.equal(componentSource.includes("LogisticsRoutesView"), false);
     assert.equal(fleetAdminSource.includes("<LogisticsSectionNav"), true);
     assert.equal(fleetAdminSource.includes('className="ml-auto"'), true);
     assert.equal(fleetAdminSource.includes('href="/logistica/conductores"'), false);
     assert.equal(fleetAdminSource.includes("Logistica"), false);
+  });
+
+  it("refreshes the shared route catalog after calendar changes", () => {
+    assert.match(routesWorkspaceSource, /onCatalogChange\?: \(\) => void \| Promise<void>/);
+    assert.match(routesWorkspaceSource, /<VentasRutasPanel canManage=\{canManage\} onCatalogChange=\{onCatalogChange\} \/>/);
+    assert.match(routePanelSource, /void onCatalogChange\?\.\(\)/);
+    assert.match(componentSource, /reloadRouteCatalog,\n  \} = useLogisticsData/);
+    assert.match(componentSource, /onCatalogChange=\{reloadRouteCatalog\}/);
+  });
+
+  it("filters confirmation requests with the shared weekly navigator", () => {
+    assert.match(routesWorkspaceSource, /<LogisticsWeekNavigator/);
+    assert.match(routesWorkspaceSource, /confirmationWeekOffset/);
+    assert.match(routesWorkspaceSource, /booking\.status !== "pending_approval"/);
+    assert.match(routesWorkspaceSource, /booking\.routeDate/);
+  });
+
+  it("searches confirmation requests by invoice, customer, address, or route", () => {
+    assert.match(routesWorkspaceSource, /confirmationQuery/);
+    assert.match(routesWorkspaceSource, /Buscar invoice, cliente o ruta/);
+    assert.match(routesWorkspaceSource, /booking\.shipmentCode/);
+    assert.match(routesWorkspaceSource, /booking\.formattedAddress/);
+    assert.match(routesWorkspaceSource, /booking\.routeTemplateName/);
+  });
+
+  it("shows operational days as compact tabs", () => {
+    const unifiedListSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-unified-route-list.tsx"),
+      "utf8",
+    );
+    assert.match(unifiedListSource, /role="tablist"/);
+    assert.match(unifiedListSource, /aria-label="Días de operación"/);
+    assert.match(unifiedListSource, /selectedWeekday/);
+    assert.match(unifiedListSource, /schedule\.weekday === activeWeekday/);
+  });
+
+  it("shares the selected week and weekday with prepared booking groups", () => {
+    assert.match(routesWorkspaceSource, /const \[routeWeekOffset, setRouteWeekOffset\]/);
+    assert.match(routesWorkspaceSource, /const \[routeWeekday, setRouteWeekday\]/);
+    assert.match(routesWorkspaceSource, /getLogisticsWeekdayIndex\(booking\.routeDate\) !== activeRouteWeekday/);
+    assert.match(routesWorkspaceSource, /onWeekdayChange=\{\(weekday\) =>/);
+    assert.match(routesWorkspaceSource, /selectedWeekday=\{activeRouteWeekday\}/);
+    assert.match(routesWorkspaceSource, /weekOffset=\{routeWeekOffset\}/);
+  });
+
+  it("starts prepared booking groups collapsed and keeps their action independent", () => {
+    const bookingGroupsSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-template-booking-groups.tsx"),
+      "utf8",
+    );
+    assert.match(bookingGroupsSource, /const \[expandedKeys, setExpandedKeys\] = useState<Set<string>>\(\(\) => new Set\(\)\)/);
+    assert.match(bookingGroupsSource, /aria-expanded=\{expanded\}/);
+    assert.match(bookingGroupsSource, /aria-controls=\{detailsId\}/);
+    assert.match(bookingGroupsSource, /hidden=\{!expanded\}/);
+    assert.match(bookingGroupsSource, /onUpdateRoute\(group\.key, publishedRoute, group\.items\)/);
+  });
+
+  it("labels configured routes without bookings explicitly", () => {
+    const unifiedListSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-unified-route-list.tsx"),
+      "utf8",
+    );
+    assert.match(unifiedListSource, /Sin cajas asignadas aún/);
+  });
+
+  it("shows pending confirmation days as compact tabs", () => {
+    assert.match(routesWorkspaceSource, /<LogisticsWeekdayTabs/);
+    assert.match(routesWorkspaceSource, /confirmationWeekdays/);
+    assert.match(routesWorkspaceSource, /activeConfirmationWeekday/);
+    assert.match(routesWorkspaceSource, /bookingRouteWeekday\(booking\)/);
+    assert.match(routesWorkspaceSource, /panelId="logistics-confirmation-day-panel"/);
+    assert.match(routesWorkspaceSource, /weekStart=\{weekStartForOffset\(confirmationWeekOffset\)\}/);
+    assert.match(routesWorkspaceSource, /compact/);
+  });
+
+  it("shows the concrete date in every operational day tab", () => {
+    const unifiedListSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-unified-route-list.tsx"),
+      "utf8",
+    );
+    assert.match(unifiedListSource, /function formatWeekdayTabDate/);
+    assert.match(unifiedListSource, /resolveRouteDateForWeekday/);
+    assert.match(unifiedListSource, /weekdayTabFullDateFormatter/);
+    assert.match(unifiedListSource, /<time dateTime=\{dateLabel\.date\}/);
+    assert.match(unifiedListSource, /aria-label=\{accessibleLabel\}/);
+    assert.match(unifiedListSource, /weekStart=\{weekStart\}/);
+  });
+
+  it("keeps the weekly context and day controls in one horizontal bar", () => {
+    const unifiedListSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-unified-route-list.tsx"),
+      "utf8",
+    );
+    assert.match(unifiedListSource, /children\?: ReactNode/);
+    assert.match(unifiedListSource, /overflow-x-auto/);
+    assert.match(routesWorkspaceSource, /<LogisticsWeekNavigator[\s\S]*<LogisticsWeekdayTabs[\s\S]*<\/LogisticsWeekNavigator>/);
+    assert.equal(routesWorkspaceSource.includes("flex-[2_1_28rem]"), false);
+  });
+
+  it("keeps the logistics search beside the shared operation navigation", () => {
+    const unifiedListSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-unified-route-list.tsx"),
+      "utf8",
+    );
+    assert.match(routesWorkspaceSource, /<LogisticsOperationsNav[\s\S]*headerSearchValue/);
+    assert.match(routesWorkspaceSource, /const \[routeQuery, setRouteQuery\]/);
+    assert.match(routesWorkspaceSource, /query=\{routeQuery\}/);
+    assert.match(routesWorkspaceSource, /routeMatchesSearch/);
+    assert.match(unifiedListSource, /query\?: string/);
+    assert.match(unifiedListSource, /No encontramos rutas con esa búsqueda/);
+  });
+
+  it("hides empty pending confirmation days and resets stale selection", () => {
+    const unifiedListSource = readFileSync(
+      join(dirname(fileURLToPath(import.meta.url)), "../components/logistica/logistics-unified-route-list.tsx"),
+      "utf8",
+    );
+    assert.match(unifiedListSource, /const visibleWeekdays = counts/);
+    assert.match(unifiedListSource, /weekdays\.filter\(\(weekday\) => \(counts\[weekday\] \?\? 0\) > 0\)/);
+    assert.match(routesWorkspaceSource, /confirmationWeekday != null && confirmationWeekdays\.includes\(confirmationWeekday\)/);
+  });
+
+  it("supports selecting pending confirmations in bulk", () => {
+    assert.match(routesWorkspaceSource, /selectedConfirmationIds/);
+    assert.match(routesWorkspaceSource, /Seleccionar todas las solicitudes visibles/);
+    assert.match(routesWorkspaceSource, /approveSelectedRequests/);
+    assert.match(routesWorkspaceSource, /Confirmar seleccionadas/);
+  });
+
+  it("makes pending confirmation cards selectable with a visible selected state", () => {
+    assert.match(routesWorkspaceSource, /role=\{canManage \? "checkbox" : undefined\}/);
+    assert.match(routesWorkspaceSource, /cursor-pointer select-none/);
+    assert.match(routesWorkspaceSource, /bg-emerald-400\/10/);
+    assert.match(routesWorkspaceSource, /onKeyDown=\{\(event\) =>/);
+  });
+
+  it("keeps pending confirmation actions touch-friendly", () => {
+    assert.match(routesWorkspaceSource, /min-h-11/);
+    assert.match(routesWorkspaceSource, />Confirmar<\/button>/);
+    assert.match(routesWorkspaceSource, />Rechazar<\/button>/);
+    assert.match(routesWorkspaceSource, /gap-2/);
+    assert.match(routesWorkspaceSource, /shrink-0 items-center gap-2/);
+  });
+
+  it("gives pending confirmation cards their own aligned composition", () => {
+    assert.match(routesWorkspaceSource, /flex min-h-56 min-w-0 flex-col/);
+    assert.match(routesWorkspaceSource, /mt-4 grid grid-cols-2/);
+    assert.match(routesWorkspaceSource, /mt-auto grid grid-cols-2/);
   });
 
   it("supports per-context list row palettes via surface preferences", () => {
@@ -250,7 +424,7 @@ describe("logistica single-action invoice card eval", () => {
     assert.equal(toolbar.includes('ariaLabel="Filtrar por día"'), true);
     assert.equal(toolbar.includes("weekdayFilterOptions"), true);
     assert.equal(toolbar.includes("tones={weekdayTones}"), true);
-    assert.equal(toolbar.includes("min-w-[10.5rem]"), true);
+    assert.equal(toolbar.includes("Programación"), true);
     assert.equal(toolbar.includes('role="group"'), false);
     assert.equal(toolbar.includes("logisticsWeekdayFullLabels"), false);
     assert.equal(toolbar.includes('ariaLabel="Filtrar por ruta del día"'), true);
@@ -280,6 +454,16 @@ describe("logistica single-action invoice card eval", () => {
     assert.equal(toolbar.includes("filterRoutePickerOptions"), true);
     assert.equal(componentSource.includes("buildLogisticsDayRouteFilterOptions"), true);
     assert.equal(componentSource.includes("matchesLogisticsWeekdayFilter"), true);
+    assert.equal(toolbar.includes("selectWeekdayFilter(getLogisticsWeekdayIndex(nextDate), nextDate)"), true);
+    assert.equal(componentSource.includes("function selectWeekdayFilter(next: number | null, selectedDate?: string)"), true);
+    assert.equal(componentSource.includes("selectedDate || selectWeekdayDate(next, todayDate)"), true);
+  });
+
+  it("shows when each invoice entered logistics separately from its service date", () => {
+    assert.equal(componentSource.includes("formatLogisticsEntryDate"), true);
+    assert.equal(componentSource.includes("Agregada a Logística"), true);
+    assert.equal(componentSource.includes("displayTask.orderedAt || displayTask.createdAt"), true);
+    assert.equal(componentSource.includes("task?.scheduledAt || task?.requestedScheduleAt"), true);
   });
 
   it("marks the filters trigger active while its panel is open", () => {
@@ -287,7 +471,7 @@ describe("logistica single-action invoice card eval", () => {
 
     assert.equal(
       toolbar.includes(
-        'className={`${filtersOpen || hasFilters ? primaryButtonClass : secondaryButtonClass} !h-9 shrink-0 px-2.5 text-xs`}',
+        'className={`${filtersOpen || hasFilters ? primaryButtonClass : secondaryButtonClass} !h-8 shrink-0 px-2 text-xs`}',
       ),
       true,
     );

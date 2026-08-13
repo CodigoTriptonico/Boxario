@@ -17,6 +17,7 @@ import {
   X,
 } from "lucide-react";
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { CompactInfoDisclosure } from "@/components/compact-info-disclosure";
 import type { WarehouseTruckArrival } from "@/app/actions/physical-packages";
 import {
   closeWarehouseIntakeAction,
@@ -83,12 +84,9 @@ function IntakeInfoDisclosure({
   children: ReactNode;
 }) {
   return (
-    <details className="group relative shrink-0">
-      <summary aria-label={ariaLabel} className="flex h-6 w-6 cursor-pointer list-none items-center justify-center rounded-full border border-slate-600 text-xs font-black text-slate-300 transition hover:border-slate-400 hover:bg-surface-inset hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-slate-300 [&::-webkit-details-marker]:hidden">!</summary>
-      <div className="fixed inset-x-4 top-1/2 z-30 max-w-none -translate-y-1/2 rounded-lg border border-black bg-surface-panel px-3 py-2.5 text-sm font-bold leading-snug text-slate-200 shadow-xl sm:absolute sm:left-0 sm:top-full sm:mt-2 sm:w-72 sm:max-w-[calc(100vw-2rem)] sm:translate-y-0">
-        {children}
-      </div>
-    </details>
+    <CompactInfoDisclosure ariaLabel={ariaLabel} compact>
+      {children}
+    </CompactInfoDisclosure>
   );
 }
 
@@ -98,8 +96,8 @@ function IntakeItemRow({ item }: { item: WarehouseIntakeItem }) {
     <article className="rounded-lg border border-black bg-surface-card p-3 shadow-[0_5px_16px_rgba(0,0,0,0.16)]">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-mono text-sm font-black text-slate-100">{item.scannedCode}</p>
-          <p className="mt-1 truncate text-xs font-bold text-slate-400">
+          <p className="break-all font-mono text-sm font-black text-slate-100 sm:truncate">{item.scannedCode}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-400 sm:truncate">
             {item.package?.recipientName || item.package?.customerName || "Caja sin identificar"}
             {item.package?.country ? ` · ${item.package.country}` : ""}
           </p>
@@ -113,7 +111,7 @@ function IntakeItemRow({ item }: { item: WarehouseIntakeItem }) {
         {item.receivedWeightKg ? <span>{item.receivedWeightKg.toFixed(2)} kg</span> : null}
         <span>{formatWarehouseDateTime(item.scannedAt)}</span>
       </div>
-      {item.note ? <p className="mt-2 text-xs font-bold leading-5 text-amber-100/80">{item.note}</p> : null}
+      {item.note ? <p className="mt-2 text-xs font-bold leading-5 text-amber-100">{item.note}</p> : null}
       {item.evidenceUrl ? (
         <a href={item.evidenceUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex items-center gap-1 text-xs font-black text-emerald-300 hover:text-emerald-200">
           <Camera className="h-3.5 w-3.5" /> Ver foto
@@ -128,8 +126,8 @@ function AvailablePackageRow({ pkg, expected = true }: { pkg: WarehouseIntakeAva
     <article className="rounded-lg border border-black bg-surface-card p-3">
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
-          <p className="truncate font-mono text-sm font-black text-slate-100">{pkg.code}</p>
-          <p className="mt-1 truncate text-xs font-bold text-slate-400">{pkg.recipientName || pkg.customerName} · {pkg.country}</p>
+          <p className="break-all font-mono text-sm font-black text-slate-100 sm:truncate">{pkg.code}</p>
+          <p className="mt-1 break-words text-xs font-bold text-slate-400 sm:truncate">{pkg.recipientName || pkg.customerName} · {pkg.country}</p>
         </div>
         <span className={`rounded-full px-2 py-1 text-[11px] font-black ${expected ? "bg-slate-700 text-slate-200" : "bg-amber-400/15 text-amber-200"}`}>
           {expected ? "Pendiente" : "Otra ruta"}
@@ -488,7 +486,7 @@ export function WarehouseIntakeClient({
             <section className={`${inlineError ? "mt-3" : ""} border-b border-black pb-4`}>
               <div className="flex flex-wrap items-center justify-between gap-3"><div className="flex items-center gap-3"><span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-emerald-400 text-slate-950"><ScanLine className="h-5 w-5" /></span><div><p className={labelMutedClass}>Entrada rápida</p><h2 className="mt-0.5 text-lg font-black text-slate-100">Escanea una caja</h2></div></div><div className="flex flex-wrap items-center gap-2"><button type="button" onClick={() => { setInlineError(""); setTruckPickerOpen(true); }} className={`${secondaryButtonClass} h-9 px-3 text-xs`}><Truck className="h-4 w-4 text-emerald-300" />{selectedTruck ? selectedTruck.routeName : "Elegir camión"}<span className="ml-1 rounded-full bg-slate-950/35 px-1.5 py-0.5 text-[10px] tabular-nums">{trucks.length}</span></button><button type="button" onClick={() => { setPendingScanCode(""); setInlineError(""); setFoundOpen(true); }} className={`${secondaryButtonClass} h-9 px-3 text-xs`}><PackageCheck className="h-4 w-4 text-amber-300" />Caja encontrada</button><button type="button" onClick={() => setDrawer("history")} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300" aria-label="Ver ingresos cerrados"><History className="h-4 w-4" /></button></div></div>
               <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end"><label className="grid gap-1.5"><span className={labelMutedClass}>Código de caja</span><input ref={codeRef} value={code} onChange={(event) => { setCode(event.target.value); setPendingScanCode(""); setInlineError(""); }} onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); beginInitialScan(); } }} className={`${inputClass} h-12 w-full font-mono text-base font-black`} placeholder="Escanea o escribe el código" autoComplete="off" aria-label="Escanear caja sin ingreso abierto" /></label><button type="button" onClick={beginInitialScan} disabled={opening || !code.trim()} className={`${primaryButtonClass} h-12 w-full px-5 disabled:cursor-not-allowed disabled:opacity-40 lg:w-auto`}>{opening ? "Abriendo..." : selectedTruck ? "Abrir y escanear" : "Continuar"}<ChevronRight className="h-4 w-4" /></button></div>
-              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-black pt-3"><div className="flex min-w-0 items-center gap-2 text-sm">{selectedTruck ? <><Warehouse className="h-4 w-4 shrink-0 text-emerald-300" /><p className="truncate font-black text-slate-200">{selectedTruck.arrivalWarehouseName}<span className="font-bold text-slate-500"> · {selectedTruck.packageCount} cajas por descargar</span></p></> : <><Truck className="h-4 w-4 shrink-0 text-slate-600" /><p className="font-black text-slate-300">No hay camiones pendientes.</p><IntakeInfoDisclosure ariaLabel="Ver por qué no hay camiones">Escanea la caja y se abrirá su registro sin manifiesto para documentar dónde la encontraste.</IntakeInfoDisclosure></>}</div>{selectedTruck && !selectedTruck.arrivalWarehouseId ? <label className="flex items-center gap-2"><span className={labelMutedClass}>Bodega</span><select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} className={`${inputClass} h-9 min-w-48`}>{workspace.warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label> : null}</div>
+              <div className="mt-3 flex flex-wrap items-center justify-between gap-3 border-t border-black pt-3"><div className="flex min-w-0 items-center gap-2 text-sm">{selectedTruck ? <><Warehouse className="h-4 w-4 shrink-0 text-emerald-300" /><p className="break-words font-black text-slate-200 sm:truncate">{selectedTruck.arrivalWarehouseName}<span className="font-bold text-slate-500"> · {selectedTruck.packageCount} cajas por descargar</span></p></> : <><Truck className="h-4 w-4 shrink-0 text-slate-600" /><p className="font-black text-slate-300">No hay camiones pendientes.</p><IntakeInfoDisclosure ariaLabel="Ver por qué no hay camiones">Escanea la caja y se abrirá su registro sin manifiesto para documentar dónde la encontraste.</IntakeInfoDisclosure></>}</div>{selectedTruck && !selectedTruck.arrivalWarehouseId ? <label className="flex w-full min-w-0 items-center gap-2 sm:w-auto"><span className={labelMutedClass}>Bodega</span><select value={warehouseId} onChange={(event) => setWarehouseId(event.target.value)} className={`${inputClass} h-9 min-w-0 flex-1 sm:min-w-48`}>{workspace.warehouses.map((warehouse) => <option key={warehouse.id} value={warehouse.id}>{warehouse.name}</option>)}</select></label> : null}</div>
             </section>
           </div>
         ) : (
@@ -498,8 +496,8 @@ export function WarehouseIntakeClient({
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
                     <div className="flex flex-wrap items-center gap-2"><p className="font-mono text-sm font-black text-emerald-300">{activeSession.code}</p><span className="rounded-full bg-emerald-400/15 px-2 py-1 text-[11px] font-black text-emerald-200">{statusLabel(activeSession)}</span></div>
-                    <h1 className="mt-2 truncate text-xl font-black text-slate-100 sm:text-2xl">{activeSession.routeName}</h1>
-                    <p className="mt-1 truncate text-xs font-bold text-slate-400">{activeSession.vehicleName} · {activeSession.driverName} · {activeSession.warehouseName}</p>
+                    <h1 className="mt-2 break-words text-xl font-black text-slate-100 sm:truncate sm:text-2xl">{activeSession.routeName}</h1>
+                    <p className="mt-1 break-words text-xs font-bold text-slate-400 sm:truncate">{activeSession.vehicleName} · {activeSession.driverName} · {activeSession.warehouseName}</p>
                   </div>
                   <button type="button" onClick={() => setCloseOpen(true)} className={`${secondaryButtonClass} h-10 shrink-0 px-3 text-xs`}><ClipboardCheck className="h-4 w-4" /><span className="hidden sm:inline">Cerrar ingreso</span><span className="sm:hidden">Cerrar</span></button>
                 </div>
@@ -528,12 +526,12 @@ export function WarehouseIntakeClient({
                 <div className="flex flex-wrap items-start justify-between gap-3"><div><p className="font-mono text-sm font-black text-slate-100">{selectedPackage.code}</p><p className="mt-1 text-xs font-bold text-slate-400">{selectedPackage.recipientName || selectedPackage.customerName} · {selectedPackage.country}</p><p className="mt-1 text-xs font-black text-emerald-200">Factura {selectedPackage.invoiceCode}</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => { setCondition("correct"); setNote(""); setEvidence(null); }} className={`h-9 rounded-lg border px-3 text-xs font-black ${condition === "correct" ? "border-emerald-500 bg-emerald-400 text-slate-950" : "border-black bg-surface-card text-slate-200"}`}><CheckCircle2 className="mr-1 inline h-4 w-4" />Correcta</button><button type="button" onClick={() => setIssueOpen(true)} className={`h-9 rounded-lg border px-3 text-xs font-black ${condition !== "correct" ? "border-amber-600 bg-amber-950/50 text-amber-100" : "border-black bg-surface-card text-slate-200"}`}><AlertTriangle className="mr-1 inline h-4 w-4" />Con problema</button></div></div>
                 {isFoundIntake ? <p role="alert" className="mt-3 rounded-lg bg-amber-950/45 px-3 py-2 text-xs font-black text-amber-100">Origen sin identificar. Se registrará en Cuarentena con una excepción de custodia abierta.</p> : selectedPackage.truckRouteId !== activeSession.routeId ? <p role="alert" className="mt-3 rounded-lg bg-amber-950/45 px-3 py-2 text-xs font-black text-amber-100">No pertenece a este manifiesto. Se registrará como sobrante y quedará en Cuarentena.</p> : null}
                 {selectedPackage.paymentStatus === "pending" ? <p className="mt-2 rounded-lg bg-surface-card px-3 py-2 text-xs font-bold text-slate-300"><span className="font-black text-amber-300">Pago pendiente.</span> La recepción física continúa, pero la caja sigue bloqueada para despacho.</p> : null}
-                {weightWarning ? <div role="alert" className="mt-2 rounded-lg border border-amber-900 bg-amber-950/35 p-3"><p className="text-xs font-black text-amber-100">Diferencia de {weightDifference.toFixed(2)} kg. La tolerancia es {workspace.toleranceKg.toFixed(2)} kg y la caja irá a Cuarentena.</p><label className="mt-2 grid gap-1"><span className="text-[11px] font-black uppercase text-amber-200/70">Motivo de la diferencia</span><input value={note} onChange={(event) => setNote(event.target.value)} className={`${inputClass} h-10 w-full`} placeholder="Ej. báscula de origen descalibrada" /></label></div> : null}
+              {weightWarning ? <div role="alert" className="mt-2 rounded-lg border border-amber-900 bg-amber-950/35 p-3"><p className="text-xs font-black text-amber-100">Diferencia de {weightDifference.toFixed(2)} kg. La tolerancia es {workspace.toleranceKg.toFixed(2)} kg y la caja irá a Cuarentena.</p><label className="mt-2 grid gap-1"><span className="text-[11px] font-black uppercase text-amber-200">Motivo de la diferencia</span><input value={note} onChange={(event) => setNote(event.target.value)} className={`${inputClass} h-10 w-full`} placeholder="Ej. báscula de origen descalibrada" /></label></div> : null}
                 {condition !== "correct" ? <p className="mt-2 text-xs font-black text-amber-200">{warehouseIntakeConditionLabel[condition]} · Foto lista · Cuarentena</p> : null}
-              </div> : code.trim() ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-900 bg-amber-950/35 p-3"><div><p className="text-sm font-black text-amber-100">Código no registrado</p><p className="mt-1 text-xs font-bold text-amber-200/70">Puedes documentarlo sin detener la descarga.</p></div><button type="button" onClick={() => { setCondition("unidentified"); setIssueOpen(true); }} className="h-9 rounded-lg border border-amber-700 bg-amber-950 px-3 text-xs font-black text-amber-100"><Camera className="mr-1 inline h-4 w-4" />Registrar sin identificar</button></div> : null}
+              </div> : code.trim() ? <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-900 bg-amber-950/35 p-3"><div><p className="text-sm font-black text-amber-100">Código no registrado</p><p className="mt-1 text-xs font-bold text-amber-200">Puedes documentarlo sin detener la descarga.</p></div><button type="button" onClick={() => { setCondition("unidentified"); setIssueOpen(true); }} className="h-9 rounded-lg border border-amber-700 bg-amber-950 px-3 text-xs font-black text-amber-100"><Camera className="mr-1 inline h-4 w-4" />Registrar sin identificar</button></div> : null}
 
               {inlineError ? <div role="alert" className="mt-3 flex flex-wrap items-center gap-3 rounded-xl border border-rose-900 bg-rose-950/35 p-3 text-sm font-bold text-rose-100"><AlertTriangle className="h-4 w-4 shrink-0" /><span className="min-w-0 flex-1">{inlineError}</span><button type="button" onClick={() => void receive()} disabled={saving} className="h-8 rounded-lg border border-rose-700 px-3 text-xs font-black hover:bg-rose-900/40 disabled:opacity-40">Intentar otra vez</button></div> : null}
-              {lastReceived ? <div aria-live="polite" className="mt-3 flex items-start gap-3 rounded-xl border border-emerald-900 bg-emerald-950/30 p-3"><PackageCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" /><div><p className="text-sm font-black text-emerald-100">{lastReceived.scannedCode} ingresada correctamente</p><p className="mt-1 text-xs font-bold text-emerald-200/70">{warehouseIntakeConditionLabel[lastReceived.condition]} · {lastReceived.locationLabel} · Custodia transferida a {activeSession.warehouseName}</p></div></div> : null}
+              {lastReceived ? <div aria-live="polite" className="mt-3 flex items-start gap-3 rounded-xl border border-emerald-900 bg-emerald-950/30 p-3"><PackageCheck className="mt-0.5 h-5 w-5 shrink-0 text-emerald-300" /><div><p className="text-sm font-black text-emerald-100">{lastReceived.scannedCode} ingresada correctamente</p><p className="mt-1 text-xs font-bold text-emerald-200">{warehouseIntakeConditionLabel[lastReceived.condition]} · {lastReceived.locationLabel} · Custodia transferida a {activeSession.warehouseName}</p></div></div> : null}
             </section>
           </div>
         )}

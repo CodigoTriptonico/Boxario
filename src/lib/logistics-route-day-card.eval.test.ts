@@ -36,4 +36,16 @@ describe("logistics route day schedule UI", () => {
     assert.equal(namedRoutes.includes("Nueva subruta"), true);
     assert.equal(namedRoutes.includes("Sin subrutas para este día"), true);
   });
+
+  it("manages subroutes only in the lower section, even while the day is disabled", () => {
+    const namedRoutesStart = source.indexOf("Subrutas del {weekdayNames[selectedDay]}");
+    const namedRoutes = source.slice(namedRoutesStart);
+
+    assert.equal(namedRoutes.includes("{canManage ? ("), true);
+    assert.equal(namedRoutes.includes("{canManage && selectedDayEnabled ? ("), false);
+    assert.equal(namedRoutes.includes("Nueva subruta"), true);
+    assert.equal(namedRoutes.includes("aria-label={`Editar ${template.name}`}"), true);
+    assert.equal(namedRoutes.includes("aria-label={`Eliminar ${template.name}`}"), true);
+    assert.equal(namedRoutes.includes("quedará guardada hasta que actives el día"), true);
+  });
 });

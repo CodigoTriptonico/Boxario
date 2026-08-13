@@ -204,14 +204,14 @@ export function PlatformConsole() {
   const openContextMenu = useCallback(
     (event: ReactMouseEvent<HTMLButtonElement>, organizationId: string) => {
       event.preventDefault();
-      selectOrganization(organizationId);
+      event.stopPropagation();
       setContextMenu({
         organizationId,
         x: Math.min(event.clientX, window.innerWidth - 224),
         y: Math.min(event.clientY, window.innerHeight - 196),
       });
     },
-    [selectOrganization],
+    [],
   );
 
   const platformNavTitle = showCreateOrg
@@ -309,7 +309,7 @@ export function PlatformConsole() {
 
   if (showCreateOrg) {
     return (
-      <div className="flex min-h-[calc(100dvh-7rem)] w-full flex-1 flex-col">
+      <div className="flex min-h-0 w-full flex-1 flex-col">
         <PlatformCreateClientWizard
           onCancel={() => setShowCreateOrg(false)}
           onError={(message) => notify.error(message)}
@@ -327,8 +327,9 @@ export function PlatformConsole() {
   return (
     <>
       <Panel
-        className={selectedOrg ? "hidden" : "min-h-[calc(100dvh-7rem)] border-0 bg-transparent"}
+        className={selectedOrg ? "hidden" : "border-0 bg-transparent"}
         contentClassName="p-0"
+        clipContent={false}
         hideHeader
         title="Empresas"
       >
@@ -458,8 +459,8 @@ export function PlatformConsole() {
       {selectedOrg ? (
         <Panel
           title={selectedOrg.name}
-          className="min-h-[calc(100dvh-7rem)]"
           contentClassName="p-0"
+          clipContent={false}
           hideHeader
         >
           <div className="flex min-h-11 items-center gap-2 border-b border-black bg-surface-card px-4 py-2 sm:px-5">
@@ -684,7 +685,7 @@ export function PlatformConsole() {
           {showArchiveConfirm ? (
             <div className="mt-5 rounded-xl border border-rose-800 bg-rose-950/30 p-4">
               <p className="font-black text-rose-100">Archivar esta empresa?</p>
-              <p className="mt-1 text-sm text-rose-200/80">
+              <p className="mt-1 text-sm text-rose-200">
                 Se bloquea el acceso y se conserva el historial. Esta accion no
                 borra sus datos.
               </p>

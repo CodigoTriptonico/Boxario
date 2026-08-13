@@ -24,11 +24,6 @@ export function VentaMainShell({ controller }: { controller: VentaController; })
           : "pb-6"
       }
       onContextMenuCapture={openSaleContextFromEvent}
-      onMouseUpCapture={(event) => {
-        if (event.button === 2) {
-          openSaleContextFromEvent(event);
-        }
-      }}
       onClick={() => {
         setContextMenu(null);
         setActiveCopyGroup(null);

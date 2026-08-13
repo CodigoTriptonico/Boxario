@@ -30,7 +30,7 @@ export const CONDUCTOR_COMPLETE_INCOMPLETE_ERROR =
   "No se pudo completar la tarea. Reintenta la operacion.";
 
 /** Keys the complete RPC may accept from p_shipment_patch (never logistics_plan). */
-export const CONDUCTOR_COMPLETE_SHIPMENT_PATCH_ALLOWLIST = [
+const CONDUCTOR_COMPLETE_SHIPMENT_PATCH_ALLOWLIST = [
   "empty_box_delivered_at",
   "full_box_collected_at",
   "status",

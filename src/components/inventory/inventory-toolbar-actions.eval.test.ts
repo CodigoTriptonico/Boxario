@@ -11,6 +11,10 @@ const menuSource = readFileSync(
   join(componentDir, "inventory-structure-options-menu.tsx"),
   "utf8",
 );
+const treeCrudSource = readFileSync(
+  join(componentDir, "use-inventory-tree-crud.ts"),
+  "utf8",
+);
 
 describe("inventory toolbar action separation eval", () => {
   it("keeps article creation primary and operational work in the overflow menu", () => {

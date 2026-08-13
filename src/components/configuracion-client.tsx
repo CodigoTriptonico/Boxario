@@ -4,6 +4,7 @@ import dynamic from "next/dynamic";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { AppearanceSettingsPanel } from "@/components/config/appearance-settings-panel";
+import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { ConfigCountryContextMenus } from "@/components/config/config-country-context-menus";
 import { ConfigNavCard, ConfigNavGroup } from "@/components/config/config-nav";
 import { configSectionById } from "@/components/config/config-sections";
@@ -15,7 +16,6 @@ import { OrganizationManagementPanel } from "@/components/config/organization-ma
 import { useConfigCountryPricing } from "@/components/config/use-config-country-pricing";
 import { useConfigDistributors } from "@/components/config/use-config-distributors";
 import { useConfigNavigation } from "@/components/config/use-config-navigation";
-import type { LogisticsAxisSettings } from "@/app/actions/axis-settings";
 import { PageLoading } from "@/components/page-loading";
 import { useNotify } from "@/hooks/use-notify";
 import { usePricingBackend } from "@/hooks/use-pricing-backend";
@@ -36,26 +36,21 @@ export function ConfiguracionClient({
   initialPricing,
   timeClockInitialSnapshot,
   canManageTimeClock = false,
+  canManageRoutes = false,
   agencyModuleEnabled = false,
-  initialLogisticsSettings,
-  canManageOperatingCosts = false,
 }: {
   initialPricing?: PricingConfigPayload;
   timeClockInitialSnapshot?: TimeClockDashboardSnapshot;
   canManageTimeClock?: boolean;
+  canManageRoutes?: boolean;
   agencyModuleEnabled?: boolean;
-  initialLogisticsSettings?: LogisticsAxisSettings;
-  canManageOperatingCosts?: boolean;
 }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const notify = useNotify();
   const parsedConfigUrl = useMemo(() => parseConfigUrl(searchParams), [searchParams]);
   const section = parsedConfigUrl.section;
-  const costosPanel =
-    parsedConfigUrl.costosPanel === "operativos" && canManageOperatingCosts
-      ? "operativos"
-      : "paises";
+  const costosPanel = parsedConfigUrl.costosPanel;
   const countryFromUrl = searchParams.get("country");
 
   const {
@@ -104,7 +99,6 @@ export function ConfiguracionClient({
 
   const navigation = useConfigNavigation({
     section,
-    canManageOperatingCosts,
     activeCountry: countryPricing.activeCountry,
     countryFromUrl,
     selectedCountry: countryPricing.selectedCountry,
@@ -170,7 +164,6 @@ export function ConfiguracionClient({
           costosPanel={costosPanel}
           costosPanelTabs={navigation.costosPanelTabs}
           onOpenCostosPanel={navigation.openCostosPanel}
-          initialLogisticsSettings={initialLogisticsSettings}
           countries={countries}
           sortedCountries={countryPricing.sortedCountries}
           showCountryPicker={countryPricing.showCountryPicker}
@@ -184,9 +177,11 @@ export function ConfiguracionClient({
           setPendingCountryToAdd={countryPricing.setPendingCountryToAdd}
           onOpenConfiguredCountry={countryPricing.openConfiguredCountry}
           onAddCountry={countryPricing.addCountry}
+          countryMutationBusy={countryPricing.countryMutationBusy}
           onCloseCountryPicker={countryPricing.closeCountryPicker}
           onSelectCountry={countryPricing.setSelectedCountry}
           countryContextMenuProps={countryPricing.countryContextMenuProps}
+          canManageRoutes={canManageRoutes}
         />
       ) : null}
 
@@ -274,6 +269,21 @@ export function ConfiguracionClient({
         countryProductContextMenu={countryPricing.countryProductContextMenu}
         onRemoveCountry={countryPricing.removeCountry}
         onRemoveCountryProduct={countryPricing.removeCountryProduct}
+        removeBusy={Boolean(countryPricing.countryMutationBusy?.startsWith("remove:"))}
+      />
+
+      <ActionConfirmDialog
+        open={Boolean(countryPricing.countryRemovalConfirm)}
+        title={countryPricing.countryRemovalConfirm?.title || ""}
+        message={countryPricing.countryRemovalConfirm?.message || ""}
+        confirmLabel={countryPricing.countryRemovalConfirm?.confirmLabel || "Eliminar país"}
+        tone="danger"
+        confirming={countryPricing.countryRemovalConfirming}
+        confirmingLabel="Eliminando..."
+        onCancel={countryPricing.cancelCountryRemoval}
+        onConfirm={() => {
+          void countryPricing.confirmCountryRemoval();
+        }}
       />
     </>
   );

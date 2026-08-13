@@ -91,27 +91,44 @@ describe("shipment step context menu", () => {
     assert.equal(contextMenuSource.includes("onMarkReady"), false);
     assert.equal(contextMenuSource.includes("Listo para dejar"), false);
     assert.equal(contextMenuSource.includes("Establecer una fecha"), false);
-    assert.match(contextMenuSource, /title="Opciones de dejar"/);
     assert.match(contextMenuSource, /function requestCancelPickup|function requestCancelDelivery/);
     assert.match(contextMenuSource, /logisticsLegCancelCopy/);
     assert.match(contextMenuSource, /ActionConfirmDialog/);
   });
 
+  it("shows office and driver options together for empty box like full box", () => {
+    assert.match(contextMenuSource, /Entregar en oficina/);
+    assert.match(contextMenuSource, /Cliente entregó caja en oficina/);
+    assert.equal(contextMenuSource.includes('title="Opciones de dejar"'), false);
+    assert.equal(contextMenuSource.includes("isContextMenu ?"), false);
+    assert.equal(contextMenuSource.includes("isLeftClickMenu"), false);
+    const emptyOfficeIdx = contextMenuSource.indexOf("Entregar en oficina");
+    const emptyDriverIdx = contextMenuSource.indexOf(
+      'logisticsLegRouteActionCopy(\n                  "empty_box"',
+    );
+    assert.ok(emptyOfficeIdx > 0 && emptyDriverIdx > emptyOfficeIdx);
+  });
+
   it("edits an existing route instead of offering to program it again", () => {
-    assert.deepEqual(logisticsLegRouteActionCopy("empty_box", true), {
+    assert.deepEqual(logisticsLegRouteActionCopy("empty_box", true, false), {
       title: "Editar entrega",
       description:
-        "Ya está programada. Cambia la ruta (día) o la hora solo si hace falta.",
+        "Pedido enviado a Logística. Cambia el día o la hora si hace falta.",
     });
     assert.equal(
-      logisticsLegRouteActionCopy("full_box", true).title,
+      logisticsLegRouteActionCopy("full_box", true, true).title,
       "Editar recolección",
+    );
+    assert.match(
+      logisticsLegRouteActionCopy("full_box", true, true).description,
+      /Ya está en una ruta/,
     );
     assert.equal(
       logisticsLegRouteActionCopy("empty_box", false).title,
       "Programar entrega",
     );
     assert.match(contextMenuSource, /routeName && formattedSchedule/);
+    assert.match(contextMenuSource, /routeConfirmed/);
   });
 
   it("keeps the menu open while native pickers are in use", () => {

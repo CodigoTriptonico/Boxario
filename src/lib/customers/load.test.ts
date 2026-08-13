@@ -132,6 +132,14 @@ describe("mergeCustomersWithRecipients", () => {
         addressVerified: false,
         lat: null,
         lng: null,
+        exactEntranceLat: null,
+        exactEntranceLng: null,
+        exactEntranceConfirmedAt: "",
+        exactEntranceNote: "",
+        exactEntrancePanoId: "",
+        exactEntranceHeading: null,
+        exactEntrancePitch: null,
+        createdAt: "",
       },
     );
     assert.equal(

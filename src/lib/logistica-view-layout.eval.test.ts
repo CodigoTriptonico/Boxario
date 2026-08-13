@@ -22,10 +22,33 @@ describe("logistica view layout eval", () => {
 
   it("renders row and card invoice lists with shared page palette", () => {
     assert.equal(source.includes('viewLayout === "rows"'), true);
-    assert.equal(source.includes("renderInvoiceRow"), true);
-    assert.equal(source.includes("renderInvoiceCard"), true);
+    assert.equal(source.includes("LogisticsInvoiceRow"), true);
+    assert.equal(source.includes("LogisticsInvoiceCard"), true);
     assert.equal(source.includes("listCardShellClass"), true);
     assert.equal(source.includes("listRowBaseClass"), true);
+  });
+
+  it("renders Excel columns in route confirmations", () => {
+    assert.equal(source.includes("LogisticsConfirmationsExcelTable"), true);
+    assert.equal(source.includes('viewLayout === "excel"'), true);
+    assert.equal(source.includes("Invoice / cliente"), true);
+    assert.equal(source.includes("Ruta sugerida"), true);
+  });
+
+  it("supports list, card and table views in every logistics route stage", () => {
+    for (const context of [
+      "logistics.confirmations",
+      "logistics.preparation",
+      "logistics.routes",
+      "logistics.history",
+    ]) {
+      assert.equal(source.includes(context), true, context);
+    }
+    assert.equal(source.includes('viewLayout === "cards"'), true);
+    assert.equal(source.includes('viewLayout === "excel"'), true);
+    assert.equal(source.includes("Grupos de preparación en vista tabla"), true);
+    assert.equal(source.includes("Rutas reales en vista tabla"), true);
+    assert.equal(source.includes("Historial de rutas en vista tabla"), true);
   });
 
   it("applies the same page layout to seller route proposals", () => {

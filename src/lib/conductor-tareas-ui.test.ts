@@ -7,7 +7,7 @@ const source = readConductorTareasClientSource();
 
 describe("conductor tareas compact UI", () => {
   it("keeps admin selection inside the operational toolbar", () => {
-    const toolbarStart = source.indexOf('<section className="mb-3 flex flex-wrap items-center gap-2');
+    const toolbarStart = source.indexOf('<section className="mb-3 grid gap-2 rounded-xl');
     const pickerIndex = source.indexOf("<InlineSearchPicker", toolbarStart);
     const toolbarEnd = source.indexOf("</section>", toolbarStart);
 

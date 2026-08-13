@@ -55,13 +55,20 @@ test("time report becomes labelled metrics instead of a squeezed four-column tab
 
 test("dense navigation and date controls reflow instead of being clipped on 320px screens", () => {
   const logisticsNav = source("src/components/logistica/logistics-section-nav.tsx");
-  const salesMetrics = source("src/components/estadisticas/ventas-panel.tsx");
+  const anchoredMenu = source("src/components/anchored-menu.tsx");
+  const salesMetrics = source("src/components/estadisticas/statistics-toolbar.tsx");
+  const kpis = source("src/components/estadisticas/statistics-kpis.tsx");
+  const detail = source("src/components/estadisticas/statistics-detail-tables.tsx");
   const datePicker = source("src/components/date-picker-calendar.tsx");
 
-  assert.match(logisticsNav, /<details className="group relative lg:hidden">/);
-  assert.match(logisticsNav, /absolute right-0 top-full/);
-  assert.match(logisticsNav, /hidden min-w-0 flex-wrap items-center gap-1\.5 lg:flex/);
-  assert.match(salesMetrics, /grid h-10 w-full grid-cols-4[\s\S]*sm:w-auto/);
-  assert.match(salesMetrics, /min-w-0 whitespace-nowrap px-1 text-\[11px\][\s\S]*sm:px-3 sm:text-xs/);
+  assert.match(logisticsNav, /<AnchoredMenu ariaLabel="Abrir secciones de logística"/);
+  assert.match(logisticsNav, /<AnchoredMenu ariaLabel="Abrir configuración de logística"/);
+  assert.match(anchoredMenu, /createPortal/);
+  assert.match(anchoredMenu, /className=\{`fixed z-\[280\]/);
+  assert.match(logisticsNav, /hidden h-9 shrink-0 items-center gap-0\.5[\s\S]*lg:inline-flex/);
+  assert.match(salesMetrics, /w-full max-w-md/);
+  assert.match(salesMetrics, /aria-modal="true"/);
+  assert.match(kpis, /grid grid-cols-2[\s\S]*sm:grid-cols-4/);
+  assert.match(detail, /grid gap-2 xl:hidden/);
   assert.match(datePicker, /w-\[17\.5rem\]/);
 });

@@ -11,12 +11,16 @@ import {
   type PricingPromotionConfig,
   type PromotionQuote,
 } from "@/lib/pricing-promotions";
+import { minimumDepositForBoxCount } from "@/lib/sale-deposit-charge";
+import type { PaymentMethodSettings } from "@/lib/payment-methods";
 
 type LogisticsFeeMode = "per_trip" | "per_box";
 
-export type InvoiceBillingConfig = LogisticsFeeConfig & {
+export type InvoiceBillingConfig = LogisticsFeeConfig & Partial<PaymentMethodSettings> & {
   minimumDeposit: string;
   logisticsFeeMode: LogisticsFeeMode;
+  pickupIncludedDays?: number;
+  latePickupFee?: string;
 };
 
 export type LogisticsAdditionalCharge = {
@@ -38,24 +42,23 @@ export const disabledLogisticsAdditionalCharge = (): LogisticsAdditionalCharge =
 
 export function logisticsAdditionalChargeRequiresReason(
   charge: LogisticsAdditionalCharge,
-  suggestion: string,
+  _suggestion?: string,
 ) {
-  return charge.enabled && parseMoneyValue(charge.amount) !== parseMoneyValue(suggestion);
+  void _suggestion;
+  return charge.enabled;
 }
 
 export function logisticsAdditionalChargeIsValid(
   charge: LogisticsAdditionalCharge,
-  suggestion: string,
+  _suggestion?: string,
 ) {
+  void _suggestion;
   if (!charge.enabled) {
     return true;
   }
   const amount = parseMoneyValue(charge.amount);
-  return (
-    Number.isFinite(amount) &&
-    amount >= 0 &&
-    (!logisticsAdditionalChargeRequiresReason(charge, suggestion) || Boolean(charge.reason.trim()))
-  );
+  const reason = charge.reason.trim();
+  return Number.isFinite(amount) && amount > 0 && reason.length > 0;
 }
 
 export type InvoiceBillingCartLine = ComboCartLine & {
@@ -72,6 +75,8 @@ export const defaultInvoiceBillingConfig: InvoiceBillingConfig = {
   fullBoxPickupFee: "$0",
   minimumDeposit: DEFAULT_MINIMUM_DEPOSIT,
   logisticsFeeMode: "per_trip",
+  pickupIncludedDays: 30,
+  latePickupFee: "$0",
 };
 
 export type InvoiceBillingSnapshot = {
@@ -87,6 +92,9 @@ export type InvoiceBillingSnapshot = {
   logisticsFeeMode: LogisticsFeeMode;
   emptyBoxDelivery: string;
   fullBoxPickup: string;
+  latePickupFee: string;
+  pickupIncludedDays: number;
+  latePickupFeeConfigured: string;
   logisticsSubtotal: string;
   quotedTotal: string;
   minimumDeposit: string;
@@ -166,7 +174,11 @@ export function computeInvoiceBilling(input: {
   const logisticsSubtotal = emptyBoxDelivery + fullBoxPickup;
   const quotedTotal = boxSubtotal + logisticsSubtotal;
 
-  const minimumDeposit = Math.min(parseMoneyValue(input.fees.minimumDeposit), quotedTotal);
+  const minimumDeposit = minimumDepositForBoxCount({
+    minimumDeposit: input.fees.minimumDeposit,
+    boxCount,
+    quotedTotal,
+  });
   const payNow =
     input.payNow === undefined
       ? Math.min(minimumDeposit, quotedTotal)
@@ -186,6 +198,11 @@ export function computeInvoiceBilling(input: {
     logisticsFeeMode: mode,
     emptyBoxDelivery: formatMoneyValue(emptyBoxDelivery),
     fullBoxPickup: formatMoneyValue(fullBoxPickup),
+    latePickupFee: "$0",
+    pickupIncludedDays: Math.max(Math.floor(input.fees.pickupIncludedDays || 30), 1),
+    latePickupFeeConfigured: formatMoneyValue(
+      Math.max(parseMoneyValue(input.fees.latePickupFee || "$0"), 0),
+    ),
     logisticsSubtotal: formatMoneyValue(logisticsSubtotal),
     quotedTotal: formatMoneyValue(quotedTotal),
     minimumDeposit: formatMoneyValue(minimumDeposit),
@@ -322,6 +339,9 @@ export function readBillingFromPlan(value: unknown): InvoiceBillingSnapshot | nu
     logisticsFeeMode: row.logisticsFeeMode === "per_box" ? "per_box" : "per_trip",
     emptyBoxDelivery: String(row.emptyBoxDelivery || "$0"),
     fullBoxPickup: String(row.fullBoxPickup || "$0"),
+    latePickupFee: String(row.latePickupFee || "$0"),
+    pickupIncludedDays: Math.max(Number(row.pickupIncludedDays) || 0, 0),
+    latePickupFeeConfigured: String(row.latePickupFeeConfigured || "$0"),
     logisticsSubtotal: String(row.logisticsSubtotal || "$0"),
     quotedTotal,
     minimumDeposit,

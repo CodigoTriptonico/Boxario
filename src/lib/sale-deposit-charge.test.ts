@@ -29,6 +29,21 @@ describe("sale-deposit-charge", () => {
     assert.equal(defaultSaleDepositDraft("$20", "$500"), "20");
   });
 
+  it("multiplies the configured deposit by the number of boxes", () => {
+    assert.equal(
+      resolveSaleDepositChargeAmount({
+        mode: "deposit",
+        depositDraft: "",
+        minimumDeposit: "$20",
+        boxCount: 2,
+        quotedTotal: "$500",
+      }),
+      40,
+    );
+    assert.equal(defaultSaleDepositDraft("$20", "$500", 3), "60");
+    assert.equal(defaultSaleDepositDraft("$20", "$45", 3), "45");
+  });
+
   it("uses the edited deposit amount and never exceeds the total", () => {
     assert.equal(
       resolveSaleDepositChargeAmount({

@@ -51,11 +51,13 @@ type ShipmentStepContextMenuProps = {
   scheduleChanged?: boolean;
   emptyBoxHandingNow?: boolean;
   currentSummary?: string;
+  latePickupNotice?: string;
   currentStatus?: ShipmentStatus;
   onClose: () => void;
   onApply: (patch: Partial<ShipmentLogisticsEditorState>) => void;
   onStatusChange?: (status: ShipmentStatus) => void;
   onFullBoxReceivedAtOffice?: () => void;
+  onRevertFullBoxOfficeReception?: () => void;
   onProgramRoute?: (kind: "empty_box" | "full_box") => void;
 };
 
@@ -181,7 +183,7 @@ const STATUS_MENU_OPTIONS: Array<{ status: ShipmentStatus; label: string; icon: 
 function CurrentOptionBanner({ label }: { label: string }) {
   return (
     <div className="mt-1 rounded-lg border border-emerald-700/50 bg-emerald-950/30 px-3 py-2">
-      <p className="text-[10px] font-black uppercase text-emerald-400/90">Opción actual</p>
+      <p className="text-[10px] font-black uppercase text-emerald-400">Opción actual</p>
       <p className="mt-0.5 text-sm font-black leading-snug text-emerald-100">{label}</p>
     </div>
   );
@@ -225,11 +227,13 @@ export function ShipmentStepContextMenu({
   legOrdered = false,
   scheduleChanged = false,
   currentSummary = "",
+  latePickupNotice = "",
   currentStatus,
   onClose,
   onApply,
   onStatusChange,
   onFullBoxReceivedAtOffice,
+  onRevertFullBoxOfficeReception,
   onProgramRoute,
 }: ShipmentStepContextMenuProps) {
   const [scheduleConfirm, setScheduleConfirm] = useState<{
@@ -347,8 +351,24 @@ export function ShipmentStepContextMenu({
     onClose();
   }
 
+  function requestRevertFullBoxOfficeReception() {
+    setScheduleConfirm({
+      title: "Revertir recepción en oficina",
+      message:
+        "Se deshará el registro de caja llena en oficina. El invoice volverá a pendiente de recolección y podrás programar al chofer o registrar de nuevo la entrega en oficina.",
+      confirmLabel: "Revertir recepción",
+      tone: "warning",
+      onConfirm: () => {
+        setScheduleConfirm(null);
+        onRevertFullBoxOfficeReception?.();
+        onClose();
+      },
+    });
+  }
+
   const driverScheduledActive = scheduleMode === "scheduled" && Boolean(scheduleAt);
   const hasExistingProgramming = driverScheduledActive || Boolean(routeName);
+  const routeConfirmed = Boolean(routeName);
 
   function commitCancelPickup() {
     onApply({
@@ -393,9 +413,6 @@ export function ShipmentStepContextMenu({
     });
   }
 
-  const isContextMenu = menu.trigger === "context_menu";
-  const isLeftClickMenu = menu.trigger === "left_click";
-
   return (
     <>
       <div
@@ -406,7 +423,7 @@ export function ShipmentStepContextMenu({
         onContextMenu={(event) => event.preventDefault()}
         onClick={(event) => event.stopPropagation()}
       >
-      {isStatusMenu || locked || (!isFull && !isEmpty) || (isEmpty && isContextMenu) ? (
+      {isStatusMenu || locked || (!isFull && !isEmpty) ? (
         <div className="border-b border-black px-3 py-2">
           <p className="text-xs font-black uppercase text-slate-500">Opciones</p>
           <p className="truncate text-base font-black text-[#f8fafc]">{menu.title}</p>
@@ -436,15 +453,41 @@ export function ShipmentStepContextMenu({
           </p>
         </>
       ) : locked ? (
-        <p className="mt-2 rounded-lg border border-black/70 bg-surface-inset px-3 py-2 text-xs font-bold text-slate-400">
-          {lockReason}
-        </p>
+        <div className="mt-2 grid gap-2">
+          <p className="rounded-lg border border-black/70 bg-surface-inset px-3 py-2 text-xs font-bold text-slate-400">
+            {lockReason}
+          </p>
+          {isFull && onRevertFullBoxOfficeReception ? (
+            <button
+              type="button"
+              onClick={requestRevertFullBoxOfficeReception}
+              className="flex w-full items-start gap-3 rounded-lg border border-amber-800/60 bg-amber-950/20 px-3 py-2.5 text-left hover:bg-amber-950/35"
+            >
+              <span className="mt-0.5 text-amber-300">
+                <X className="h-5 w-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-black text-amber-100">
+                  Revertir recepción en oficina
+                </span>
+                <span className="mt-0.5 block text-[11px] font-bold leading-snug text-slate-400">
+                  Deshace el registro por error y vuelve a dejar Recoger editable.
+                </span>
+              </span>
+            </button>
+          ) : null}
+        </div>
       ) : (
         <>
           {!isFull && !isEmpty && currentSummary ? <CurrentOptionBanner label={currentSummary} /> : null}
 
           {isFull ? (
             <div className="grid gap-2">
+              {latePickupNotice && !legOrdered ? (
+                <p className="rounded-lg border border-amber-700/60 bg-amber-950/30 px-3 py-2 text-xs font-bold leading-relaxed text-amber-100">
+                  {latePickupNotice}
+                </p>
+              ) : null}
               <button
                 type="button"
                 disabled={locked || !onFullBoxReceivedAtOffice}
@@ -462,7 +505,11 @@ export function ShipmentStepContextMenu({
                 </span>
               </button>
               <DriverLegReadyMenu
-                actionCopy={logisticsLegRouteActionCopy("full_box", hasExistingProgramming)}
+                actionCopy={logisticsLegRouteActionCopy(
+                  "full_box",
+                  hasExistingProgramming,
+                  routeConfirmed,
+                )}
                 cancelLabel={FULL_BOX_LEG_LABELS.cancel}
                 scheduleDetail={hasExistingProgramming ? scheduleDetail : undefined}
                 scheduleChanged={scheduleChanged}
@@ -480,29 +527,29 @@ export function ShipmentStepContextMenu({
               />
             </div>
           ) : isEmpty ? (
-            isContextMenu ? (
-              <ContextMenuFlyout
-                title="Opciones de dejar"
-                icon={<Building2 className="h-5 w-5" />}
-                panelClassName="min-w-[14rem]"
+            <div className="grid gap-2">
+              <button
+                type="button"
+                disabled={locked}
+                onClick={applyOfficeDelivery}
+                className="flex w-full items-start gap-3 rounded-lg border border-emerald-800/60 bg-emerald-950/20 px-3 py-2.5 text-left hover:bg-emerald-950/35 disabled:cursor-not-allowed disabled:opacity-50"
               >
-                <button
-                  type="button"
-                  disabled={locked}
-                  onClick={applyOfficeDelivery}
-                  className="flex w-full items-start gap-3 rounded-lg border border-transparent px-3 py-2.5 text-left hover:border-black hover:bg-surface-card disabled:cursor-not-allowed disabled:opacity-50"
-                >
-                  <span className="mt-0.5 text-emerald-300">
-                    <Building2 className="h-5 w-5" />
+                <span className="mt-0.5 text-emerald-300">
+                  <Building2 className="h-5 w-5" />
+                </span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-black text-emerald-100">Entregar en oficina</span>
+                  <span className="mt-0.5 block text-[11px] font-bold leading-snug text-slate-400">
+                    Se entrega ahora en mostrador.
                   </span>
-                  <span className="min-w-0">
-                    <span className="block text-sm font-black text-[#f8fafc]">Entregar en mostrador</span>
-                  </span>
-                </button>
-              </ContextMenuFlyout>
-            ) : isLeftClickMenu ? (
+                </span>
+              </button>
               <DriverLegReadyMenu
-                actionCopy={logisticsLegRouteActionCopy("empty_box", hasExistingProgramming)}
+                actionCopy={logisticsLegRouteActionCopy(
+                  "empty_box",
+                  hasExistingProgramming,
+                  routeConfirmed,
+                )}
                 cancelLabel={EMPTY_BOX_LEG_LABELS.cancel}
                 scheduleDetail={hasExistingProgramming ? scheduleDetail : undefined}
                 scheduleChanged={scheduleChanged}
@@ -518,7 +565,7 @@ export function ShipmentStepContextMenu({
                     : undefined
                 }
               />
-            ) : null
+            </div>
           ) : null}
         </>
       )}

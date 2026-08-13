@@ -117,7 +117,7 @@ try {
     console.log(`Árbol de "${DEFAULT_CATEGORY}" actualizado`);
   }
 
-  const warehouses = await client.query(
+  let warehouses = await client.query(
     `SELECT id, name FROM public.warehouses
      WHERE organization_id = $1 AND is_active = true
      ORDER BY is_default DESC, name`,
@@ -125,7 +125,18 @@ try {
   );
 
   if (!warehouses.rows.length) {
-    throw new Error("No hay bodegas activas para esta organización.");
+    await client.query(
+      `INSERT INTO public.warehouses (organization_id, name, code, is_default, is_active)
+       VALUES ($1, 'Bodega principal', 'MAIN', true, true)`,
+      [orgId],
+    );
+    warehouses = await client.query(
+      `SELECT id, name FROM public.warehouses
+       WHERE organization_id = $1 AND is_active = true
+       ORDER BY is_default DESC, name`,
+      [orgId],
+    );
+    console.log('Bodega principal creada por defecto');
   }
 
   let itemsCreated = 0;

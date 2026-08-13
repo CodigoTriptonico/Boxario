@@ -29,3 +29,25 @@ export function formatTaskDate(value: string | null) {
 
   return label.charAt(0).toUpperCase() + label.slice(1);
 }
+
+export function formatLogisticsEntryDate(value: string | null | undefined) {
+  if (!value) {
+    return "Sin fecha";
+  }
+
+  const localDate = scheduledAtToLocalDateInput(value);
+  if (!localDate) {
+    return "Sin fecha";
+  }
+
+  const [year, month, day] = localDate.split("-").map(Number);
+  if (!year || !month || !day) {
+    return "Sin fecha";
+  }
+
+  return new Intl.DateTimeFormat("es-MX", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  }).format(new Date(year, month - 1, day, 12));
+}

@@ -104,9 +104,11 @@ export function useInventoryStructureMenus({
 
     const rect = trigger.getBoundingClientRect();
     const margin = 8;
+    const viewportWidth = document.documentElement.clientWidth;
+    const panelWidth = Math.min(STRUCTURE_MENU_WIDTH, viewportWidth - margin * 2);
     const left = Math.min(
-      Math.max(margin, rect.right - STRUCTURE_MENU_WIDTH),
-      window.innerWidth - STRUCTURE_MENU_WIDTH - margin,
+      Math.max(margin, rect.right - panelWidth),
+      viewportWidth - panelWidth - margin,
     );
 
     setStructureMenuPosition({
@@ -149,9 +151,11 @@ export function useInventoryStructureMenus({
 
     const rect = trigger.getBoundingClientRect();
     const margin = 8;
+    const viewportWidth = document.documentElement.clientWidth;
+    const panelWidth = Math.min(STRUCTURE_MENU_WIDTH, viewportWidth - margin * 2);
     const left = Math.min(
-      Math.max(margin, rect.right - STRUCTURE_MENU_WIDTH),
-      window.innerWidth - STRUCTURE_MENU_WIDTH - margin,
+      Math.max(margin, rect.right - panelWidth),
+      viewportWidth - panelWidth - margin,
     );
 
     setNewItemPopoverPosition({

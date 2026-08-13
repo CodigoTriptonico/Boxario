@@ -1,6 +1,10 @@
 /** Contextos donde el usuario puede elegir paleta propia (por página / listado). */
 export const UI_SURFACE_CONTEXT_IDS = [
   "logistics.tasks",
+  "logistics.confirmations",
+  "logistics.preparation",
+  "logistics.routes",
+  "logistics.history",
   "shipments.tracking",
   "conductor.tasks",
   "inventory.items",
@@ -26,6 +30,8 @@ export type UiSurfaceContextMeta = {
   description: string;
   /** Si la página permite alternar filas / tarjetas desde el sidebar. */
   supportsViewLayout?: boolean;
+  /** La pagina tambien ofrece una vista tabular tipo Excel. */
+  supportsExcelLayout?: boolean;
 };
 
 export const UI_SURFACE_CONTEXTS: UiSurfaceContextMeta[] = [
@@ -33,15 +39,49 @@ export const UI_SURFACE_CONTEXTS: UiSurfaceContextMeta[] = [
     id: "logistics.tasks",
     label: "Logística",
     kind: "listRow",
-    description: "Filas del listado de tareas e invoices.",
+    description: "Filas, tarjetas y tabla tipo Excel de tareas e invoices.",
     supportsViewLayout: true,
+    supportsExcelLayout: true,
+  },
+  {
+    id: "logistics.confirmations",
+    label: "Logística · por confirmar",
+    kind: "listRow",
+    description: "Filas, tarjetas y tabla de solicitudes por confirmar.",
+    supportsViewLayout: true,
+    supportsExcelLayout: true,
+  },
+  {
+    id: "logistics.preparation",
+    label: "Logística · preparación",
+    kind: "listRow",
+    description: "Filas, tarjetas y tabla de grupos listos para crear ruta.",
+    supportsViewLayout: true,
+    supportsExcelLayout: true,
+  },
+  {
+    id: "logistics.routes",
+    label: "Logística · rutas",
+    kind: "listRow",
+    description: "Filas, tarjetas y tabla de rutas reales.",
+    supportsViewLayout: true,
+    supportsExcelLayout: true,
+  },
+  {
+    id: "logistics.history",
+    label: "Logística · historial",
+    kind: "listRow",
+    description: "Filas, tarjetas y tabla de rutas terminadas o canceladas.",
+    supportsViewLayout: true,
+    supportsExcelLayout: true,
   },
   {
     id: "shipments.tracking",
     label: "Seguimiento",
     kind: "listRow",
-    description: "Filas del listado de envíos.",
+    description: "Filas, tarjetas y tabla tipo Excel del listado de envíos.",
     supportsViewLayout: true,
+    supportsExcelLayout: true,
   },
   {
     id: "conductor.tasks",
@@ -103,15 +143,17 @@ export const UI_SURFACE_CONTEXTS: UiSurfaceContextMeta[] = [
     id: "sale.senderCard",
     label: "Venta · remitente",
     kind: "personCard",
-    description: "Color por defecto al crear un remitente nuevo.",
+    description: "Filas, tarjetas y tabla tipo Excel de remitentes.",
     supportsViewLayout: true,
+    supportsExcelLayout: true,
   },
   {
     id: "sale.recipientCard",
     label: "Venta · destinatario",
     kind: "personCard",
-    description: "Color por defecto al crear un destinatario nuevo.",
+    description: "Filas, tarjetas y tabla tipo Excel de destinatarios.",
     supportsViewLayout: true,
+    supportsExcelLayout: true,
   },
   {
     id: "sale.box",
@@ -132,4 +174,8 @@ export function uiSurfaceContextMeta(id: UiSurfaceContextId) {
 
 export function surfaceContextSupportsViewLayout(id: UiSurfaceContextId) {
   return uiSurfaceContextMeta(id).supportsViewLayout !== false;
+}
+
+export function surfaceContextSupportsExcelLayout(id: UiSurfaceContextId) {
+  return uiSurfaceContextMeta(id).supportsExcelLayout === true;
 }

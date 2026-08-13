@@ -26,10 +26,15 @@ describe("shipment-leg-labels", () => {
   });
 
   it("distinguishes programming a new task from editing an existing route", () => {
-    assert.deepEqual(logisticsLegRouteActionCopy("empty_box", true), {
+    assert.deepEqual(logisticsLegRouteActionCopy("empty_box", true, false), {
       title: "Editar entrega",
       description:
-        "Ya está programada. Cambia la ruta (día) o la hora solo si hace falta.",
+        "Pedido enviado a Logística. Cambia el día o la hora si hace falta.",
+    });
+    assert.deepEqual(logisticsLegRouteActionCopy("empty_box", true, true), {
+      title: "Editar entrega",
+      description:
+        "Ya está en una ruta. Cambia el día o la hora solo si hace falta.",
     });
     assert.equal(
       logisticsLegRouteActionCopy("full_box", true).title,
@@ -39,17 +44,40 @@ describe("shipment-leg-labels", () => {
       logisticsLegRouteActionCopy("empty_box", false).title,
       "Programar entrega",
     );
+    assert.match(
+      logisticsLegRouteActionCopy("full_box", false).description,
+      /Se envía a Logística para confirmar/,
+    );
   });
 
-  it("names compact chips by assignment and weekday", () => {
+  it("names compact chips by booking vs confirmed route and weekday", () => {
     assert.equal(weekdayLabelFromSchedule("2026-08-03T10:00"), "lunes");
     assert.equal(
       logisticsLegCompactLabel("empty_box", {
         active: true,
         ordered: true,
         scheduledAt: "2026-08-03T10:00",
+        routeConfirmed: true,
       }),
       "Entrega para el lunes",
+    );
+    assert.equal(
+      logisticsLegCompactLabel("empty_box", {
+        active: true,
+        ordered: true,
+        scheduledAt: "2026-08-03T10:00",
+        routeConfirmed: false,
+      }),
+      "Entrega solicitada para el lunes",
+    );
+    assert.equal(
+      logisticsLegCompactLabel("full_box", {
+        active: true,
+        ordered: true,
+        scheduledAt: "2026-08-06T10:00",
+        routeConfirmed: true,
+      }),
+      "Recolección para el jueves",
     );
     assert.equal(
       logisticsLegCompactLabel("full_box", {
@@ -57,7 +85,16 @@ describe("shipment-leg-labels", () => {
         ordered: true,
         scheduledAt: "2026-08-06T10:00",
       }),
-      "Recolección para el jueves",
+      "Recolección solicitada para el jueves",
+    );
+    assert.equal(
+      logisticsLegCompactLabel("empty_box", {
+        active: true,
+        ordered: true,
+        scheduledAt: null,
+        routeConfirmed: true,
+      }),
+      "Entrega programada",
     );
     assert.equal(
       logisticsLegCompactLabel("empty_box", {
@@ -65,15 +102,15 @@ describe("shipment-leg-labels", () => {
         ordered: true,
         scheduledAt: null,
       }),
-      "Entrega programada",
+      "Entrega solicitada",
     );
     assert.equal(
       logisticsLegCompactLabel("empty_box", { active: true, ordered: false }),
-      "Entrega por asignar",
+      "Entrega pendiente",
     );
     assert.equal(
       logisticsLegCompactLabel("full_box", { active: true, ordered: false }),
-      "Recolección por asignar",
+      "Recolección pendiente",
     );
     assert.equal(
       logisticsLegCompactLabel("empty_box", { active: false, ordered: true }),

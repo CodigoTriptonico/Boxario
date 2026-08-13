@@ -3,6 +3,104 @@
 import { requireAppSession } from "@/lib/auth/session";
 import { canAccessWarehouse, sessionHasPermission } from "@/lib/auth/permissions";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
+
+export type InventoryTransferableItem = {
+  id: string;
+  label: string;
+  availableQty: number;
+};
+
+type TransferableStockRow = {
+  item_id: string;
+  stock: number | string | null;
+  reserved: number | string | null;
+  inventory_items:
+    | {
+        name: string | null;
+        kind: string | null;
+        subcategory: string | null;
+        size: string | null;
+      }
+    | Array<{
+        name: string | null;
+        kind: string | null;
+        subcategory: string | null;
+        size: string | null;
+      }>
+    | null;
+};
+
+function transferableItemLabel(row: TransferableStockRow) {
+  const joined = Array.isArray(row.inventory_items)
+    ? row.inventory_items[0]
+    : row.inventory_items;
+  const base = String(joined?.name || joined?.kind || joined?.subcategory || "Artículo").trim();
+  const size = String(joined?.size || "").trim();
+  return size && !base.toLocaleLowerCase("es").includes(size.toLocaleLowerCase("es"))
+    ? `${base} · ${size}`
+    : base;
+}
+
+export async function listInventoryTransferableItemsAction(input: {
+  warehouseId: string;
+}): Promise<ActionResult<InventoryTransferableItem[]>> {
+  try {
+    const session = await requireAppSession();
+
+    if (!sessionHasPermission(session, "inventory.view")) {
+      return fail("Sin permiso para ver inventario");
+    }
+
+    if (!canAccessWarehouse(session, input.warehouseId)) {
+      return fail("Sin acceso a la bodega");
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return fail("Supabase no configurado");
+    }
+
+    const rows: TransferableStockRow[] = [];
+    const pageSize = 500;
+
+    for (let offset = 0; ; offset += pageSize) {
+      const { data, error } = await supabase
+        .from("inventory_stock")
+        .select("item_id, stock, reserved, inventory_items(name, kind, subcategory, size)")
+        .eq("organization_id", session.organizationId)
+        .eq("warehouse_id", input.warehouseId)
+        .order("item_id", { ascending: true })
+        .range(offset, offset + pageSize - 1);
+
+      if (error) {
+        return fail(error.message);
+      }
+
+      const page = (data || []) as unknown as TransferableStockRow[];
+      rows.push(...page);
+
+      if (page.length < pageSize) {
+        break;
+      }
+    }
+
+    return ok(
+      rows
+        .map((row) => ({
+          id: row.item_id,
+          label: transferableItemLabel(row),
+          availableQty: Math.max(
+            0,
+            (Number(row.stock) || 0) - (Number(row.reserved) || 0),
+          ),
+        }))
+        .filter((item) => item.availableQty > 0)
+        .sort((left, right) => left.label.localeCompare(right.label, "es")),
+    );
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
 import {
   actionErrorMessage,
   fail,

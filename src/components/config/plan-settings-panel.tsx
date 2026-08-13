@@ -25,7 +25,7 @@ function usageTone(used: number, max: number | null) {
   }
 
   if (max > 1 && used >= max - 1) {
-    return "text-amber-200/90";
+    return "text-amber-200";
   }
 
   return "text-[#f8fafc]";
@@ -84,7 +84,7 @@ function PlanLimitCard({
             <p className="mt-3 text-sm font-black text-amber-300">
               Límite del plan: {max} {max === 1 ? unitSingular : unitPlural}
             </p>
-            <p className="mt-2 text-xs font-bold leading-snug text-amber-100/80">
+            <p className="mt-2 text-xs font-bold leading-snug text-amber-100">
               El contrato registrado está desactualizado: tienes más {unitPlural} de las
               que figuran en el plan. Pide al administrador que actualice el límite a
               mínimo {used}.
@@ -133,7 +133,7 @@ export function PlanSettingsPanel() {
   }, []);
 
   if (!loaded) {
-    return <PageLoading />;
+    return <PageLoading inline />;
   }
 
   if (error || !usage) {
@@ -209,7 +209,7 @@ export function PlanSettingsPanel() {
 
       <section className="rounded-xl border border-amber-500/30 bg-amber-950/20 px-4 py-4">
         <p className="text-sm font-black text-amber-100">¿Necesitas ampliar el plan?</p>
-        <p className="mt-1 text-sm font-bold leading-snug text-amber-100/80">
+        <p className="mt-1 text-sm font-bold leading-snug text-amber-100">
           Para agregar más bodegas o usuarios, contacte con el administrador de la
           plataforma. Solo ellos pueden modificar los límites del contrato.
         </p>

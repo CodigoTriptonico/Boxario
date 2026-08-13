@@ -24,6 +24,7 @@ async function resolveConductorPreviewDriverId(driverId: string) {
 
 export async function listConductorDriverTasksAction(
   driverId: string,
+  scopeDate?: string,
 ): Promise<ActionResult<ConductorDriverTask[]>> {
   try {
     const cleanDriverId = await resolveConductorPreviewDriverId(driverId);
@@ -31,7 +32,7 @@ export async function listConductorDriverTasksAction(
       return ok([]);
     }
 
-    const { tasks } = await loadConductorData(cleanDriverId);
+    const { tasks } = await loadConductorData(cleanDriverId, scopeDate);
     return ok(tasks);
   } catch (error) {
     return fail(actionErrorMessage(error));
@@ -40,6 +41,7 @@ export async function listConductorDriverTasksAction(
 
 export async function listConductorClosedDriverTasksAction(
   driverId: string,
+  scopeDate?: string,
 ): Promise<ActionResult<ConductorDriverTask[]>> {
   try {
     const cleanDriverId = await resolveConductorPreviewDriverId(driverId);
@@ -47,7 +49,7 @@ export async function listConductorClosedDriverTasksAction(
       return ok([]);
     }
 
-    const data = await loadConductorData(cleanDriverId);
+    const data = await loadConductorData(cleanDriverId, scopeDate);
 
     return ok(
       buildConductorDriverTasks({

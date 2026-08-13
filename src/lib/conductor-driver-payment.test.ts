@@ -10,7 +10,7 @@ import {
 } from "@/lib/conductor-driver-payment";
 
 describe("conductor driver payment", () => {
-  it("collects only an outstanding deposit during empty-box delivery", () => {
+  it("collects an outstanding deposit during a completed delivery or pickup", () => {
     assert.equal(
       conductorExpectedDepositCollection({
         result: "completed",
@@ -36,14 +36,21 @@ describe("conductor driver payment", () => {
         depositDue: 20,
         balanceDue: 100,
       }),
-      0,
+      20,
     );
   });
 
   it("requires an explicit collection outcome and a valid custom amount", () => {
     assert.equal(conductorPaymentChoiceError({ choice: null, expectedAmount: 20, customAmount: 0 }), "Indica si recibiste el depósito.");
     assert.equal(conductorPaymentChoiceError({ choice: "custom", expectedAmount: 20, customAmount: 0 }), "Indica un monto recibido válido.");
-    assert.equal(conductorPaymentChoiceError({ choice: "none", expectedAmount: 20, customAmount: 0 }), null);
+    assert.equal(
+      conductorPaymentChoiceError({ choice: "none", expectedAmount: 20, customAmount: 0 }),
+      "Indica por que no recibiste dinero.",
+    );
+    assert.equal(
+      conductorPaymentChoiceError({ choice: "none", expectedAmount: 20, customAmount: 0, note: "Cliente ausente" }),
+      null,
+    );
     assert.equal(
       conductorPaymentChoiceError({ choice: "custom", expectedAmount: 20, customAmount: 50, balanceDue: 30 }),
       "El monto no puede superar el saldo pendiente.",

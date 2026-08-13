@@ -34,6 +34,6 @@ describe("inventory category persistence", () => {
     assert.match(pageSource, /const initialData = inventoryResult\.ok/);
     assert.match(pageSource, /initialInventoryError=/);
     assert.match(clientSource, /if \(!loaded\)/);
-    assert.match(clientSource, /return <PageLoading inline \/>/);
+    assert.match(clientSource, /<PageLoading inline \/>/);
   });
 });

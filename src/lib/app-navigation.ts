@@ -16,7 +16,7 @@ export function resolveAppNavActiveLabel(pathname: string, roleSlug = "administr
   if (pathname.startsWith("/bodega")) return "Bodega";
   if (pathname.startsWith("/paletas")) return "Paletas";
   if (pathname.startsWith("/seguimiento") || pathname.startsWith("/envios")) return "Seguimiento y envíos";
-  if (pathname.startsWith("/conductor/inventario-camion")) return "Inventario camion";
+  if (pathname.startsWith("/conductor/inventario-camion")) return conductorTasksNavLabel(roleSlug);
   if (pathname.startsWith("/conductor")) return conductorTasksNavLabel(roleSlug);
   if (pathname.startsWith("/logistica")) return "Logistica";
   if (pathname.startsWith("/estadisticas") || pathname.startsWith("/vendedores")) return "Estadisticas";

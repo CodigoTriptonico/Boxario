@@ -7,8 +7,10 @@ describe("config section labels", () => {
     assert.equal(CONFIG_SECTION_LABELS.organization.title, "Organización");
     assert.match(CONFIG_SECTION_LABELS.organization.text, /bodegas/i);
     assert.match(CONFIG_SECTION_LABELS.organization.text, /importación/i);
-    assert.equal(CONFIG_SECTION_LABELS.prices.title, "Costos");
+    assert.equal(CONFIG_SECTION_LABELS.prices.title, "Ventas");
     assert.match(CONFIG_SECTION_LABELS.prices.text, /Precios por país/i);
+    assert.match(CONFIG_SECTION_LABELS.prices.text, /depósito/i);
+    assert.match(CONFIG_SECTION_LABELS.prices.text, /rutas/i);
     assert.equal(CONFIG_SECTION_LABELS.distributors.title, "Distribuidores");
     assert.equal(CONFIG_SECTION_LABELS.appearance.title, "Apariencia");
     assert.equal(CONFIG_SECTION_LABELS.timeclock.title, "Control de horario");
