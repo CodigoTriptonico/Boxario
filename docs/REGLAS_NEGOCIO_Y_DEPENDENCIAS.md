@@ -1,5 +1,91 @@
 # Reglas de negocio y dependencias de Boxario
 
+### 2026-08-14 — Activación explícita de la recolección incluida
+
+**Contexto:** La configuración de recolección incluida solo permitía editar los días y no permitía que una organización decidiera no ofrecer ese beneficio.
+
+**Decisión:** `pickup_included_enabled` controla si la política está activa. Cuando está apagada, la venta no persiste una política de recolección incluida ni aplica su ventana o cargo fuera de plazo; los días y el cargo configurados se conservan para poder reactivarla sin reconfigurarla.
+
+**Resultado:** La organización puede activar o desactivar el beneficio de forma reversible y la venta no interpreta un valor de días como sustituto ambiguo del estado.
+
+### 2026-08-14 - El consecutivo solo avanza al confirmar la creación
+
+**Contexto:** La vista previa y la preparación de una venta rápida podían llamar al RPC que incrementa `organization_invoice_counters`; además, el cierre de Venta rápida hacía una segunda asignación. Cancelar o salir del flujo dejaba un consecutivo sin invoice persistido.
+
+**Decisión:** Mostrar el siguiente invoice es una operación de lectura: no reserva ni incrementa el contador. La asignación atómica solo se ejecuta dentro de la confirmación final de creación, una vez que el usuario acepta el diálogo. Cancelar, cerrar o regresar entre pasos antes de confirmar no consume numeración; Venta rápida tampoco vuelve a asignar al cerrar después de crear.
+
+**Resultado:** Un invoice no confirmado no adelanta `organization_invoice_counters` y el flujo conserva un único punto de asignación por invoice.
+
+### 2026-08-14 - Reserva temporal del invoice durante Final
+
+**Contexto:** Mostrar solo `last_number + 1` en el paso 5 permitía que dos vendedores vieran el mismo invoice mientras revisaban una venta.
+
+**Decisión:** Al entrar a `Final`, Venta crea una reserva temporal de 15 minutos para ese invoice. La reserva bloquea el mismo consecutivo para otros vendedores, se renueva mientras la pantalla permanece activa y se libera al cancelar o volver a otro paso. La reserva no actualiza el contador; solo el insert atómico del shipment la cambia a `committed` y confirma el consecutivo. Si la operación falla antes de insertar, el contador no avanza.
+
+**Resultado:** El vendedor puede editar el abono en `Final` sin duplicar el número con otra venta. Si el guardado falla antes de insertar el shipment, la reserva se libera y el consecutivo queda disponible nuevamente.
+
+### 2026-08-14 - Referencia nueva de invoice sin separadores
+
+**Contexto:** Se solicitó eliminar los guiones de la referencia visible de los nuevos invoices; el formato anterior usaba bloques separados como `COL2-001-001-0004`.
+
+**Decisión:** Las referencias concatenan país, vendedor, ciudad, cantidad de cajas, empresa y consecutivo: `COL001SAN20010001`. La secuencia, sus anchos mínimos y la identidad de cada bloque no cambian; no se contempla compatibilidad con referencias antiguas.
+
+**Resultado:** Las facturas y sus documentos derivados muestran una referencia continua sin guiones.
+
+### 2026-08-14 - Código empresarial global y consecutivo común por empresa
+
+**Contexto:** Se consideró separar el consecutivo por remitente, pero se aclaró que todos los clientes de una misma empresa deben compartir una sola secuencia: si Juan genera `0001` y `0002`, el primer invoice posterior de María debe ser `0003`. El mismo consecutivo puede existir simultáneamente en empresas distintas, por lo que hace falta distinguirlas en la referencia visible.
+
+**Decisión:** Cada empresa recibe un código numérico de tres dígitos, único, estable e inmutable en toda la plataforma. La secuencia empresarial comienza en `001`; por ejemplo, SCGS `001` y Ratulio `002`. El código no depende del nombre de la empresa, no cambia al renombrarla y no se reutiliza para otra empresa.
+
+El consecutivo continúa siendo único y común para todos los clientes de una misma empresa, asignado atómicamente mediante `organization_invoice_counters`: `0001`, `0002`, `0003`, sin reiniciarse al cambiar de cliente, vendedor, país o cantidad de cajas. La referencia base usa `<PAÍS><VENDEDOR><CIUDAD><CAJAS><EMPRESA><CONSECUTIVO>`. Por ejemplo, `COL001SAN20010001` corresponde a Colombia, vendedor `001`, ciudad `SAN`, dos cajas, empresa `001` y consecutivo `0001`. El correlativo se muestra con un mínimo de cuatro dígitos y puede crecer después de `9999` sin reiniciarse.
+
+El invoice usa la referencia base sin sufijo. Cada caja física añade su sufijo alfabético: `COL001SAN20010001-A`, `COL001SAN20010001-B`.
+
+**Resultado:** Los clientes de una empresa avanzan sobre un mismo correlativo, la lectura comienza con destino y cantidad, y dos empresas pueden comenzar en `0001` sin producir la misma referencia visible.
+
+### 2026-08-14 - Código de ciudad en la referencia del invoice
+
+**Contexto:** Se solicitó distinguir también la ciudad de destino dentro de la referencia continua del invoice.
+
+**Decisión:** Las nuevas referencias concatenan país, vendedor, ciudad, cantidad de cajas, empresa y consecutivo: `<PAÍS><VENDEDOR><CIUDAD><CAJAS><EMPRESA><CONSECUTIVO>`. El código de ciudad se forma con tres letras mayúsculas derivadas de la ciudad guardada; cuando no existe se usa `UNK`.
+
+**Resultado:** Una referencia como `COL001SAN20010001` identifica Colombia, vendedor `001`, ciudad `SAN`, dos cajas, empresa `001` y consecutivo `0001`. Los sufijos de caja física continúan agregándose después de la referencia base.
+
+### 2026-08-14 - Códigos de vendedor aislados por empresa y excluidos para administradores de plataforma
+
+**Contexto:** La cuenta propietaria de Boxario puede administrar la plataforma y acceder a empresas clientes, pero no forma parte de sus equipos comerciales. La asignación existente consideró su rol `administrador` dentro de SCGS y consumió el código `001`, dejando al administrador de SCGS con `002`.
+
+**Decisión:** La secuencia de códigos de vendedor pertenece exclusivamente a cada empresa (`organization_id`). Cada empresa comienza su propia secuencia en `001`, por lo que el primer usuario autorizado para vender en SCGS puede ser `001` y el primero de una empresa distinta también puede ser `001`. Un administrador de plataforma (`platform_admins`) no recibe `seller_code`, no incrementa el contador de ninguna empresa cliente y no se considera vendedor aunque técnicamente tenga rol `administrador`, permiso `all` o acceso transversal. Los conductores y demás usuarios sin función comercial tampoco reciben código.
+
+El administrador propio de una empresa sí puede recibir código cuando está autorizado para crear ventas; en ese caso normalmente ocupa `001`. Los códigos asignados a vendedores siguen siendo secuenciales, únicos e inmutables dentro de su empresa. Cualquier corrección de datos existentes debe revisar primero invoices y referencias persistidas; nunca se reescriben silenciosamente identificadores históricos.
+
+**Resultado:** La identidad que administra Boxario queda separada de los ecosistemas comerciales de los clientes. SCGS y cualquier nueva empresa tienen contadores independientes y pueden comenzar en `001` sin que la cuenta propietaria de la plataforma consuma numeración.
+
+### 2026-08-13 - Identificador visible de invoice por destino, vendedor y cantidad
+
+**Decisión:** las nuevas ventas muestran como identificador principal el formato compuesto `<PAÍS>-<VENDEDOR><CAJAS>-<SECUENCIA>`, por ejemplo `COL-0012-0001`: destino Colombia, vendedor `001`, dos cajas y consecutivo `0001`. El vendedor ocupa siempre tres dígitos y aparece antes de la cantidad, que puede tener uno o más dígitos. Cada caja usa el mismo código con sufijo alfabético: `COL-0012-0001-A`, `COL-0012-0001-B`. Se elimina la letra `C` y el identificador anterior `INV-*` no se muestra al cliente.
+
+**Compatibilidad:** Esta composición fue reemplazada el 2026-08-14 por `<PAÍS><VENDEDOR><CIUDAD><CAJAS><EMPRESA><CONSECUTIVO>` y no forma parte del formato vigente.
+
+**Resultado:** el invoice comunica desde su propio código el destino, quién hizo la venta y cuántas cajas contiene, mientras los sufijos mantienen la trazabilidad individual de cada caja.
+
+### 2026-08-13 - Venta rápida: seguimiento después de entregar la caja en oficina
+
+**Contexto:** La venta rápida entrega la caja vacía en oficina, pero el cálculo inicial la dejaba en `Pendiente entrega caja vacía` porque el tipo interno de venta era `empty_box_deposit`.
+
+**Decisión:** Al confirmar una venta rápida, la caja vacía se considera entregada y el invoice debe aparecer en Seguimiento como `Pendiente recolección caja llena` (`Recolección pendiente`). El estado `En oficina` se reserva para cuando la caja llena sea recibida posteriormente en la oficina. La venta rápida puede programar una recolección o registrar la recepción en oficina, igual que el seguimiento operativo de una venta completa.
+
+**Resultado:** Seguimiento muestra el siguiente hito real y permite continuar el ciclo cuando el cliente regresa con la caja llena, sin tratar la venta rápida como un depósito aislado.
+
+### 2026-08-13 - Venta rápida: remitente, caja y cierre
+
+**Contexto:** La venta rápida pedía país y después abría un modal separado para seleccionar una caja vacía. Ese modal duplicaba el paso de cajas y también hacía aparecer una decisión logística que no corresponde a este flujo.
+
+**Decisión:** Después de elegir el país, la venta rápida usa el flujo normal de venta en los pasos `Remitente → Caja → Final`, mostrando únicamente los pasos 1, 3 y 5 en la barra. No solicita destinatario ni logística y registra la caja vacía como recogida en oficina, sin crear tarea de chofer. La confirmación final conserva las validaciones existentes de stock, pago, numeración e historial. `Cancelar venta rápida` limpia el estado rápido y devuelve al remitente seleccionado al flujo completo, donde vuelven a estar disponibles destinatario y logística.
+
+**Resultado:** La venta rápida evita datos y decisiones que no necesita, reutiliza el selector de cajas vigente y permite cambiar de forma reversible a una venta completa antes de confirmar.
+
 ### 2026-08-13 - LOG-065: cobertura única por ciudad/zona y propuestas fuera de cobertura
 
 **Contexto:** Ventas podía interpretar una única ruta operativamente disponible como coincidencia geográfica y el catálogo todavía conservaba una modalidad separada por ZIP. Además, cuando ninguna ruta cubría la dirección, el vendedor solo podía dejar la ruta vacía.
@@ -61,6 +147,14 @@ Si ninguna cobertura coincide, Ventas puede elegir manualmente cualquier ruta ac
 Cuando existe una entrada exacta confirmada, las nuevas tareas y paradas logísticas la usan como destino de navegación y conservan también la coordenada de la dirección como referencia. Sin confirmación, se usa la coordenada geocodificada actual. Una ruta ya creada conserva su instantánea; editar después el contacto no cambia silenciosamente una ruta operativa existente.
 
 **Resultado:** Boxario distingue precisión postal de precisión operativa, evita presentar una geocodificación aproximada como casa confirmada y entrega al conductor una referencia estable y auditable.
+
+### 2026-08-14 — GEO-001 / mapa de coberturas sin entrada exacta
+
+**Contexto:** El comparador de coberturas podía quedar sin pin cuando el cliente tenía una dirección postal guardada pero todavía no contaba con una entrada exacta confirmada o con coordenadas persistidas.
+
+**Decisión:** Para mostrar la ubicación del cliente, priorizar la entrada exacta confirmada; si no existe, usar la coordenada geocodificada de la dirección; y, si tampoco está persistida, geocodificar temporalmente los campos postales guardados para la vista del mapa. El respaldo temporal no modifica al cliente ni se presenta como entrada exacta. La evaluación de cobertura continúa usando los datos de dirección y no este punto visual de respaldo.
+
+**Resultado:** El mapa siempre intenta mostrar la ubicación del cliente sin inventar `0,0`, diferencia visualmente el punto aproximado y conserva la separación entre ubicación postal, entrada exacta y cobertura de ruta.
 
 ### 2026-08-12 — LOG-064: nuevas coberturas sin selección por ZIP
 
@@ -1233,7 +1327,7 @@ Una definición activa como “todos los domingos” representa una recurrencia,
 
 **Contexto:** Un clic accidental en `Cliente entregó caja en oficina` marcaba el invoice `En oficina`, fijaba `full_box_collected_at` / `office_received_at` y bloqueaba Recoger. No había forma de deshacer el error antes de salida.
 
-**Decisión:** Mientras el estado sea `En oficina` y no existan `departed_at`, `shipped_at` ni `delivered_at`, Seguimiento puede revertir esa recepción (`revertFullBoxOfficeReceptionAction`). La acción limpia los hitos de recepción, restaura el estado pendiente de recolección (`Pendiente recolección caja llena` vía `resolvePendingShipmentStatus`) y deja el plan de caja llena sin modo/programación. No aplica a depósitos de caja vacía ni cuando el invoice ya avanzó a salida o tránsito.
+**Decisión:** Mientras el estado sea `En oficina` y no existan `departed_at`, `shipped_at` ni `delivered_at`, Seguimiento puede revertir esa recepción (`revertFullBoxOfficeReceptionAction`). La acción limpia los hitos de recepción, restaura el estado pendiente de recolección (`Pendiente recolección caja llena` vía `resolvePendingShipmentStatus`) y deja el plan de caja llena sin modo/programación. También aplica a ventas rápidas, porque en ellas la caja vacía ya fue entregada y la caja llena sigue siendo un hito operativo pendiente. No aplica cuando el invoice ya avanzó a salida o tránsito.
 
 **Resultado:** Un registro erróneo en oficina se puede corregir sin inventar datos ni saltarse validaciones; Recoger vuelve a quedar editable para programar chofer o volver a registrar la entrega en oficina.
 
@@ -1418,3 +1512,33 @@ Quitar un ZIP revoca las aprobaciones de ese ZIP y devuelve a Tareas las solicit
 **Decisión:** Para el remitente, la búsqueda, las sugerencias y el centro inicial del mapa se restringen a USA. Para cada destinatario se usa exclusivamente el país seleccionado en su formulario; cambiar el país invalida cualquier dirección o entrada exacta que estuviera en borrador.
 
 **Resultado:** Google devuelve ubicaciones dentro del país correspondiente a cada parte y el mapa no induce a seleccionar accidentalmente una dirección extranjera.
+
+### 2026-08-13 - Inicio de invoices y códigos del equipo comercial
+
+**Contexto:** Se solicitó limpiar los invoices generados y establecer una numeración comercial predecible para las nuevas ventas.
+
+**Decisión:** Se eliminan los invoices y sus dependencias operativas de todas las organizaciones del entorno, conservando remitentes, destinatarios, inventario, precios, usuarios y configuración. Los contadores de invoices vuelven a iniciar desde `0001`. En cada organización, el administrador ocupa el código `001` y los vendedores reciben los códigos consecutivos siguientes; cada código se muestra con tres dígitos y no se reutiliza ni modifica después de asignarse cuando ya existen invoices.
+
+**Resultado:** La próxima venta empieza con el administrador como `001`, los vendedores continúan desde `002` y las referencias de invoices nuevas mantienen una secuencia limpia y trazable.
+### 2026-08-14 - Direccion clickable para ubicar remitentes y destinatarios
+
+**Contexto:** una persona puede tener direccion postal guardada sin coordenadas o sin entrada exacta, pero el operador necesita abrirla desde la tarjeta y corregir el punto.
+
+**Decision:** las direcciones de las tarjetas de remitentes y destinatarios abren el mismo mapa de entrada exacta. El mapa intenta geolocalizar la direccion guardada, permite mover el pin y solo al confirmar guarda la entrada exacta en la persona correspondiente.
+
+**Resultado:** ambas partes usan el mismo flujo y el punto confirmado queda disponible en la tarjeta para futuras operaciones, sin modificar rutas existentes.
+### 2026-08-14 - Pin exacto de cliente en cobertura logistica
+
+**Contexto:** la cobertura de una ruta necesita mostrar la direccion del cliente, pero la ubicacion geocodificada puede ser aproximada y no representar la entrada real.
+
+**Decision:** el punto de cobertura usa la entrada exacta persistida cuando existe. Si no existe, el mapa inicia el pin en la ubicacion de la direccion para que Ventas o Logistica lo ajuste y lo confirme. La cobertura de ruta sigue evaluandose con la direccion/zona; el pin exacto solo precisa la navegacion al cliente.
+
+**Resultado:** cada confirmacion guarda `exact_entrance_lat/lng` y registra en la bitacora la posicion anterior, la nueva, el origen de la accion y el usuario que la realizo.
+
+### 2026-08-14 - Mapa dual para la dirección de recolección
+
+**Contexto:** en el formulario de la dirección del remitente se necesita separar la verificación que realiza el cliente de la consulta operativa del vendedor.
+
+**Decisión:** `Cliente verifica mapa` conserva la ventana de entrada exacta y su guardado explícito. `Ver rutas y coberturas` consulta la dirección actual contra todas las rutas geográficas activas y muestra sus coberturas junto con el día semanal de recolección. La cobertura se evalúa con la dirección postal; el pin exacto solo precisa la ubicación de navegación.
+
+**Resultado:** el vendedor puede explicar al cliente qué ruta y qué día le corresponden, sin cambiar desde el comparador la cobertura configurada ni la ruta seleccionada de la venta.

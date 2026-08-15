@@ -5,100 +5,52 @@ import { describe, it } from "node:test";
 import { readVentaClientSource } from "@/test-utils/venta-source";
 
 const root = process.cwd();
-const modalSource = readFileSync(
-  join(root, "src/components/sale/sale-quick-empty-box-modal.tsx"),
-  "utf8",
-);
-const fieldSource = readFileSync(
-  join(root, "src/components/sale/sale-payment-method-field.tsx"),
-  "utf8",
-);
 const saleSource = readVentaClientSource();
 const checkoutSource = readFileSync(
   join(root, "src/components/sale/sale-quick-checkout-modal.tsx"),
   "utf8",
 );
-const catalogSource = readFileSync(
-  join(root, "src/lib/sale-quick-box-catalog.ts"),
-  "utf8",
-);
 
-describe("quick empty-box route workflow", () => {
-  it("uses the company route calendar instead of a free date field", () => {
-    assert.match(modalSource, /onRequestRoute/);
-    assert.match(modalSource, /Elegir fecha \(ruta opcional\)/);
-    assert.doesNotMatch(modalSource, /DateInput|ScheduleTimeField/);
-    assert.match(saleSource, /openRoutePlanner\("quickEmptyBox"\)/);
-    assert.match(saleSource, /routePlannerLeg === "fullBox" \? "Aceptar recolección" : "Aceptar entrega"/);
-    assert.match(saleSource, /confirmLabel="Aceptar"/);
-    assert.match(saleSource, /enabledDays=\{routeCatalog\.enabledDays\}/);
-    assert.match(saleSource, /defaultDriverByWeekday=\{routeCatalog\.defaultDriverByWeekday\}/);
-    assert.match(
-      saleSource,
-      /routePlannerLeg === "quickEmptyBox"/,
-    );
-    assert.match(modalSource, /kind === "pending" && Boolean\(routeDecision\.routeDate\)/);
+describe("compact quick sale workflow", () => {
+  it("shows only sender, box and final steps", () => {
+    assert.match(saleSource, /quickSaleSteps/);
+    assert.match(saleSource, /quickSaleActive \? quickSaleSteps : saleSteps/);
+    assert.match(saleSource, /setActiveStep\("box"\)/);
+    assert.match(saleSource, /setActiveStep\("finish"\)/);
+    assert.match(saleSource, /proceedQuickSaleFromSelectedBox/);
+    assert.match(saleSource, /quickSaleActive && !quickCheckoutCompleted/);
+    assert.match(saleSource, /cancelQuickSale\(\)/);
+    assert.doesNotMatch(saleSource, /SaleQuickEmptyBoxModal/);
+    assert.doesNotMatch(saleSource, /openRoutePlanner\("quickEmptyBox"\)/);
   });
 
-  it("creates the delivery task and attaches a selected route", () => {
-    assert.match(saleSource, /saleRouteDecisionTask\(quickSaleDraft\.routeDecision\)/);
-    assert.match(saleSource, /requestCustomerRouteAssignmentAction\(\{/);
-    assert.match(saleSource, /routeTemplateId: quickSaleDraft\.routeDecision\.routeTemplateId/);
-    assert.match(saleSource, /requestedRouteDate: quickSaleDraft\.routeDecision\?\.routeDate/);
+  it("uses office pickup and keeps the existing final checkout", () => {
+    assert.match(saleSource, /emptyBoxMode: EMPTY_BOX_OFFICE_MODE/);
+    assert.match(saleSource, /deliverySummary: "Cliente recoge caja vacía en oficina"/);
+    assert.match(saleSource, /cartLines: saleCartToBillingLines/);
+    assert.match(saleSource, /boxLines: selectedBoxLines\.map/);
+    assert.match(saleSource, /saleCartToBillingLines\(quickSaleDraft\.boxLines\)/);
+    assert.match(checkoutSource, /QuickEmptyBoxDraft/);
+    assert.match(checkoutSource, /SaleFinishDocToolbar/);
+    assert.match(checkoutSource, /finishDocTab/);
+    assert.match(checkoutSource, /SaleBoxLabel/);
+    assert.match(checkoutSource, /printableBoxInvoiceCodes/);
+    assert.match(checkoutSource, /serviceSituation="empty_box_handed_off"/);
+    assert.match(saleSource, /confirmQuickEmptyBoxCharge/);
   });
 
-  it("keeps the box subtotal separate from the deposit configured at payment", () => {
-    assert.match(fieldSource, /Total de cajas/);
-    assert.match(fieldSource, /Queda debiendo/);
-    assert.match(modalSource, /Continuar a pago/);
-    assert.match(modalSource, /SaleDepositChargeField/);
-    assert.match(fieldSource, /Pago completo/);
-    assert.doesNotMatch(modalSource, /Depósito requerido|Depósito a cobrar|Cobrar depósito/);
-    assert.match(checkoutSource, /Venta rápida de caja vacía/);
-    assert.doesNotMatch(checkoutSource, /Depósito de caja vacía/);
-    assert.match(
-      saleSource,
-      /setQuickPaymentMethod\(draft\.depositPaid \? defaultSalePaymentSelection\(\) : "pending"\)/,
-    );
-    assert.match(saleSource, /setQuickPayNowDraft\(draft\.payNowAmount\)/);
-    assert.match(saleSource, /minimumDeposit=\{logisticsFees\.minimumDeposit\}/);
-    assert.doesNotMatch(
-      checkoutSource,
-      /onPaymentMethodChange\(defaultSalePaymentSelection\(\)\)/,
-    );
-    assert.match(
-      saleSource,
-      /computeInvoiceBilling\(\{[\s\S]{0,500}boxCount: quickSaleDraft\.boxCount/,
-    );
+  it("preserves the quick-sale context when returning from final to box", () => {
+    assert.match(saleSource, /setQuickSaleDraft\(draft\)/);
+    assert.match(saleSource, /setQuickSaleSender\(draft\.sender\)/);
+    assert.match(saleSource, /setQuickSaleCountry\(draft\.country\)/);
   });
 
-  it("asks whether to hand over now or schedule a route", () => {
-    assert.match(modalSource, /¿Cómo se entrega la caja vacía\?/);
-    assert.match(modalSource, /Entregar ahora/);
-    assert.match(modalSource, /Programar ruta/);
-    assert.match(modalSource, /onRequestRoute/);
-    assert.doesNotMatch(modalSource, /Recoge en oficina/);
-  });
-
-  it("loads boxes from the configured catalog instead of requiring USA", () => {
-    assert.match(saleSource, /listQuickSaleCountries\(countryBoxes\)/);
-    assert.match(
-      saleSource,
-      /resolveQuickSaleBoxCatalog\(countryBoxes, quickSaleCountry\)/,
-    );
-    assert.match(saleSource, /SaleQuickCountryPicker/);
-    assert.match(saleSource, /startQuickEmptyBox/);
-    assert.match(
-      saleSource,
-      /createShipmentAction\(\{[\s\S]{0,500}country: quickSaleDraft\.country/,
-    );
-    assert.match(
-      saleSource,
-      /const typedClientAddress = formatValidatedAddress\([\s\S]{0,300}country: "USA"/,
-    );
-    assert.match(saleSource, /quickSaleDraft\.country, quickSaleDraft\.box/);
-    assert.doesNotMatch(saleSource, /resolveCountryBoxes\(countryBoxes, "USA"\)/);
-    assert.match(catalogSource, /export function listQuickSaleCountries/);
-    assert.match(modalSource, /No hay cajas con precio/);
+  it("cancels back to the complete flow without losing the sender", () => {
+    assert.match(saleSource, /function cancelQuickSale/);
+    assert.match(saleSource, /setQuickSaleSender\(null\)/);
+    assert.match(saleSource, /setQuickSaleCountry\(null\)/);
+    assert.match(saleSource, /setActiveStep\(sender \? "recipient" : "client"\)/);
+    assert.match(saleSource, /setSelectedRecipient\(null\)/);
+    assert.match(saleSource, /setSelectedBoxLines\(\[\]\)/);
   });
 });

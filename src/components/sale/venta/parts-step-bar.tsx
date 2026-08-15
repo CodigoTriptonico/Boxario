@@ -1,5 +1,6 @@
 import { Check } from "lucide-react";
 import { Fragment } from "react";
+import { useState } from "react";
 import { flowStepBarPaddingClass, flowStepBarShellClass } from "@/components/flow-form-styles";
 import type { SaleLogisticsDetailRow, SaleStep } from "@/components/sale/venta/parts-types";
 import { Flag } from "@/components/sale/venta/parts-person";
@@ -11,6 +12,10 @@ export const saleSteps: { id: SaleStep; label: string; compactLabel: string; }[]
   { id: "delivery", label: "Logística", compactLabel: "Logística" },
   { id: "finish", label: "Final", compactLabel: "Final" },
 ];
+
+export const quickSaleSteps = saleSteps.filter(
+  (step) => step.id === "client" || step.id === "box" || step.id === "finish",
+);
 
 export function saleStepCompactLabel(stepId: SaleStep) {
   return saleSteps.find((step) => step.id === stepId)?.compactLabel ?? stepId;
@@ -59,9 +64,15 @@ function saleStepBarBadgeClass(item: SaleStepBarItem) {
   return "border-black bg-surface-card text-slate-500";
 }
 
-function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boolean; }) {
+function saleStepTileInner(
+  step: SaleStepBarItem,
+  options?: { hideDetail?: boolean; expanded?: boolean; onToggleDetail?: () => void; },
+) {
   const hasVisibleDetail = Boolean(
-    (step.detail || step.detailRows?.length) && (step.isActive || step.isDone),
+    (step.detail || step.detailRows?.length) &&
+      (step.id === "box"
+        ? options?.expanded
+        : step.isActive || step.isDone),
   );
 
   return (
@@ -92,14 +103,40 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
         </span>
       </div>
       <span
-        className={`max-sm:hidden hidden min-h-[1rem] w-full min-w-0 max-w-full items-center justify-center sm:min-h-[1.25rem] lg:flex ${step.isActive ? "text-emerald-100" : "text-slate-400"
+        className={`max-sm:hidden hidden min-h-[1rem] w-full min-w-0 max-w-full items-center justify-center sm:min-h-[1.25rem] lg:flex ${step.id === "box" ? "order-2" : ""} ${step.isActive ? "text-emerald-100" : "text-slate-400"
           }`}
       >
         <span
-          className={`w-full min-w-0 max-w-full break-words text-center leading-snug sm:truncate ${step.id === "box"
+          className={`inline-flex min-w-0 max-w-full break-words text-center leading-snug sm:truncate ${step.id === "box" && step.detail
+              ? "cursor-pointer rounded px-1 hover:bg-white/10"
+              : ""
+            } ${step.id === "box"
               ? "text-[11px] font-black sm:text-xs"
               : "text-[11px] font-black sm:text-[11px] lg:text-xs"
             }`}
+          role={step.id === "box" && step.detail ? "button" : undefined}
+          tabIndex={step.id === "box" && step.detail ? 0 : undefined}
+          aria-expanded={step.id === "box" && step.detail ? options?.expanded : undefined}
+          onClick={
+            step.id === "box" && step.detail
+              ? (event) => {
+                event.preventDefault();
+                event.stopPropagation();
+                options?.onToggleDetail?.();
+              }
+              : undefined
+          }
+          onKeyDown={
+            step.id === "box" && step.detail
+              ? (event) => {
+                if (event.key === "Enter" || event.key === " ") {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  options?.onToggleDetail?.();
+                }
+              }
+              : undefined
+          }
         >
           {step.value}
         </span>
@@ -110,6 +147,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
               ? "text-emerald-100"
               : "text-slate-400"
             : "invisible"
+          } ${step.id === "box" ? "order-1" : ""
           }`}
         aria-hidden={!step.country && !step.subtitle}
       >
@@ -119,8 +157,15 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
           </span>
         ) : null}
         <span className="min-w-0 max-w-full break-words text-center text-[11px] font-black leading-snug sm:truncate sm:text-[11px] lg:text-xs">
-          {step.country || step.subtitle || "\u00a0"}
+          {step.country
+            ? step.id === "box"
+              ? `Precios: ${step.country}`
+              : step.country
+            : step.subtitle || "\u00a0"}
         </span>
+        {step.country && step.subtitle ? (
+          <span className="shrink-0 text-[10px] font-bold text-current/80">· {step.subtitle}</span>
+        ) : null}
       </span>
       {options?.hideDetail ? null : (
         <span
@@ -133,6 +178,7 @@ function saleStepTileInner(step: SaleStepBarItem, options?: { hideDetail?: boole
                   ? "text-[11px] font-black tracking-tight text-emerald-100"
                   : "text-[11px] font-black tracking-tight text-slate-200"
               : "invisible"
+            } ${step.id === "box" ? "order-3" : ""
             }`}
           aria-hidden={!hasVisibleDetail}
         >
@@ -189,6 +235,7 @@ export function SaleStepBar({
   trailingSlot?: React.ReactNode;
   stepPopovers?: Partial<Record<SaleStep, SaleStepPopoverSlot>>;
 }) {
+  const [expandedStepId, setExpandedStepId] = useState<SaleStep | null>(null);
   const hasOpenStepPopover = steps.some(
     (step) => step.isActive && stepPopovers?.[step.id]?.open,
   );
@@ -208,7 +255,7 @@ export function SaleStepBar({
                 : "overflow-x-hidden lg:snap-x lg:snap-mandatory lg:overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
               }`}
           >
-            <ol className="grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0">
+            <ol className={`grid w-full ${steps.length === 3 ? "grid-cols-3" : "grid-cols-5"} items-start gap-0 lg:flex lg:min-w-0`}>
               {steps.map((step, index) => {
                 const connectorDone =
                   index > 0 && (steps[index - 1]?.isDone || steps[index - 1]?.isActive);
@@ -246,7 +293,11 @@ export function SaleStepBar({
                             aria-current="step"
                             className="w-full px-0 py-0 text-center sm:px-2 sm:py-2"
                           >
-                            {saleStepTileInner(step, { hideDetail: true })}
+                            {saleStepTileInner(step, {
+                              hideDetail: true,
+                              expanded: expandedStepId === step.id,
+                              onToggleDetail: () => setExpandedStepId((current) => current === step.id ? null : step.id),
+                            })}
                           </button>
                           <div className="hidden border-t border-black/45 bg-black/15 px-1.5 pb-1.5 pt-1 sm:px-2 sm:pb-2 sm:pt-1.5 lg:block">
                             {stepPopovers[step.id]?.trigger}
@@ -263,7 +314,10 @@ export function SaleStepBar({
                             step,
                           )}`}
                         >
-                          {saleStepTileInner(step)}
+                          {saleStepTileInner(step, {
+                            expanded: expandedStepId === step.id,
+                            onToggleDetail: () => setExpandedStepId((current) => current === step.id ? null : step.id),
+                          })}
                         </button>
                       )}
 

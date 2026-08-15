@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { listActivityHistoryAction } from "@/app/actions/history";
-import { loadSaleCountryBoxesAction } from "@/app/actions/pricing";
+import { loadSaleCountryBoxesAction, releaseInvoiceNumberAction, reserveInvoiceNumberAction } from "@/app/actions/pricing";
 import {
   normalizePhoneList,
   personFullName,
   recipientIdentityKey,
   saleSteps,
+  quickSaleSteps,
   samePersonName,
   senderHasPhone,
   type ContextMenuState,
@@ -15,6 +16,7 @@ import {
 } from "@/components/sale/venta-parts";
 import { saleContextTargetData } from "@/lib/sale-context-target";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { createInvoiceReservationToken } from "@/lib/invoice-reservation";
 import { resolveCountryBoxes } from "@/components/sale/venta/shared";
 import type { VentaCore } from "@/components/sale/venta/use-venta-core";
 import type { VentaFoundation } from "@/components/sale/venta/use-venta-foundation";
@@ -31,14 +33,26 @@ export function useVentaData(context: VentaDataContext) {
   const {
     setBoxCartOpen,
     activeStep,
+    createdInvoice,
     setActiveStep,
     logisticsPlanReady,
     scrollToStep,
+    selectedBoxCount,
+    invoiceReservationToken,
+    invoiceReservationLoading,
+    setInvoiceReservation,
+    setInvoiceReservationLoading,
+    setInvoiceReservationToken,
+    setStockMessage,
+    notify,
     quickSaleDraft,
+    quickSaleCountry,
+    quickSaleSender,
     setQuickPayNowDraft,
     setQuickPayNowDraftTouched,
     logisticsFees,
     selectedBox,
+    selectedBoxLines,
     selectedRecipient,
     selectedSender,
     setHistoryLoading,
@@ -77,13 +91,66 @@ export function useVentaData(context: VentaDataContext) {
     }
   }
 
-  function continueFromLogistics() {
+  async function continueFromLogistics() {
     if (!logisticsPlanReady) {
       return;
     }
 
+    if (createdInvoice) {
+      setActiveStep("finish");
+      scrollToStep("finish");
+      return;
+    }
+
+    if (invoiceReservationLoading) {
+      return;
+    }
+
+    if (isSupabaseConfigured() && selectedRecipient) {
+      setInvoiceReservationLoading(true);
+      const reservationToken = invoiceReservationToken || createInvoiceReservationToken();
+
+      try {
+        const result = await reserveInvoiceNumberAction({
+          reservationToken,
+          country: selectedRecipient.country,
+          city: selectedRecipient.city,
+          boxCount: selectedBoxCount,
+        });
+
+        if (!result.ok) {
+          setStockMessage(result.error);
+          notify.error(result.error);
+          return;
+        }
+
+        setInvoiceReservationToken(reservationToken);
+        setInvoiceReservation(result.data);
+        setStockMessage("");
+      } finally {
+        setInvoiceReservationLoading(false);
+      }
+    }
+
     setActiveStep("finish");
     scrollToStep("finish");
+  }
+
+  async function releaseInvoiceReservation() {
+    if (!invoiceReservationToken || createdInvoice) {
+      setInvoiceReservation(null);
+      if (!createdInvoice) {
+        setInvoiceReservationToken("");
+      }
+      return;
+    }
+
+    if (isSupabaseConfigured()) {
+      await releaseInvoiceNumberAction({ reservationToken: invoiceReservationToken });
+    }
+
+    setInvoiceReservation(null);
+    setInvoiceReservationToken("");
   }
 
   useEffect(() => {
@@ -104,16 +171,33 @@ export function useVentaData(context: VentaDataContext) {
     setQuickPayNowDraftTouched,
   ]);
 
-  const completedStep: SaleStep = logisticsPlanReady
-    ? "finish"
-    : selectedBox
-      ? "delivery"
-      : selectedRecipient
+  const quickSaleActive = Boolean(quickSaleSender && quickSaleCountry) || Boolean(quickSaleDraft);
+  const visibleSaleSteps = quickSaleActive ? quickSaleSteps : saleSteps;
+  const quickSaleBoxSelectionChanged = Boolean(
+    quickSaleDraft && (
+      quickSaleDraft.boxLines.length !== selectedBoxLines.length ||
+      quickSaleDraft.boxLines.some((draftLine) => {
+        const currentLine = selectedBoxLines.find((line) => line.id === draftLine.id);
+        return !currentLine || currentLine.quantity !== draftLine.quantity;
+      })
+    ),
+  );
+  const completedStep: SaleStep = quickSaleActive
+    ? quickSaleDraft && !quickSaleBoxSelectionChanged
+      ? "finish"
+      : selectedSender
         ? "box"
-        : selectedSender
-          ? "recipient"
-          : "client";
-  const completedStepIndex = saleSteps.findIndex((step) => step.id === completedStep);
+        : "client"
+    : logisticsPlanReady
+      ? "finish"
+      : selectedBox
+        ? "delivery"
+        : selectedRecipient
+          ? "box"
+          : selectedSender
+            ? "recipient"
+            : "client";
+  const completedStepIndex = visibleSaleSteps.findIndex((step) => step.id === completedStep);
   const maxUnlockedStepIndex = completedStepIndex;
 
   const reloadHistory = useCallback(async () => {
@@ -172,7 +256,7 @@ export function useVentaData(context: VentaDataContext) {
   }, [mode, reloadCountryBoxes]);
 
   function canOpenStep(step: SaleStep) {
-    return saleSteps.findIndex((currentStep) => currentStep.id === step) <= maxUnlockedStepIndex;
+    return visibleSaleSteps.findIndex((currentStep) => currentStep.id === step) <= maxUnlockedStepIndex;
   }
 
   function openStep(step: SaleStep) {
@@ -460,10 +544,12 @@ export function useVentaData(context: VentaDataContext) {
 
   const boxesForCountry = useMemo(
     () =>
-      selectedRecipient
-        ? resolveCountryBoxes(countryBoxes, selectedRecipient.country)
-        : [],
-    [countryBoxes, selectedRecipient],
+      quickSaleCountry
+        ? resolveCountryBoxes(countryBoxes, quickSaleCountry)
+        : selectedRecipient
+          ? resolveCountryBoxes(countryBoxes, selectedRecipient.country)
+          : [],
+    [countryBoxes, quickSaleCountry, selectedRecipient],
   );
   const suggestedRecipientId = useMemo(() => {
     if (!selectedSender?.id) {
@@ -546,6 +632,7 @@ export function useVentaData(context: VentaDataContext) {
   return {
     continueFromCart,
     continueFromLogistics,
+    releaseInvoiceReservation,
     completedStepIndex,
     maxUnlockedStepIndex,
     reloadHistory,
@@ -567,6 +654,8 @@ export function useVentaData(context: VentaDataContext) {
     setRecipientSortMode,
     recipientSearchOptions,
     boxesForCountry,
+    quickSaleActive,
+    quickSaleBoxSelectionChanged,
     suggestedRecipientId,
     sortedFilteredRecipients,
     copyGroups,

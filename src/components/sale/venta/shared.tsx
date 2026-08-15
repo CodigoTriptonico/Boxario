@@ -82,6 +82,7 @@ type CreatedInvoiceSnapshot = {
   }>;
   serviceOperation: "deliver_empty_box";
   billing: InvoiceBillingSnapshot;
+  emptyBoxDeliveredAt?: string | null;
 };
 
 type SaleDriverLeg = "emptyBox" | "fullBox" | "quickEmptyBox";
@@ -276,7 +277,7 @@ function SaleFinishDocToolbar({
     }`;
 
   return (
-    <div className="no-print sticky top-0 z-10 mx-auto flex w-full max-w-[210mm] items-center gap-2 rounded-lg border border-black/80 bg-surface-inset/95 px-1.5 py-1.5 shadow-sm backdrop-blur-md">
+    <div className="no-print mx-auto flex w-full max-w-[210mm] items-center gap-2 rounded-lg border border-black/80 bg-surface-inset px-1.5 py-1.5 shadow-sm">
       <div
         className="flex min-w-0 flex-1 items-center gap-0.5"
         role="tablist"

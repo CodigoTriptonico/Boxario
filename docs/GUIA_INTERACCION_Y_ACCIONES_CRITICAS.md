@@ -1,5 +1,223 @@
 # Guía de interacción y acciones críticas — Boxario
 
+### 2026-08-15 — Confirmación dentro de la página para descartar subrutas
+
+**No repetir:** usar `window.confirm` del navegador para cerrar, cambiar o reemplazar una subruta con cambios sin guardar.
+
+**Motivo:** el aviso del navegador oculta el contexto de Boxario y no explica qué se perderá.
+
+**Preferir:** mostrar una confirmación modal dentro de la página con el título `Cambios sin guardar`, enumerar los campos modificados y ofrecer `Seguir editando` junto a `Descartar cambios`. Escape y el clic fuera deben conservar el borrador.
+
+**Resultado:** la persona entiende el riesgo y puede decidir sin salir del contexto de la subruta ni descartar cambios por accidente.
+
+### 2026-08-15 — Guardar conserva abierta la subruta
+
+**Contexto:** guardar una subruta limpiaba el borrador y cerraba el grupo, obligando a abrirlo de nuevo para continuar.
+
+**Decisión:** después de una respuesta exitosa, conservar el grupo expandido y el borrador con su nuevo identificador, actualizar la línea base como limpia y mantener la pestaña actual. Solo `Cancelar` o `Cerrar` contraen la subruta.
+
+**Resultado:** el guardado no cambia el contexto ni provoca una nueva edición accidental; los cambios posteriores vuelven a marcarse como pendientes normalmente.
+
+### 2026-08-15 — Centrar el mapa en la ubicación actual
+
+**Contexto:** la vista editable de cobertura no mostraba el control para llevar el mapa a la posición actual del operador.
+
+**Decisión:** mostrar `Mi ubicación` junto a `Seleccionar área`. Al pulsarlo, solicitar la geolocalización del navegador, centrar el mapa y mostrar un error recuperable si el permiso o la lectura fallan. No modifica la cobertura ni el borrador.
+
+**Resultado:** el operador puede regresar rápidamente a su posición sin alterar zonas seleccionadas.
+
+### 2026-08-15 — Sincronización inmediata entre mapa y listado de cobertura
+
+**Contexto:** `Mapa` y `Listado` estaban separados como pestañas, por lo que la selección geográfica no podía verse al mismo tiempo en la lista.
+
+**Decisión:** mostrar ambas superficies juntas y conectarlas al mismo borrador. Cada clic o selección por área en el mapa agrega o quita lugares del borrador y el listado se actualiza inmediatamente; editar o quitar desde el listado actualiza el mapa. Solo `Guardar` persiste el conjunto completo.
+
+**Resultado:** el operador puede seleccionar en el mapa y verificar el resultado en la lista sin cambiar de pestaña, manteniendo la operación reversible antes del guardado.
+
+### 2026-08-15 — Edición de cobertura desde el mapa de la subruta
+
+**Contexto:** el mapa de `Ruta Norte` quedó conectado solo como consulta y dejó de permitir seleccionar zonas como en el flujo anterior.
+
+**Decisión:** en la pestaña `Mapa`, hacer clic en una pieza o seleccionar un área crea una vista previa local. `Agregar zona` confirma esa vista previa al borrador; hacer clic en una zona ya activa la quita del borrador. `Cancelar` descarta la vista previa y `Guardar` persiste el conjunto completo de la subruta.
+
+**Resultado:** cambiar entre `Listado` y `Mapa` conserva el mismo borrador, la selección geográfica vuelve a ser reversible y ninguna interacción del mapa modifica una ruta operativa antes del guardado.
+
+### 2026-08-15 — Ocultar límites de capacidad en horarios de subruta
+
+**Contexto:** la edición de horarios de una subruta mostraba controles para máximas paradas y máximas cajas, aunque esta pantalla ya no debe ofrecer esa configuración.
+
+**Decisión:** quitar ambos controles del borrador visual. Al guardar otros cambios, conservar los valores de capacidad que ya estén persistidos y no enviar un borrado implícito. Las validaciones operativas del servidor y las pantallas que todavía administran capacidad permanecen sin cambios.
+
+**Resultado:** eliminar la opción es reversible desde la interfaz y no modifica reservas, rutas operativas ni límites existentes por accidente.
+
+### 2026-08-15 — Cobertura de subruta con listado y mapa
+
+**Contexto:** la edición de una subruta mezclaba la identidad con una pestaña `Datos` y dejaba la cobertura en una sola vista de lista.
+
+**Decisión:** pulsar la cabecera abre la subruta con las pestañas `Horarios` y `Cobertura`. La pestaña `Cobertura` ofrece `Listado` y `Mapa`; cambiar entre ellas solo cambia la vista y conserva el mismo borrador local. Agregar, desglosar o quitar lugares continúa ocurriendo sobre el borrador del listado y solo `Guardar` persiste los cambios.
+
+**Resultado:** consultar el mapa no cambia la cobertura ni la ruta operativa, y cerrar o cancelar conserva la advertencia y el descarte recuperable de cambios sin guardar.
+
+### 2026-08-14 — Edición de cobertura de una subruta
+
+**Contexto:** La cobertura de Ruta Norte se podía consultar, pero no modificar desde el botón `Cobertura`.
+
+**Decisión:** Pulsar `Cobertura` abre la pestaña `Cobertura` del editor de esa subruta. Buscar y seleccionar una ciudad o zona actualiza el borrador local; quitar una ciudad completa exige la confirmación existente y desmarcar una zona hija actualiza ese borrador. Solo `Guardar` persiste el conjunto completo de lugares y cambia `coverageMode` según haya o no coberturas seleccionadas. Cancelar o cerrar con cambios descarta el borrador después de advertirlo.
+
+**Resultado:** Agregar, desglosar y quitar zonas es reversible hasta guardar, no modifica rutas operativas ya creadas y conserva la escritura mediante la acción autorizada de la subruta.
+
+### 2026-08-14 — Consulta de cobertura desde la configuración
+
+**Contexto:** La configuración de Logística abre el mapa de una ruta sin tener una dirección de cliente seleccionada.
+
+**Decisión:** Ese acceso conserva una consulta reversible de la cobertura configurada, sin botón `Ir a dirección del cliente` ni mensajes de ubicación de cliente. El comparador de direcciones mantiene esas acciones únicamente cuando recibe una ubicación de cliente.
+
+**Resultado:** La configuración permite revisar la cobertura de la ruta sin sugerir que falta seleccionar o geocodificar un cliente.
+
+### 2026-08-14 — Días accionables con el selector cerrado
+
+**Contexto:** La fila de días quedó inicialmente dentro del desplegable y no era visible al abrir el comparador.
+
+**Decisión:** Los siete días permanecen fuera del desplegable y pueden seleccionarse directamente cuando están activos. Pulsarlos cambia la vista de cobertura del mapa; abrir el selector de rutas queda reservado para elegir una ruta concreta.
+
+**Resultado:** La acción principal de cambiar de día no depende de abrir otro control y los días inactivos siguen sin aceptar clic.
+
+### 2026-08-14 — Consulta de cobertura por día activo
+
+**Contexto:** El comparador debía reflejar que Logística opera con una configuración semanal de lunes a domingo.
+
+**Decisión:** Cada día activo del catálogo puede seleccionarse para mostrar sus coberturas en el mapa y filtrar sus rutas. Los días inactivos se muestran en gris, no aceptan clic y no alteran la vista. `Todas las rutas` continúa siendo una vista de consulta global; ninguna de estas selecciones cambia la ruta operativa del formulario.
+
+**Resultado:** Cambiar de día o de ruta sigue siendo una consulta reversible, con separación clara entre la vista del mapa y la asignación operativa.
+
+### 2026-08-14 — Desactivar recolección incluida sin borrar configuración
+
+**Contexto:** Desactivar el beneficio no debe obligar a volver a capturar los días y el cargo si se reactiva después.
+
+**Decisión:** El checkbox cambia un borrador local y el botón global `Guardar cambios` persiste la decisión junto con el resto de Cobros. Mientras está apagado, los días quedan bloqueados; guardar conserva sus valores. Si guardar falla, el estado y los valores permanecen en pantalla para reintentar.
+
+**Resultado:** La activación es reversible, no borra datos y usa el mismo guardado recuperable de la pantalla.
+
+### 2026-08-14 - Paso 4 confirma la creación del invoice (decisión revertida)
+
+**Contexto:** El paso de logística llevaba a `Final` con un botón `Siguiente`, aunque la acción real pendiente era crear el invoice. Eso ocultaba el momento en que se consumía el consecutivo.
+
+**Decisión inicial:** Mientras no exista un invoice creado, el botón del paso 4 decía `Crear invoice` y abría la confirmación existente. Esta decisión fue revertida porque saltaba la edición del abono en `Final`.
+
+**Resultado:** La etiqueta refleja la acción real, la confirmación es explícita y se evita el doble envío o la doble numeración.
+
+### 2026-08-14 - Corrección: el abono se edita en Final antes de confirmar
+
+**Contexto:** Mover `Crear invoice` al paso 4 impedía pasar por el editor de abono disponible en el paso 5.
+
+**Decisión:** Se revierte esa parte: el paso 4 conserva `Siguiente` y lleva a `Final`; el paso 5 sigue siendo el lugar donde se edita el abono y se abre la confirmación para crear el invoice.
+
+**Resultado:** La navegación permite ajustar el valor del abono antes de guardar y la confirmación conserva todos los datos revisados.
+
+### 2026-08-14 - Reserva liberable durante la revisión del invoice
+
+**Decisión:** Al entrar a `Final`, el invoice visible queda reservado temporalmente para evitar duplicados entre vendedores. Volver atrás, cancelar, abandonar la venta o recibir un error antes de guardar libera la reserva; guardar el shipment la confirma dentro de la misma transacción. La reserva expirada puede ser tomada por otra venta.
+
+**Resultado:** La revisión del abono no consume definitivamente numeración y tampoco permite que dos ventas activas compartan la misma referencia.
+
+### 2026-08-14 - Selección de ruta separada de la consulta de cobertura
+
+**Decisión:** cuando el formulario ya ofrece un selector de ruta, ese control es la única acción que cambia la ruta operativa. El modal de cobertura recibe la ruta seleccionada, muestra solo su cobertura y no ofrece una segunda selección. `Confirmar pin exacto` continúa guardando únicamente la ubicación del cliente.
+
+**Resultado:** cambiar la ruta y confirmar el pin dejan de parecer una misma operación; la asignación permanece visible y controlada desde el formulario.
+
+### 2026-08-14 - Pin fijo durante la definición de ruta
+
+**Decisión:** en el paso donde se define la ruta, el mapa conserva la ubicación del cliente como referencia no editable. La edición y confirmación de esa ubicación solo están disponibles en el paso de remitente o destinatario correspondiente.
+
+**Resultado:** el paso de ruta no presenta acciones ni mensajes de pin; solo permite consultar la cobertura y reencuadrar la ruta seleccionada.
+
+### 2026-08-14 - Selector de vista para comparar rutas
+
+**Decisión:** el modal de cobertura puede abrir un desplegable y cambiar entre rutas o `Todas las rutas` únicamente para reencuadrar el mapa. Esa selección no modifica `routeTemplateId` ni la ruta operativa del formulario; la asignación continúa en el selector exterior.
+
+**Resultado:** comparar una ruta alternativa es reversible y no produce un cambio de datos accidental.
+
+### 2026-08-14 - Clic de cobertura sincroniza la vista de ruta
+
+**Decisión:** cuando el mapa muestra `Todas las rutas`, hacer clic sobre una cobertura identifica la ruta que contiene esa zona, la muestra como vista activa en el desplegable y reencuadra el mapa. El clic es de consulta y no habilita edición de zonas ni modifica la ruta operativa.
+
+**Resultado:** el operador puede pasar del mapa al nombre de la ruta sin perder el contexto ni confundir la vista con una asignación.
+
+### 2026-08-14 - Separación entre verificación del cliente y notas operativas
+
+**Contexto:** el mapa abierto desde `Cliente verifica mapa` se muestra al cliente, mientras `Ver rutas y coberturas` es una consulta interna del vendedor.
+
+**Decisión:** la ventana del cliente solo permite revisar la dirección, mover el pin y confirmar la ubicación. `Referencias` y `Nota para el conductor` se editan en pestañas del comparador interno de rutas y coberturas. Sus cambios continúan formando parte del estado del formulario y se guardan con la operación correspondiente.
+
+**Resultado:** el cliente no ve ni modifica instrucciones operativas, y el vendedor conserva un lugar único para completar la información que necesita la ruta.
+
+### 2026-08-14 - Acción explícita para abrir el mapa desde una tarjeta
+
+**Contexto:** la tarjeta de una persona también selecciona el contacto para continuar la venta.
+
+**Decisión:** tocar el nombre, teléfono o texto de dirección conserva la selección de la persona. Solo el botón compacto del icono de ubicación abre el mapa y detiene la propagación hacia la tarjeta; `Rápido` mantiene su propio botón bajo el icono de la persona.
+
+**Resultado:** abrir el mapa deja de competir con la acción principal de continuar la venta y se conserva un objetivo táctil claro para cada acción.
+
+### 2026-08-14 - Carga estable del listado de envíos
+
+**Contexto:** Seguimiento recibe un bootstrap del servidor y hace una lectura fresca al montar la pantalla. Cuando el bootstrap estaba vacío, el estado `Sin envíos` se pintaba antes de iniciar esa lectura y parpadeaba entre el vacío y el cargador.
+
+**Decisión:** El listado conserva el bootstrap visible mientras se valida en segundo plano. Si no hay filas iniciales, mantiene el estado de carga hasta resolver la lectura fresca; solo después muestra `Sin envíos` o los resultados. La lectura fresca al montar se conserva para reflejar inmediatamente una venta recién creada.
+
+**Resultado:** La pantalla no alterna entre estados contradictorios durante la carga y sigue mostrando envíos nuevos sin recarga manual.
+
+### 2026-08-14 - Numeración de invoice exige identidad comercial completa
+
+**Decisión:** Antes de reservar un correlativo, Venta valida en el servidor que el usuario tenga código de vendedor y que su empresa matriz tenga código empresarial. Si falta cualquiera, la venta no avanza ni muestra éxito; conserva el formulario y comunica cuál configuración debe corregirse. La asignación del correlativo continúa siendo atómica y bloquea dobles envíos.
+
+**Resultado:** Ningún invoice nuevo se guarda con una referencia incompleta o inventada y un problema de configuración se puede corregir sin perder la venta en curso.
+
+### 2026-08-13 - Venta rápida: regreso de Final a Caja
+
+**Decisión:** abrir el invoice no limpia el remitente, el país ni el carrito de la venta rápida. Si el usuario regresa de `Final` a `Caja`, debe encontrar el mismo catálogo del país, las cantidades seleccionadas y la posibilidad de modificar la compra antes de confirmar.
+
+**Resultado:** la navegación entre los pasos es reversible y no muestra falsamente un inventario vacío por haber perdido el país activo.
+
+### 2026-08-13 - Venta rápida: no duplicar factura ni QR
+
+**Decisión:** el checkout reutiliza las dos pestañas del Final normal: `Factura` y `Etiquetas`. Se eliminan el encabezado informativo, la tarjeta repetida del remitente y el panel QR lateral; el QR de `SaleInvoicePaper` permanece dentro de la pestaña `Factura` y cada etiqueta conserva su QR de caja.
+
+**Resultado:** el usuario revisa y paga sobre el mismo documento que se imprimirá o consultará, sin separar la identificación del invoice de su código de rastreo.
+
+### 2026-08-13 - Venta rápida: scroll único para documentos
+
+**Decisión:** el checkout embebido no crea un segundo contenedor desplazable. El paso `Final` conserva un único scroll para que la barra de pestañas permanezca alineada con el documento visible.
+
+**Resultado:** al desplazarse, `Factura`, `Etiquetas` y su contenido se mueven en la misma superficie y no se separan visualmente.
+
+### 2026-08-13 - Venta rápida: cancelar separado de la navegación
+
+**Decisión:** mientras la venta rápida no esté confirmada, la navegación contextual del encabezado de Boxario funciona como salida para cancelar y volver al flujo completo. No se agrega un botón adicional dentro de Caja, del catálogo ni de la barra de pasos.
+
+**Resultado:** la acción permanece disponible sin ocupar espacio de la navegación ni interferir con la lectura del paso activo.
+
+### 2026-08-13 - Venta rápida: transición Caja → invoice
+
+**Decisión:** La venta rápida conserva la selección de la caja y avanza al invoice completo mediante una acción fija y explícita al pie: `Ver invoice completo`. Durante la asignación del número de invoice, la acción muestra `Abriendo invoice...` y no acepta dobles envíos.
+
+**Resultado:** La transición del paso 3 al paso 5 es visible, reversible antes de confirmar y no depende de que el cliente encuentre el botón después de desplazar la lista.
+
+### 2026-08-13 - Venta rápida: el invoice pertenece al paso Final
+
+**Decisión:** Al completar la selección de Caja, el sistema activa `Final` y renderiza allí el invoice completo. El checkout no se presenta como un modal de pantalla completa; el diálogo queda reservado para confirmar el cobro antes de guardar.
+
+**Resultado:** Cerrar o cancelar antes de confirmar devuelve el flujo de venta rápida de forma reversible y mantiene visible la navegación de pasos.
+
+### 2026-08-13 - Venta rápida: salida reversible al flujo completo
+
+**Contexto:** La venta rápida tenía un segundo modal después del selector de país, aunque el flujo solo necesita remitente, caja y confirmación.
+
+**Decisión:** El selector de país es el único modal inicial. Al seleccionar un país, el sistema abre directamente el paso `Caja`; `Siguiente` abre el checkout final. Antes de confirmar, `Cancelar venta rápida` cierra el estado y checkout rápido, conserva el remitente y restablece los pasos de destinatario y logística. Cerrar el checkout rápido antes de confirmar tiene el mismo efecto reversible. Después de confirmar, `Nueva venta` inicia una venta limpia.
+
+**Resultado:** No hay doble envío ni estado rápido colgado, y el usuario puede arrepentirse sin perder el remitente ni quedar atrapado en el flujo abreviado.
+
 ### 2026-08-13 - Propuesta manual de ruta fuera de cobertura
 
 **Contexto:** ninguna ruta configurada puede cubrir una dirección y, aun así, Ventas puede necesitar proponer una ruta operativamente posible.
@@ -976,3 +1194,39 @@ Cuando el usuario defina un comportamiento durable de confirmación, deshacer, r
 **Decisión:** `Abrir mapa` debe ejecutarse desde el gesto del usuario y abrir una ventana emergente real. Si el navegador la bloquea, el formulario muestra una advertencia recuperable para permitir popups de Boxario. Cerrar la ventana nativa, `Cancelar` o la X descarta el borrador no confirmado. Hay un único pin rojo con arrastre directo; esta decisión reemplaza las indicaciones anteriores de ofrecer `Restablecer pin`. Solo `Usar esta entrada` confirma las coordenadas y la nota.
 
 **Resultado:** la ventana puede moverse a otro monitor, no queda abandonada al cerrar o desmontar el formulario y el cliente corrige la entrada mediante una sola interacción inequívoca.
+### 2026-08-14 - Ubicar direccion desde una tarjeta
+
+**Contexto:** abrir una direccion debe permitir corregir el pin, pero no guardar cambios por accidente al explorar el mapa.
+
+**Decision:** el clic en la direccion abre la ventana emergente compartida. Geolocalizar, arrastrar el pin, cambiar vista o consultar Street View son borradores; solo `Confirmar ubicacion` persiste. El boton bloquea doble envio y, si falla el guardado, la ventana permanece abierta con el error.
+
+**Resultado:** remitentes y destinatarios tienen una correccion exacta recuperable sin perder el punto previamente guardado.
+### 2026-08-14 - Cambio de ruta reencuadra el mapa
+
+**Contexto:** una ruta fuera de cobertura podia quedar seleccionada en la barra sin que el mapa mostrara su zona.
+
+**Decision:** cada clic de ruta genera una solicitud explicita de reencuadre. Si la ruta no tiene contorno disponible pero si un centro, se usa ese centro como respaldo; el foco del cliente se conserva para el boton `Ir a direccion del cliente`.
+
+**Resultado:** Ruta norte, Ruta sur y `Todas las rutas` tienen una respuesta visual consistente al cambiar de vista.
+### 2026-08-14 - Confirmacion del pin de cobertura
+
+**Contexto:** arrastrar un pin cambia una coordenada operativa y debe poder recuperarse si el usuario se equivoca.
+
+**Decision:** arrastrar solo modifica el borrador local. `Confirmar pin exacto` o `Guardar ubicacion exacta` es la unica accion que persiste; el boton bloquea doble envio, muestra carga y conserva el borrador si falla. El guardado genera una entrada en la bitacora con antes/despues y actor.
+
+**Resultado:** cerrar el mapa sin confirmar no cambia la direccion exacta; los cambios confirmados quedan auditables para Ventas y Logistica.
+
+### 2026-08-14 - Consulta interna de rutas desde la dirección
+
+**Contexto:** el vendedor necesita consultar las rutas de recolección antes de informar al cliente, incluso mientras captura una dirección nueva.
+
+**Decisión:** `Ver rutas y coberturas` muestra carga y errores recuperables, bloquea el doble envío y consulta la dirección vigente. Cambiar de ruta solo cambia la vista del mapa. Mover el pin dentro del comparador conserva un borrador local; únicamente `Confirmar pin exacto` o `Guardar ubicación exacta` persiste la coordenada.
+
+**Resultado:** una consulta fallida no borra los datos del formulario ni bloquea el alta, y cerrar el comparador sin confirmar deja intacta la entrada exacta guardada.
+### 2026-08-14 — Edición parcial de importes monetarios
+
+**Contexto:** Al cambiar un importe como `$20`, borrar el primer dígito dejaba temporalmente `0`. La normalización inmediata lo convertía en `$0` y la interfaz ocultaba el cero, impidiendo escribir el nuevo valor.
+
+**Decisión:** Los campos monetarios conservan un borrador de texto independiente mientras el usuario escribe. La normalización a formato persistible ocurre en el estado de configuración y al guardar, pero no reemplaza el texto parcial visible durante cada tecla. Esto permite editar `20` como `30`, borrar el campo o introducir un valor desde cero sin perder el foco ni el cursor.
+
+**Resultado:** La edición de depósito y cargos monetarios admite borrado parcial y reemplazo directo; un valor vacío o cero continúa representando un importe desactivado únicamente al guardar.

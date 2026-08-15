@@ -1,16 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { Printer, X } from "lucide-react";
-import { InvoiceQrCode } from "@/components/sale/invoice-qr-code";
-import type { QuickEmptyBoxDraft } from "@/components/sale/sale-quick-empty-box-modal";
+import type { QuickEmptyBoxDraft } from "@/components/sale/sale-quick-box-types";
 import { PromotionSelector } from "@/components/sale/promotion-selector";
-import {
-  personFullName,
-  SaleInvoicePaper,
-  senderPhonesLabel,
-} from "@/components/sale/venta-parts";
+import { SaleBoxLabel, SaleInvoicePaper } from "@/components/sale/venta-parts";
+import { SaleFinishDocToolbar, salePrintTargetId } from "@/components/sale/venta/shared";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
+import { printableBoxInvoiceCodes } from "@/lib/invoice-child-codes";
 import type { OrganizationBranding } from "@/lib/organizations/branding";
 import { SaleAdditionalChargeEditor } from "@/components/sale/sale-additional-charge-editor";
 import { saleFinishActionLabel, type InvoiceBillingSnapshot } from "@/lib/invoice-billing";
@@ -26,9 +22,11 @@ import { useState } from "react";
 import type { PaymentMethodSettings } from "@/lib/payment-methods";
 
 type SaleQuickCheckoutModalProps = {
+  embedded?: boolean;
   branding?: OrganizationBranding | null;
   invoiceNumber: string;
   trackingToken?: string;
+  emptyBoxDeliveredAt?: string | null;
   draft: QuickEmptyBoxDraft;
   billing: InvoiceBillingSnapshot | null;
   billingForPayment: InvoiceBillingSnapshot | null;
@@ -45,7 +43,7 @@ type SaleQuickCheckoutModalProps = {
   completed?: boolean;
   stockMessage: string;
   onClose: () => void;
-  onPrint: () => void;
+  onShare: () => void;
   onConfirmCharge: () => boolean | Promise<boolean>;
   onStartNewSale: () => void;
   confirming?: boolean;
@@ -56,9 +54,11 @@ type SaleQuickCheckoutModalProps = {
 };
 
 export function SaleQuickCheckoutModal({
+  embedded = false,
   branding,
   invoiceNumber,
   trackingToken,
+  emptyBoxDeliveredAt,
   draft,
   billing,
   billingForPayment,
@@ -75,7 +75,7 @@ export function SaleQuickCheckoutModal({
   completed = false,
   stockMessage,
   onClose,
-  onPrint,
+  onShare,
   onConfirmCharge,
   onStartNewSale,
   confirming = false,
@@ -85,6 +85,13 @@ export function SaleQuickCheckoutModal({
   paymentSettings,
 }: SaleQuickCheckoutModalProps) {
   const [confirmOpen, setConfirmOpen] = useState(false);
+  const [finishDocTab, setFinishDocTab] = useState<"invoice" | "labels">("invoice");
+  const quickBoxes = draft.boxLines.flatMap((line) =>
+    Array.from({ length: Math.max(1, Math.floor(line.quantity) || 1) }, () => line.box),
+  );
+  const quickBoxInvoiceNumbers = invoiceNumber
+    ? printableBoxInvoiceCodes(invoiceNumber, quickBoxes.length)
+    : [];
 
   async function handleConfirmCharge() {
     const created = await onConfirmCharge();
@@ -94,72 +101,105 @@ export function SaleQuickCheckoutModal({
   }
 
   return (
-    <div className="app-modal-overlay no-print fixed inset-0 z-[130] flex justify-center bg-[#163A2A] p-3 sm:p-4">
-      <div className="app-modal-content w-full max-w-4xl rounded-xl border border-black bg-surface-panel p-4 shadow-2xl sm:p-5">
-        <div className="mb-5 flex items-start justify-between gap-4 border-b border-black pb-4">
-          <div className="min-w-0">
-            <p className="text-sm font-black uppercase text-slate-400">
-              {completed ? "Invoice creado" : saleFinishActionLabel(billingForPayment)}
-            </p>
-            <h3 className="text-3xl font-black">Invoice {invoiceNumber}</h3>
-            <p className="font-bold text-slate-400">Venta rápida de caja vacía</p>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-11 w-11 items-center justify-center rounded-lg border border-black"
+    <div
+      className={embedded
+        ? "flex min-h-0 w-full flex-1 flex-col"
+        : "app-modal-overlay no-print fixed inset-0 z-[130] flex justify-center bg-[#163A2A] p-3 sm:p-4"}
+    >
+      <div
+        className={embedded
+          ? "flex min-h-0 w-full flex-1 flex-col bg-surface-panel p-2 sm:p-4"
+          : "app-modal-content w-full max-w-7xl min-w-0 rounded-xl border border-black bg-surface-panel p-4 shadow-2xl sm:p-5"}
+        {...(embedded
+          ? {}
+          : {
+              role: "dialog",
+              "aria-modal": true,
+              "aria-label": "Checkout de factura",
+            })}
+      >
+        <div id="quick-sale-print-documents" className="grid w-full gap-3">
+          {!completed ? (
+            <div className="no-print flex justify-end">
+              <button
+                type="button"
+                onClick={onClose}
+                className="h-9 rounded-lg border border-black bg-surface-inset px-3 text-xs font-black text-slate-200 hover:bg-surface-card"
+              >
+                Cancelar venta rápida
+              </button>
+            </div>
+          ) : null}
+          <SaleFinishDocToolbar
+            value={finishDocTab}
+            onChange={setFinishDocTab}
+            labelCount={quickBoxInvoiceNumbers.length}
+            printTargetId={
+              finishDocTab === "invoice"
+                ? salePrintTargetId(invoiceNumber)
+                : quickBoxInvoiceNumbers.map((boxInvoiceNumber) => salePrintTargetId(boxInvoiceNumber))
+            }
+            printLabel={
+              finishDocTab === "invoice"
+                ? `factura ${invoiceNumber}`
+                : quickBoxInvoiceNumbers.length > 1
+                  ? "etiquetas de cajas"
+                  : `etiqueta ${quickBoxInvoiceNumbers[0] || ""}`
+            }
+            printActionLabel="Imprimir"
+            onShare={onShare}
+          />
+          <div
+            id={salePrintTargetId(invoiceNumber)}
+            data-sale-print-document={invoiceNumber}
+            className={`sale-document-shell grid w-full gap-2 ${finishDocTab === "invoice" ? "" : "hidden"}`}
           >
-            <X className="h-6 w-6" />
-          </button>
-        </div>
-
-        <div className="grid gap-5 lg:grid-cols-[1fr_auto]">
-          <div className="grid gap-4">
-            <div className="no-print rounded-xl border border-black bg-surface-card p-4">
-              <p className="text-xs font-black uppercase text-slate-500">Remitente</p>
-              <p className="break-words text-xl font-black">{personFullName(draft.sender)}</p>
-              <p className="break-words font-bold text-slate-400">{senderPhonesLabel(draft.sender)}</p>
-            </div>
-
-            <div className="flex flex-col items-center gap-4">
-              <SaleInvoicePaper
+            <SaleInvoicePaper
+              branding={branding}
+              invoiceNumber={invoiceNumber}
+              trackingToken={trackingToken}
+              emptyBoxDeliveredAt={emptyBoxDeliveredAt}
+              sender={draft.sender}
+              box={draft.box}
+              serviceOperation="deliver_empty_box"
+              serviceSituation="empty_box_handed_off"
+              billing={billing}
+              payNowDraft={completed ? undefined : payNowDraft}
+              payNowDraftTouched={completed ? false : payNowDraftTouched}
+              onPayNowDraftChange={completed ? undefined : onPayNowDraftChange}
+              onInitialPaymentWaivedChange={
+                completed ? undefined : onInitialPaymentWaivedChange
+              }
+            />
+          </div>
+          {quickBoxInvoiceNumbers.map((boxInvoiceNumber, index) => (
+            <div
+              key={boxInvoiceNumber}
+              id={salePrintTargetId(boxInvoiceNumber)}
+              data-sale-print-document={boxInvoiceNumber}
+              data-sale-print-group="labels"
+              className={`sale-document-shell grid w-full gap-2 ${finishDocTab === "labels" ? "" : "hidden"}`}
+            >
+              <SaleBoxLabel
                 branding={branding}
-                invoiceNumber={invoiceNumber}
-                trackingToken={trackingToken}
+                invoiceNumber={boxInvoiceNumber}
+                parentInvoiceNumber={invoiceNumber}
+                position={index + 1}
+                boxCount={quickBoxInvoiceNumbers.length}
                 sender={draft.sender}
-                box={draft.box}
-                serviceOperation="deliver_empty_box"
-                billing={billing}
-                payNowDraft={completed ? undefined : payNowDraft}
-                payNowDraftTouched={completed ? false : payNowDraftTouched}
-                onPayNowDraftChange={completed ? undefined : onPayNowDraftChange}
-                onInitialPaymentWaivedChange={
-                  completed ? undefined : onInitialPaymentWaivedChange
-                }
-              />
-              {!completed && billing && billing.promotionCandidates.length > 1 ? (
-                <div className="no-print w-full max-w-[210mm]">
-                  <PromotionSelector
-                    candidates={billing.promotionCandidates}
-                    selectedPromotionId={selectedPromotionId}
-                    onChange={onPromotionChange}
-                  />
-                </div>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="no-print rounded-xl border border-black bg-surface-card p-4 text-center text-[#f8fafc]">
-            <div className="rounded-lg bg-[#f8fafc] p-3">
-              <InvoiceQrCode
-                invoiceNumber={invoiceNumber}
-                trackingToken={trackingToken}
-                size={144}
+                box={quickBoxes[index] || draft.box}
               />
             </div>
-            <p className="mt-3 text-lg font-black">{invoiceNumber}</p>
-            <p className="text-sm font-bold text-slate-300">QR del invoice</p>
-          </div>
+          ))}
+          {!completed && billing && billing.promotionCandidates.length > 1 ? (
+            <div className="no-print w-full max-w-[210mm]">
+              <PromotionSelector
+                candidates={billing.promotionCandidates}
+                selectedPromotionId={selectedPromotionId}
+                onChange={onPromotionChange}
+              />
+            </div>
+          ) : null}
         </div>
 
         {!completed && logisticsCharge ? (
@@ -179,19 +219,9 @@ export function SaleQuickCheckoutModal({
           </p>
         ) : null}
 
-        <div
-          className={`no-print mt-5 grid gap-3 border-t border-black pt-4 ${completed ? "sm:grid-cols-3" : "sm:grid-cols-2"}`}
-        >
+        <div className="no-print mt-5 grid gap-3 border-t border-black pt-4 sm:grid-cols-2">
           {completed ? (
             <>
-              <button
-                type="button"
-                onClick={onPrint}
-                className={`${secondaryButtonClass} flex h-14 items-center justify-center gap-2 text-lg font-black`}
-              >
-                <Printer className="h-6 w-6" />
-                Imprimir
-              </button>
               <Link
                 href="/seguimiento"
                 className={`${secondaryButtonClass} flex h-14 items-center justify-center text-lg font-black`}
@@ -208,7 +238,7 @@ export function SaleQuickCheckoutModal({
             </>
           ) : (
             <>
-              <button type="button" onClick={onClose} className="h-14 rounded-lg border border-black text-lg font-black">
+              <button type="button" onClick={onClose} className="h-10 rounded-lg border border-black text-sm font-black">
                 Cancelar
               </button>
               <button
@@ -223,7 +253,7 @@ export function SaleQuickCheckoutModal({
                   setConfirmOpen(true);
                 }}
                 disabled={!billing || billing.promotionSelectionRequired || confirming}
-                className="h-14 rounded-lg bg-emerald-400 text-lg font-black text-slate-950 disabled:opacity-40"
+                className="h-10 rounded-lg bg-emerald-400 text-sm font-black text-slate-950 disabled:opacity-40"
               >
                 {billing?.promotionSelectionRequired
                   ? "Elige promocion"

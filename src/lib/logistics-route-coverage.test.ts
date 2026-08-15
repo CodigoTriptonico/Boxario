@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   addressMatchesCoveragePlaces,
+  normalizeGeoPoint,
   normalizeUsPostalCode,
   normalizedAddressFingerprintSource,
   routeCandidateCoverageMatches,
@@ -15,6 +16,13 @@ test("ZIP estadounidenses conserva ceros iniciales y exige cinco digitos", () =>
   assert.equal(normalizeUsPostalCode(" 01234 "), "01234");
   assert.equal(normalizeUsPostalCode("1234"), null);
   assert.equal(normalizeUsPostalCode("12345-6789"), null);
+});
+
+test("coordenadas ausentes no se convierten en el punto 0,0", () => {
+  assert.equal(normalizeGeoPoint(null, null), null);
+  assert.equal(normalizeGeoPoint("", ""), null);
+  assert.equal(normalizeGeoPoint(91, -118), null);
+  assert.deepEqual(normalizeGeoPoint("34.4", "-118.5"), { lat: 34.4, lng: -118.5 });
 });
 
 test("la huella cambia cuando cambia la direccion exacta", () => {

@@ -52,7 +52,7 @@ export async function loadCommercialAdminAction(): Promise<ActionResult<Commerci
       admin.from("organizations").select("tenant_id").eq("id", session.organizationId).single(),
       admin.from("pricing_countries").select("id, code, name, pricing_country_boxes(size, price, cost, catalog_key)").eq("organization_id", session.organizationId).order("sort_order").order("name"),
       session.agencyModuleEnabled ? admin.from("agencies").select("id, organization_id, code, status, created_at").eq("matrix_organization_id", session.organizationId).is("archived_at", null).order("created_at", { ascending: false }) : Promise.resolve({ data: [], error: null }),
-      admin.from("profiles").select("id, organization_id, email, full_name, is_active, created_at, roles!inner(slug)").eq("organization_id", session.organizationId).eq("roles.slug", "vendedor").is("archived_at", null).order("full_name"),
+      admin.from("profiles").select("id, organization_id, email, full_name, is_active, created_at, seller_code, roles!inner(slug)").eq("organization_id", session.organizationId).eq("roles.slug", "vendedor").is("archived_at", null).order("full_name"),
       admin.from("commercial_entity_profiles").select("*").eq("matrix_organization_id", session.organizationId),
       admin.from("commercial_pricing_overrides").select("id, audience, entity_id, destination_code, product_code, price_kind, service_concept, amount_cents, minimum_amount_cents, currency").eq("matrix_organization_id", session.organizationId).is("valid_until", null),
       admin.from("country_commercial_service_settings").select("id, destination_code, service_concept, amount_cents, currency").eq("matrix_organization_id", session.organizationId).eq("is_active", true),
@@ -87,7 +87,7 @@ export async function loadCommercialAdminAction(): Promise<ActionResult<Commerci
         const routeTemplateId = assignmentByAgency.get(agency.id) || null;
         return { id: agency.id, type: "agency" as const, name: nameByOrganization.get(agency.organization_id) || "Agencia", code: agency.code, status: agency.status, email: "", createdAt: agency.created_at, organizationId: agency.organization_id, userCount: usersByOrganization.get(agency.organization_id) || 0, routeTemplateId, routeName: routeTemplateId ? routeById.get(routeTemplateId) || "Ruta" : "Sin ruta", profile: profileFromRow(profileByKey.get(`agency:${agency.id}`)) };
       }),
-      ...(sellers || []).map((seller) => ({ id: seller.id, type: "seller" as const, name: seller.full_name || seller.email, code: "VEN", status: seller.is_active ? "active" : "inactive", email: seller.email, createdAt: seller.created_at, organizationId: seller.organization_id, userCount: 1, routeTemplateId: null, routeName: "Sin ruta", profile: profileFromRow(profileByKey.get(`seller:${seller.id}`)) })),
+      ...(sellers || []).map((seller) => ({ id: seller.id, type: "seller" as const, name: seller.full_name || seller.email, code: String(seller.seller_code || 0).padStart(3, "0"), status: seller.is_active ? "active" : "inactive", email: seller.email, createdAt: seller.created_at, organizationId: seller.organization_id, userCount: 1, routeTemplateId: null, routeName: "Sin ruta", profile: profileFromRow(profileByKey.get(`seller:${seller.id}`)) })),
     ];
     return ok({
       canManage: canManage(session),

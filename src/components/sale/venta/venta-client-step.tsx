@@ -1,11 +1,17 @@
 "use client";
 
+import { useCallback } from "react";
 import { SupabaseRequiredBanner } from "@/components/supabase-required-banner";
 import { flowPersonListShellClass, flowPersonFormShellClass } from "@/components/flow-form-styles";
 import { SaleClientForm } from "@/components/sale/sale-client-form";
 import { SaleSenderList } from "@/components/sale/sale-sender-list";
+import {
+  useSalePersonAddressMap,
+  type SalePersonAddressMapTarget,
+} from "@/components/sale/sale-person-address-map";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { personFullName, senderPhoneKey } from "@/components/sale/venta-parts";
+import type { Sender } from "@/components/sale/venta/parts-types";
 import type { VentaController } from "@/components/sale/venta/use-venta-controller";
 
 export function VentaClientStep({ controller }: { controller: VentaController; }) {
@@ -64,6 +70,8 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
     setNewClientPostalCode,
     setNewClientState,
     setNewClientStreet,
+    setSelectedSender,
+    setSenderList,
     setSenderQuery,
     startQuickEmptyBox,
     touchClientAddressField,
@@ -71,6 +79,18 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
     updateClientPhone,
     viewLayout,
   } = controller;
+
+  const handleAddressMapSaved = useCallback((target: SalePersonAddressMapTarget, person: Sender | unknown) => {
+    if (target.kind !== "sender") return;
+    const nextSender = person as Sender;
+    setSenderList((current) =>
+      current.map((sender) => (sender.id === nextSender.id ? nextSender : sender)),
+    );
+    setSelectedSender((current) =>
+      current?.id === nextSender.id ? nextSender : current,
+    );
+  }, [setSelectedSender, setSenderList]);
+  const addressMap = useSalePersonAddressMap({ onSaved: handleAddressMapSaved });
 
   return (
     mode === "new-client" || !selectedSender || activeStep === "client" ? (
@@ -187,6 +207,7 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
                 setActiveStep("client");
               }}
               onChoose={chooseSender}
+              onAddressClick={addressMap.openSender}
               onQuickEmptyBox={startQuickEmptyBox}
               onIconClick={(event, sender) => {
                 const rect = event.currentTarget.getBoundingClientRect();
@@ -230,6 +251,12 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
             />
           </div>
         )}
+        {addressMap.mapError ? (
+          <p role="alert" className="mt-2 rounded-lg border border-amber-600/70 bg-amber-950/30 px-3 py-2 text-xs font-bold text-amber-100">
+            {addressMap.mapError}
+          </p>
+        ) : null}
+        {addressMap.addressMap}
       </div>
     ) : null
   );

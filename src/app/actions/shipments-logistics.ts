@@ -67,10 +67,6 @@ export async function markFullBoxReceivedAtOfficeAction(input: {
       return fail("Invoice no encontrado");
     }
 
-    if (shipment.sale_kind === "empty_box_deposit") {
-      return fail("Este invoice es solo depósito de caja vacía.");
-    }
-
     if (!shipment.empty_box_delivered_at) {
       return fail("Primero registra la entrega de la caja vacía.");
     }

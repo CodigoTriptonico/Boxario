@@ -11,14 +11,19 @@ export default async function ProfilePage() {
   }
 
   let initialAvatarUrl: string | null = null;
+  let sellerCode: number | null = null;
 
   const supabase = await createSupabaseServerClient();
   if (supabase) {
     const { data } = await supabase
       .from("profiles")
-      .select("avatar_path")
+      .select("avatar_path, seller_code")
       .eq("id", session.userId)
       .maybeSingle();
+
+    if (Number.isInteger(data?.seller_code) && Number(data?.seller_code) >= 1 && Number(data?.seller_code) <= 999) {
+      sellerCode = Number(data?.seller_code);
+    }
 
     if (data?.avatar_path) {
       initialAvatarUrl = await createStorageSignedUrl(
@@ -30,5 +35,5 @@ export default async function ProfilePage() {
     }
   }
 
-  return <ProfileAccountClient initialAvatarUrl={initialAvatarUrl} session={session} />;
+  return <ProfileAccountClient initialAvatarUrl={initialAvatarUrl} sellerCode={sellerCode} session={session} />;
 }

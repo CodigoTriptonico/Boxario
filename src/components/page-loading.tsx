@@ -1,6 +1,8 @@
 type PageLoadingProps = {
   /** Ocupa el panel sin bloquear toda la pantalla ni animaciones pesadas. */
   inline?: boolean;
+  /** Usa el fondo del contenedor padre, sin crear una superficie interna. */
+  seamless?: boolean;
 };
 
 /** Hueco estable de contenido (barra + lista) mientras suspende o carga un módulo. */
@@ -13,11 +15,13 @@ export function PageContentPlaceholder() {
   );
 }
 
-export function PageLoading({ inline = false }: PageLoadingProps) {
+export function PageLoading({ inline = false, seamless = false }: PageLoadingProps) {
   if (inline) {
     return (
       <div
-        className="flex min-h-[12rem] flex-1 items-center justify-center rounded-xl border border-dashed border-black/50 bg-surface-panel/40"
+        className={`flex min-h-[12rem] flex-1 items-center justify-center ${
+          seamless ? "" : "rounded-xl border border-dashed border-black/50 bg-surface-panel/40"
+        }`}
         aria-busy="true"
         aria-label="Cargando"
       >

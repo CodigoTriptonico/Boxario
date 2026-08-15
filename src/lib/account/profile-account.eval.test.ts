@@ -12,6 +12,8 @@ const migration = readFileSync(join(root, "supabase/migrations/080_profile_accou
 describe("profile account eval", () => {
   it("keeps profile access independent from operational settings", () => {
     assert.match(page, /requirePathAccess\("\/perfil"\)/);
+    assert.match(page, /avatar_path, seller_code/);
+    assert.match(client, /Código de vendedor/);
     assert.match(client, /Tu acceso/);
     assert.match(client, /Permisos activos/);
     assert.match(client, /Cambiar contraseña/);

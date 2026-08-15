@@ -97,6 +97,7 @@ export type PlatformOrganizationRow = {
   id: string;
   name: string;
   slug: string;
+  invoice_company_code: number | null;
   kind: OrganizationKind;
   is_active: boolean;
   created_at: string;

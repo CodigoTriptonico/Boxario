@@ -28,6 +28,7 @@ export function VentaDeliveryStep({ controller }: { controller: VentaController;
     customerLogisticsChargeHistory,
     logisticsContinueHint,
     logisticsPlanReady,
+    invoiceReservationLoading,
     selectEmptyBoxMode,
     selectFullBoxMode,
     selectedBox,
@@ -72,7 +73,7 @@ export function VentaDeliveryStep({ controller }: { controller: VentaController;
             <div className="flex w-full max-w-md flex-col items-center gap-2">
               <button
                 type="button"
-                disabled={!logisticsPlanReady}
+                disabled={!logisticsPlanReady || invoiceReservationLoading}
                 onClick={continueFromLogistics}
                 className={`${primaryButtonClass} flex h-12 w-full items-center justify-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-35`}
               >

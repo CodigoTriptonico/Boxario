@@ -386,6 +386,21 @@ describe("shipmentLogisticsSteps", () => {
       }),
       PENDING_FULL_BOX_STATUS,
     );
+
+    assert.equal(
+      resolveInitialShipmentStatus({
+        saleKind: "empty_box_deposit",
+        logisticsPlan: {
+          emptyBox: {
+            mode: "Cliente recoge caja vacia en oficina",
+            handingNow: true,
+          },
+          fullBox: null,
+        },
+        emptyBoxDeliveredAt: "2026-03-08T12:30:00.000Z",
+      }),
+      PENDING_FULL_BOX_STATUS,
+    );
   });
 });
 

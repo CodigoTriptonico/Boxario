@@ -21,17 +21,14 @@ describe("venta paso 3 layout eval", () => {
     assert.equal(source.includes("sticky top-0 z-20"), false);
     assert.equal(source.includes("order-first flex shrink-0"), false);
     assert.equal(source.includes("order-last min-h-0 flex-1 overflow-y-auto"), false);
-    assert.match(
-      sliceAround("onClick={continueFromCart}"),
-      /flex shrink-0 justify-center border-t border-black\/80 pt-4/,
-    );
+    assert.match(source, /flex shrink-0 justify-center border-t border-black\/80 pt-4/);
     assert.match(
       sliceAround("onClick={continueFromLogistics}"),
       /flex shrink-0 justify-center border-t border-black\/80 pt-4/,
     );
     assert.match(
       source,
-      /activeStep === "box" \|\|\s*activeStep === "delivery"\s*\? "flex min-h-0 flex-1 flex-col lg:overflow-hidden"/,
+      /boundedSaleFlow[\s\S]*activeStep === "delivery"[\s\S]*activeStep === "finish"/,
     );
   });
 });

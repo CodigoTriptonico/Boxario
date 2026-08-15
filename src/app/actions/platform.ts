@@ -42,7 +42,7 @@ export async function listAllOrganizationsAction(): Promise<
     if (!admin) return fail("Supabase no configurado");
     const { data: orgs, error } = await admin
       .from("organizations")
-      .select("id, name, slug, kind, is_active, created_at, settings")
+      .select("id, name, slug, invoice_company_code, kind, is_active, created_at, settings")
       .eq("kind", "client")
       .order("created_at", { ascending: false });
     if (error) return fail(error.message);
@@ -71,6 +71,9 @@ export async function listAllOrganizationsAction(): Promise<
             id: org.id,
             name: org.name,
             slug: org.slug,
+            invoice_company_code: org.invoice_company_code === null
+              ? null
+              : Number(org.invoice_company_code),
             kind: "client",
             is_active: org.is_active,
             created_at: org.created_at,

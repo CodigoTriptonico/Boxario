@@ -15,7 +15,7 @@ const quickCheckoutSource = readFileSync(
 describe("sale invoice service contract", () => {
   it("uses the explicit logistics operation instead of parsing the combined summary", () => {
     assert.match(invoiceSource, /serviceOperation: LogisticsTaskType/);
-    assert.match(invoiceSource, /saleInvoiceServiceLabel\(serviceOperation\)/);
+    assert.match(invoiceSource, /saleInvoiceServiceLabel\(serviceOperation[\s\S]{0,120}serviceSituation/);
     assert.doesNotMatch(invoiceSource, /function invoiceServiceLabel/);
     assert.doesNotMatch(invoiceSource, /hasPickup|hasDelivery/);
   });
@@ -25,5 +25,10 @@ describe("sale invoice service contract", () => {
     assert.match(saleSource, /serviceOperation=\{createdInvoice\.serviceOperation\}/);
     assert.match(saleSource, /serviceOperation="deliver_empty_box"/);
     assert.match(quickCheckoutSource, /serviceOperation="deliver_empty_box"/);
+  });
+
+  it("does not repeat the quick empty-box status in the invoice header", () => {
+    assert.match(invoiceSource, /serviceSituation === "empty_box_handed_off" \? null/);
+    assert.match(invoiceSource, /const situationNote = saleInvoiceSituationNote\(\s*serviceSituation/);
   });
 });

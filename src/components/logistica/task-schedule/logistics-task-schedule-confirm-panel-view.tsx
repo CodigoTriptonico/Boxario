@@ -5,6 +5,7 @@ import { Truck } from "lucide-react";
 import {
   resolveCompatibleGeographicRoutesAction,
   type CompatibleGeographicRoute,
+  type CustomerMapLocation,
   type LogisticsWeekdaySchedule,
 } from "@/app/actions/logistics-routes";
 import { DateInput } from "@/components/date-input";
@@ -172,11 +173,7 @@ export function LogisticsTaskScheduleConfirmPanel({
   const [pendingDayRouteMode, setPendingDayRouteMode] = useState(false);
   const [routeCoverageMatches, setRouteCoverageMatches] = useState<Map<string, boolean> | null>(null);
   const [coverageRoutes, setCoverageRoutes] = useState<CompatibleGeographicRoute[]>([]);
-  const [coverageCustomerLocation, setCoverageCustomerLocation] = useState<{
-    lat: number;
-    lng: number;
-    label: string;
-  } | null>(null);
+  const [coverageCustomerLocation, setCoverageCustomerLocation] = useState<CustomerMapLocation | null>(null);
   const [coverageMapOpen, setCoverageMapOpen] = useState(false);
   const compatibilityLookupEnabled = Boolean(
     open && customerId && /^\d{4}-\d{2}-\d{2}$/.test(draft.date) && scheduleTimeComplete(draft.time),
@@ -352,7 +349,10 @@ export function LogisticsTaskScheduleConfirmPanel({
             ? current
             : matchingRouteIds.length === 1
               ? matchingRouteIds[0]
-              : routeChoiceTemplates.length === 0
+              : routeChoiceTemplates.every(
+                  (template) =>
+                    Number(template.weekday) !== getLogisticsWeekdayIndex(draft.date),
+                )
                 ? DAY_AS_ROUTE_TEMPLATE_ID
                 : "",
         );
@@ -817,11 +817,16 @@ export function LogisticsTaskScheduleConfirmPanel({
         wizardSteps={wizardSteps}
       />
       <LogisticsRouteCoveragePreviewDialog
+        key={coverageMapOpen ? "route-coverage-open" : "route-coverage-closed"}
         open={coverageMapOpen}
         onClose={() => setCoverageMapOpen(false)}
         routes={coverageRoutes}
         selectedRouteId={routeTemplateId}
         customerLocation={coverageCustomerLocation}
+        customerId={String(customerId)}
+        onCustomerLocationSaved={setCoverageCustomerLocation}
+        allowRouteViewSelection
+        allowExactEntranceEditing={false}
       />
     </>
   );

@@ -7,8 +7,8 @@ const stepBarSource = readVentaPartsSource();
 const boxPickerSource = readFileSync(new URL("../components/sale/sale-box-picker.tsx", import.meta.url), "utf8");
 
 describe("venta mobile text readability eval", () => {
-  it("preserves the desktop stepper while five compact mobile tiles share the available width", () => {
-    assert.match(stepBarSource, /grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0/);
+  it("preserves the desktop stepper while normal and quick tiles share the available width", () => {
+    assert.match(stepBarSource, /grid w-full \$\{steps\.length === 3 \? "grid-cols-3" : "grid-cols-5"\} items-start gap-0 lg:flex lg:min-w-0/);
     assert.match(stepBarSource, /relative flex min-w-0 flex-col lg:w-auto lg:snap-start/);
     assert.match(stepBarSource, /step\.detailRows\?\.length/);
     assert.match(stepBarSource, /lg:flex-\[1\.45\]/);

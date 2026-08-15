@@ -7,7 +7,8 @@ import type { LogisticsRouteCatalog } from "@/app/actions/logistics-routes";
 import { useSetShellConfig } from "@/components/app-frame";
 import { SaleHeaderCartTrigger } from "@/components/sale/sale-cart-panel";
 import type { SalePersonCardVariantId } from "@/components/sale/sale-person-card-variants";
-import type { QuickEmptyBoxDraft } from "@/components/sale/sale-quick-empty-box-modal";
+import type { QuickEmptyBoxDraft } from "@/components/sale/sale-quick-box-types";
+import { formatInvoiceReference } from "@/lib/invoice-reference";
 import {
   useDefaultPersonCardPaletteId,
   usePageViewLayout,
@@ -66,7 +67,6 @@ import {
   billingForPaymentChoice,
   boxInvoicesForSale,
   buildAddressSuggestQuery,
-  resolveCountryPromotions,
   resolveCountryPromotionsForCatalogKeys,
   saleBoxCatalogKey,
   saleCartSummary,
@@ -84,6 +84,8 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
   const setShellConfig = useSetShellConfig();
   const notify = useNotify();
   const router = useRouter();
+  const sellerCode = initialData?.sellerCode ?? 1;
+  const companyCode = initialData?.companyCode ?? 1;
   const [mode, setMode] = useState<"sale" | "clients" | "history" | "new-client" | "new-recipient">("sale");
   const [activeStep, setActiveStep] = useState<SaleStep>("client");
   const saleListPaletteContext = useMemo<UiSurfaceContextId>(
@@ -319,11 +321,21 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
   } | null>(null);
   const [quickSaleDraft, setQuickSaleDraft] = useState<QuickEmptyBoxDraft | null>(null);
   const [showQuickCheckout, setShowQuickCheckout] = useState(false);
+  const [quickSaleAdvancing, setQuickSaleAdvancing] = useState(false);
   const [quickInvoiceNumber, setQuickInvoiceNumber] = useState("");
   const [quickTrackingToken, setQuickTrackingToken] = useState("");
+  const [quickEmptyBoxDeliveredAt, setQuickEmptyBoxDeliveredAt] = useState<string | null>(null);
   const [activeCopyGroup, setActiveCopyGroup] = useState<string | null>(null);
   const [creatingOpenInvoice, setCreatingOpenInvoice] = useState(false);
   const [creatingQuickInvoice, setCreatingQuickInvoice] = useState(false);
+  const [invoiceReservationToken, setInvoiceReservationToken] = useState("");
+  const [invoiceReservation, setInvoiceReservation] = useState<{
+    reservationToken: string;
+    invoiceNumber: string;
+    sequence: number;
+    expiresAt: string;
+  } | null>(null);
+  const [invoiceReservationLoading, setInvoiceReservationLoading] = useState(false);
   const [invoiceSequence, setInvoiceSequence] = useState(
     initialData?.nextInvoiceSequence ?? 1,
   );
@@ -352,7 +364,14 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
   const boxesRef = useRef<HTMLDivElement | null>(null);
   const deliveryRef = useRef<HTMLDivElement | null>(null);
   const finishRef = useRef<HTMLDivElement | null>(null);
-  const nextInvoiceNumber = `INV-${String(invoiceSequence).padStart(6, "0")}`;
+  const nextInvoiceNumber = invoiceReservation?.invoiceNumber || formatInvoiceReference({
+    sequence: invoiceSequence,
+    country: selectedRecipient?.country,
+    city: selectedRecipient?.city,
+    sellerCode,
+    companyCode,
+    boxCount: selectedBoxCount,
+  });
   const finishPreviewBoxInvoices = useMemo(
     () => boxInvoicesForSale(nextInvoiceNumber, selectedBoxLines),
     [nextInvoiceNumber, selectedBoxLines],
@@ -446,7 +465,11 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
   const quickBoxPromotions = useMemo(
     () =>
       quickSaleDraft
-        ? resolveCountryPromotions(countryPromotions, quickSaleDraft.country, quickSaleDraft.box)
+        ? resolveCountryPromotionsForCatalogKeys(
+          countryPromotions,
+          quickSaleDraft.country,
+          quickSaleDraft.boxLines.map((line) => saleBoxCatalogKey(line.box)),
+        )
         : [],
     [countryPromotions, quickSaleDraft],
   );
@@ -524,6 +547,7 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     return computeInvoiceBilling({
       boxCount: quickSaleDraft.boxCount,
       boxUnitPrice: quickSaleDraft.box[1] || "$0",
+      cartLines: saleCartToBillingLines(quickSaleDraft.boxLines),
       emptyBoxDriver: quickSaleDraft.emptyBoxMode === EMPTY_BOX_DRIVER_MODE,
       fullBoxDriver: false,
       fees: logisticsFees,
@@ -559,7 +583,7 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     }
   }, [showSaleHeaderCart]);
   return {
-    localIdPrefix, localIdCounterRef, setShellConfig, notify, router,
+    localIdPrefix, localIdCounterRef, setShellConfig, notify, router, sellerCode, companyCode,
     mode, setMode, activeStep, setActiveStep, viewLayout,
     defaultSenderCardStyle, defaultRecipientCardStyle, senderList, setSenderList, saleShortcuts,
     setSaleShortcuts, customersLoading, setCustomersLoading, customersError, setCustomersError,
@@ -596,8 +620,10 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     setContextMenu, deleteConfirm, setDeleteConfirm, deleteConfirming, setDeleteConfirming,
     historyDrawer, setHistoryDrawer, quickSaleSender, setQuickSaleSender, quickSaleCountry,
     setQuickSaleCountry, quickSaleCountryPickerOpen, setQuickSaleCountryPickerOpen, cardStylePicker, setCardStylePicker,
-    quickSaleDraft, setQuickSaleDraft, showQuickCheckout, setShowQuickCheckout, quickInvoiceNumber,
-    setQuickInvoiceNumber, quickTrackingToken, setQuickTrackingToken, activeCopyGroup, setActiveCopyGroup,
+    quickSaleDraft, setQuickSaleDraft, showQuickCheckout, setShowQuickCheckout, quickSaleAdvancing,
+    setQuickSaleAdvancing, quickInvoiceNumber,
+    setQuickInvoiceNumber, quickTrackingToken, setQuickTrackingToken,
+    quickEmptyBoxDeliveredAt, setQuickEmptyBoxDeliveredAt, activeCopyGroup, setActiveCopyGroup,
     creatingOpenInvoice, setCreatingOpenInvoice, creatingQuickInvoice, setCreatingQuickInvoice, setInvoiceSequence,
     countries, needsRecipientCountrySetup, stockMessage, setStockMessage, emptyBoxMode,
     setEmptyBoxMode, emptyBoxScheduleMode, setEmptyBoxScheduleMode, emptyBoxScheduleAt, setEmptyBoxScheduleAt,
@@ -609,6 +635,8 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     deliveryRef, finishRef, nextInvoiceNumber, finishPreviewBoxInvoices, emptyBoxComplete,
     logisticsPlanReady, logisticsContinueHint, currentLogisticsSummary, currentLogisticsDetails, currentDriverTaskCount,
     invoiceBilling, showSaleHeaderCart, quickInvoiceBilling, invoiceBillingForPayment, quickInvoiceBillingForPayment,
+    invoiceReservationToken, setInvoiceReservationToken, invoiceReservation,
+    setInvoiceReservation, invoiceReservationLoading, setInvoiceReservationLoading,
   };
 }
 

@@ -65,11 +65,17 @@ describe("sale person row layout eval", () => {
       ),
       true,
     );
+    assert.equal(
+      personCardSource.includes(
+        "grid-cols-[4.5rem_minmax(0,1fr)_auto]",
+      ),
+      true,
+    );
     assert.equal(personCardSource.includes("divide-y"), false);
     assert.equal(personCardSource.includes("salePersonAddressLines"), true);
     assert.equal(personCardSource.includes("break-words sm:truncate"), true);
     assert.equal(personCardSource.includes("whitespace-nowrap text-[11px]"), true);
-    assert.equal(ventaPartsSource.includes("grid w-full grid-cols-5 items-start gap-0 lg:flex lg:min-w-0"), true);
+    assert.equal(ventaPartsSource.includes('steps.length === 3 ? "grid-cols-3" : "grid-cols-5"'), true);
     assert.equal(ventaPartsSource.includes("max-sm:hidden"), true);
     assert.equal(ventaPartsSource.includes("hidden lg:mt-[2.125rem] lg:flex"), true);
     assert.match(

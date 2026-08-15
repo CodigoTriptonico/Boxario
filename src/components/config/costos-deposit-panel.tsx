@@ -21,6 +21,7 @@ import {
 function depositSettingsEqual(a: SalesAxisSettings, b: SalesAxisSettings) {
   return (
     a.minimumDeposit === b.minimumDeposit &&
+    a.pickupIncludedEnabled === b.pickupIncludedEnabled &&
     a.pickupIncludedDays === b.pickupIncludedDays &&
     a.latePickupFee === b.latePickupFee &&
     a.pendingAllowed === b.pendingAllowed &&
@@ -35,6 +36,8 @@ export function CostosDepositPanel() {
   const notify = useNotify();
   const [baseline, setBaseline] = useState<SalesAxisSettings | null>(null);
   const [settings, setSettings] = useState<SalesAxisSettings | null>(null);
+  const [minimumDepositDraft, setMinimumDepositDraft] = useState("");
+  const [latePickupFeeDraft, setLatePickupFeeDraft] = useState("");
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -60,6 +63,8 @@ export function CostosDepositPanel() {
 
       setBaseline(result.data.sales);
       setSettings(result.data.sales);
+      setMinimumDepositDraft(moneyInputDisplayValue(result.data.sales.minimumDeposit));
+      setLatePickupFeeDraft(moneyInputDisplayValue(result.data.sales.latePickupFee));
       setLoading(false);
     })();
 
@@ -88,6 +93,8 @@ export function CostosDepositPanel() {
 
     setSettings(result.data);
     setBaseline(result.data);
+    setMinimumDepositDraft(moneyInputDisplayValue(result.data.minimumDeposit));
+    setLatePickupFeeDraft(moneyInputDisplayValue(result.data.latePickupFee));
     notify.success("Configuración de cobros guardada");
   }
 
@@ -160,17 +167,14 @@ export function CostosDepositPanel() {
             <span className="mr-1 text-slate-400">$</span>
             <input
               inputMode="decimal"
-              value={moneyInputDisplayValue(settings.minimumDeposit)}
-              onChange={(event) =>
+              value={minimumDepositDraft}
+              onChange={(event) => {
+                const draft = event.target.value.replace(/[^\d.]/g, "");
+                setMinimumDepositDraft(draft);
                 setSettings((current) =>
-                  current
-                    ? {
-                        ...current,
-                        minimumDeposit: normalizeMoneyInput(event.target.value),
-                      }
-                    : current,
-                )
-              }
+                  current ? { ...current, minimumDeposit: normalizeMoneyInput(draft) } : current,
+                );
+              }}
               placeholder="0"
               className="min-w-0 flex-1 bg-transparent font-black text-white outline-none"
             />
@@ -200,18 +204,39 @@ export function CostosDepositPanel() {
       </div>
 
       <div className="grid gap-5 border-t border-black/70 pt-5 sm:grid-cols-2 sm:divide-x sm:divide-black/70">
-        <label className="grid min-w-0 gap-1.5 sm:pr-5">
-          <span className="text-sm font-black text-white">Recolección incluida</span>
-          <span className="text-xs font-semibold text-slate-400">
-            Días desde que el cliente recibe la caja vacía para pedir que la recojamos sin costo extra.
-          </span>
-          <span className="flex h-11 items-center rounded-lg border border-black bg-surface-inset px-3">
+        <div className="grid min-w-0 gap-1.5 sm:pr-5">
+          <div className="flex items-start justify-between gap-4">
+            <span>
+              <span className="block text-sm font-black text-white">Recolección incluida</span>
+              <span className="mt-1 block text-xs font-semibold text-slate-400">
+                Días desde que el cliente recibe la caja vacía para pedir que la recojamos sin costo extra.
+              </span>
+            </span>
+            <label className="flex shrink-0 items-center gap-2 text-xs font-black text-slate-300">
+              <span>{settings.pickupIncludedEnabled ? "Activa" : "Inactiva"}</span>
+              <input
+                type="checkbox"
+                aria-label="Activar recolección incluida"
+                checked={settings.pickupIncludedEnabled}
+                onChange={(event) =>
+                  setSettings((current) =>
+                    current
+                      ? { ...current, pickupIncludedEnabled: event.target.checked }
+                      : current,
+                  )
+                }
+                className="h-5 w-5 accent-emerald-400"
+              />
+            </label>
+          </div>
+          <span className={`flex h-11 items-center rounded-lg border border-black bg-surface-inset px-3 ${settings.pickupIncludedEnabled ? "" : "opacity-50"}`}>
             <input
               type="number"
               min="1"
               max="3650"
               step="1"
               value={settings.pickupIncludedDays}
+              disabled={!settings.pickupIncludedEnabled}
               onChange={(event) =>
                 setSettings((current) =>
                   current
@@ -223,7 +248,7 @@ export function CostosDepositPanel() {
             />
             <span className="ml-2 text-sm font-bold text-slate-400">días</span>
           </span>
-        </label>
+        </div>
 
         <label className="grid min-w-0 gap-1.5 sm:pl-5">
           <span className="text-sm font-black text-white">Cargo fuera de plazo</span>
@@ -234,14 +259,14 @@ export function CostosDepositPanel() {
             <span className="mr-1 text-slate-400">$</span>
             <input
               inputMode="decimal"
-              value={moneyInputDisplayValue(settings.latePickupFee)}
-              onChange={(event) =>
+              value={latePickupFeeDraft}
+              onChange={(event) => {
+                const draft = event.target.value.replace(/[^\d.]/g, "");
+                setLatePickupFeeDraft(draft);
                 setSettings((current) =>
-                  current
-                    ? { ...current, latePickupFee: normalizeMoneyInput(event.target.value) }
-                    : current,
-                )
-              }
+                  current ? { ...current, latePickupFee: normalizeMoneyInput(draft) } : current,
+                );
+              }}
               placeholder="0"
               className="min-w-0 flex-1 bg-transparent font-black text-white outline-none"
             />

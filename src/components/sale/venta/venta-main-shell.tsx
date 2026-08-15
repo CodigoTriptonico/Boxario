@@ -10,19 +10,20 @@ export function VentaMainShell({ controller }: { controller: VentaController; })
     activeStep,
     boundedPersonListLayout,
     openSaleContextFromEvent,
+    quickSaleDraft,
+    showQuickCheckout,
     setActiveCopyGroup,
     setContextMenu,
   } = controller;
+  const boundedSaleFlow =
+    boundedPersonListLayout ||
+    activeStep === "box" ||
+    activeStep === "delivery" ||
+    (activeStep === "finish" && showQuickCheckout && quickSaleDraft);
 
   return (
     <div
-      className={
-        boundedPersonListLayout ||
-          activeStep === "box" ||
-          activeStep === "delivery"
-          ? "flex min-h-0 flex-1 flex-col lg:overflow-hidden"
-          : "pb-6"
-      }
+      className={boundedSaleFlow ? "flex min-h-0 flex-1 flex-col lg:overflow-hidden" : "pb-6"}
       onContextMenuCapture={openSaleContextFromEvent}
       onClick={() => {
         setContextMenu(null);

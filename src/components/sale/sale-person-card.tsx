@@ -29,6 +29,7 @@ type SalePersonCardProps = {
   hint?: string;
   hintHighlighted?: boolean;
   onHintClick?: () => void;
+  onAddressClick?: () => void;
   onQuickSale?: () => void;
   quickSaleLabel?: string;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -43,10 +44,12 @@ function SalePersonAddressBlock({
   address,
   variant,
   neutral = false,
+  onClick,
 }: {
   address: SalePersonAddress;
   variant: ReturnType<typeof resolveSalePersonCardVariant>;
   neutral?: boolean;
+  onClick?: () => void;
 }) {
   const lines = salePersonAddressLines(address);
   const summary = lines.join(", ");
@@ -63,29 +66,50 @@ function SalePersonAddressBlock({
     );
   }
 
+  const mapButton = onClick ? (
+    <button
+      type="button"
+      className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-md text-sky-300 transition hover:bg-white/10 hover:text-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+      title="Mostrar dirección en el mapa"
+      aria-label="Mostrar dirección en el mapa"
+      onClick={(event) => {
+        event.stopPropagation();
+        onClick();
+      }}
+    >
+      <MapPin className="h-4 w-4" aria-hidden />
+    </button>
+  ) : (
+    <MapPin
+      className={`h-4 w-4 shrink-0 ${neutral ? "text-slate-500" : variant.mapPin}`}
+      aria-hidden
+    />
+  );
+
+  const content = (
+    <div className="min-w-0 flex-1">
+      {lines.map((line, index) => (
+        <p
+          key={`${line}-${index}`}
+          className={`line-clamp-2 w-full text-sm font-bold leading-snug ${
+            neutral ? "text-slate-400" : variant.addressText
+          }`}
+        >
+          {line}
+        </p>
+      ))}
+    </div>
+  );
+
   return (
     <div
-      className={`w-full flex-1 px-3 py-3 ${
+      className={`flex w-full flex-1 items-center gap-2 px-3 py-3 ${
         neutral ? "text-slate-400" : variant.addressBlock
       }`}
       title={summary}
     >
-      <div className="flex h-full flex-col items-center justify-center gap-1.5">
-        <MapPin
-          className={`h-4 w-4 shrink-0 ${neutral ? "text-slate-500" : variant.mapPin}`}
-          aria-hidden
-        />
-        {lines.map((line, index) => (
-          <p
-            key={`${line}-${index}`}
-            className={`line-clamp-2 w-full text-sm font-bold leading-snug ${
-              neutral ? "text-slate-400" : variant.addressText
-            }`}
-          >
-            {line}
-          </p>
-        ))}
-      </div>
+      {mapButton}
+      {content}
     </div>
   );
 }
@@ -100,6 +124,7 @@ export function SalePersonCard({
   hint,
   hintHighlighted = false,
   onHintClick,
+  onAddressClick,
   onQuickSale,
   quickSaleLabel = "Venta rápida",
   onIconClick,
@@ -150,6 +175,21 @@ export function SalePersonCard({
             <User className="h-5 w-5" />
           </span>
         )}
+        {onQuickSale ? (
+          <button
+            type="button"
+            title={quickSaleLabel}
+            aria-label={quickSaleLabel}
+            onClick={(event) => {
+              event.stopPropagation();
+              onQuickSale();
+            }}
+            className={`inline-flex h-8 w-max min-w-max shrink-0 touch-manipulation flex-nowrap items-center justify-center gap-0.5 whitespace-nowrap rounded-md px-1.5 text-[10px] font-black text-slate-950 transition active:scale-[0.98] ${variant.quickSale}`}
+          >
+            <Package className="h-3 w-3 shrink-0" strokeWidth={2.25} />
+            <span className="shrink-0 whitespace-nowrap">Rápido</span>
+          </button>
+        ) : null}
         <span
           className={`inline-flex items-center gap-1.5 px-2 py-1 text-xs font-black leading-none ${
             pageSurfaceTint ? "rounded-md bg-black/25 text-slate-300" : variant.countryBadge
@@ -178,6 +218,7 @@ export function SalePersonCard({
           address={address}
           variant={variant}
           neutral={pageSurfaceTint}
+          onClick={onAddressClick}
         />
 
         <div className="flex min-h-[1.125rem] w-full items-center justify-center">
@@ -198,23 +239,6 @@ export function SalePersonCard({
         </div>
       </div>
 
-      <div className="mt-2.5 flex min-h-7 w-full shrink-0 items-center justify-center">
-        {onQuickSale ? (
-          <button
-            type="button"
-            title={quickSaleLabel}
-            aria-label={quickSaleLabel}
-            onClick={(event) => {
-              event.stopPropagation();
-              onQuickSale();
-            }}
-            className={`inline-flex h-7 touch-manipulation items-center justify-center gap-1 rounded-md px-2.5 text-[11px] font-black text-slate-950 transition active:scale-[0.98] ${variant.quickSale}`}
-          >
-            <Package className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
-            Venta rápida
-          </button>
-        ) : null}
-      </div>
     </div>
   );
 }
@@ -228,6 +252,7 @@ type SalePersonRowProps = {
   hint?: string;
   hintHighlighted?: boolean;
   onHintClick?: () => void;
+  onAddressClick?: () => void;
   onQuickSale?: () => void;
   quickSaleLabel?: string;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>) => void;
@@ -247,6 +272,7 @@ export function SalePersonRow({
   hint,
   hintHighlighted = false,
   onHintClick,
+  onAddressClick,
   onQuickSale,
   quickSaleLabel = "Venta rápida",
   onIconClick,
@@ -276,27 +302,50 @@ export function SalePersonRow({
       className={`${listRowBaseClass} touch-manipulation cursor-pointer px-3 py-2.5 sm:px-4 sm:py-3 ${variant.focusRing} ${listRowHoverClass}${className ? ` ${className}` : ""}`}
       data-sale-person-row
     >
-      <div className="grid w-full min-w-0 grid-cols-[2.5rem_minmax(0,1fr)_auto] items-center gap-x-2.5 overflow-hidden sm:gap-x-3">
-        {onIconClick ? (
-          <button
-            type="button"
-            title={iconTitle}
-            aria-label={iconTitle}
-            onClick={(event) => {
-              event.stopPropagation();
-              onIconClick(event);
-            }}
-            className={`flex h-9 w-9 touch-manipulation shrink-0 items-center justify-center text-slate-950 transition hover:scale-105 active:scale-95 ${variant.iconWell}`}
-          >
-            <User className="h-4 w-4" />
-          </button>
-        ) : (
-          <span
-            className={`flex h-9 w-9 shrink-0 items-center justify-center text-slate-950 ${variant.iconWell}`}
-          >
-            <User className="h-4 w-4" />
-          </span>
-        )}
+      <div
+        className={`grid w-full min-w-0 ${
+          onQuickSale
+            ? "grid-cols-[4.5rem_minmax(0,1fr)_auto]"
+            : "grid-cols-[2.5rem_minmax(0,1fr)_auto]"
+        } items-start gap-x-2.5 overflow-hidden sm:gap-x-3`}
+      >
+        <div className={`flex min-w-0 shrink-0 flex-col items-center ${onQuickSale ? "gap-1.5" : ""}`}>
+          {onIconClick ? (
+            <button
+              type="button"
+              title={iconTitle}
+              aria-label={iconTitle}
+              onClick={(event) => {
+                event.stopPropagation();
+                onIconClick(event);
+              }}
+              className={`flex h-9 w-9 touch-manipulation shrink-0 items-center justify-center text-slate-950 transition hover:scale-105 active:scale-95 ${variant.iconWell}`}
+            >
+              <User className="h-4 w-4" />
+            </button>
+          ) : (
+            <span
+              className={`flex h-9 w-9 shrink-0 items-center justify-center text-slate-950 ${variant.iconWell}`}
+            >
+              <User className="h-4 w-4" />
+            </span>
+          )}
+          {onQuickSale ? (
+            <button
+              type="button"
+              title={quickSaleLabel}
+              aria-label={quickSaleLabel}
+              onClick={(event) => {
+                event.stopPropagation();
+                onQuickSale();
+              }}
+              className={`inline-flex h-9 w-max min-w-[4.75rem] shrink-0 touch-manipulation flex-nowrap items-center justify-center gap-0.5 whitespace-nowrap rounded-lg border px-1.5 text-[10px] font-black text-slate-950 transition active:scale-[0.98] sm:h-10 sm:text-sm ${variant.quickSale}`}
+            >
+              <Package className="h-3.5 w-3.5 shrink-0" strokeWidth={2.25} />
+              <span className="shrink-0 whitespace-nowrap">Rápido</span>
+            </button>
+          ) : null}
+        </div>
 
         <div className="min-w-0 py-0.5">
           <p className="flex min-w-0 items-center gap-2">
@@ -307,27 +356,59 @@ export function SalePersonRow({
           </p>
           <div className="mt-1 flex min-w-0 items-start gap-1.5 text-xs font-bold leading-snug text-slate-500 sm:overflow-hidden">
             <Phone className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-            <span className="min-w-0 flex-1 break-words text-[11px] sm:truncate sm:text-xs">{phone}</span>
+            <span className="min-w-0 flex-1 whitespace-nowrap text-[11px] sm:truncate sm:text-xs">{phone}</span>
           </div>
           {addressLines.length ? (
-            <div
-              className="mt-1 flex min-w-0 items-start gap-1.5"
-              title={addressSummary}
-            >
-              <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
-              <div className="min-w-0">
-                {addressLines.map((line, index) => (
-                  <p
-                    key={`${line}-${index}`}
-                    className={`break-words text-xs font-bold leading-snug sm:truncate ${
-                      index === 0 ? "text-slate-300" : "text-slate-500"
-                    }`}
-                  >
-                    {line}
-                  </p>
-                ))}
+            onAddressClick ? (
+              <div
+                className="mt-1 flex min-w-0 items-start gap-1.5 text-left"
+                title={addressSummary}
+              >
+                <button
+                  type="button"
+                  className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-sky-300 transition hover:bg-white/10 hover:text-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                  title="Mostrar dirección en el mapa"
+                  aria-label="Mostrar dirección en el mapa"
+                  onClick={(event) => {
+                    event.stopPropagation();
+                    onAddressClick();
+                  }}
+                >
+                  <MapPin className="h-4 w-4" aria-hidden />
+                </button>
+                <div className="min-w-0">
+                  {addressLines.map((line, index) => (
+                    <p
+                      key={`${line}-${index}`}
+                      className={`break-words text-xs font-bold leading-snug sm:truncate ${
+                        index === 0 ? "text-slate-300" : "text-slate-500"
+                      }`}
+                    >
+                      {line}
+                    </p>
+                  ))}
+                </div>
               </div>
-            </div>
+            ) : (
+              <div
+                className="mt-1 flex min-w-0 items-start gap-1.5"
+                title={addressSummary}
+              >
+                <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-500" aria-hidden />
+                <div className="min-w-0">
+                  {addressLines.map((line, index) => (
+                    <p
+                      key={`${line}-${index}`}
+                      className={`break-words text-xs font-bold leading-snug sm:truncate ${
+                        index === 0 ? "text-slate-300" : "text-slate-500"
+                      }`}
+                    >
+                      {line}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            )
           ) : (
             <p className="mt-1 break-words text-xs font-bold leading-snug text-slate-600 sm:truncate">
               Sin dirección
@@ -343,21 +424,6 @@ export function SalePersonRow({
               onClick={onHintClick}
               badge
             />
-          ) : null}
-          {onQuickSale ? (
-            <button
-              type="button"
-              title={quickSaleLabel}
-              aria-label={quickSaleLabel}
-              onClick={(event) => {
-                event.stopPropagation();
-                onQuickSale();
-              }}
-              className={`inline-flex h-9 touch-manipulation items-center justify-center gap-1.5 rounded-lg border px-3 text-xs font-black text-slate-950 transition active:scale-[0.98] sm:h-10 sm:px-3.5 sm:text-sm ${variant.quickSale}`}
-            >
-              <Package className="h-4 w-4 shrink-0" strokeWidth={2.25} />
-              <span>Rápido</span>
-            </button>
           ) : null}
         </div>
       </div>
