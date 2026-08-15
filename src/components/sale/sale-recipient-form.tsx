@@ -305,6 +305,7 @@ export function SaleRecipientForm({
     form.setCity(resolved.city);
     form.setState(resolved.state);
     form.setPostalCode(resolved.postalCode);
+    form.setAddressReference(resolved.addressReference ?? form.addressReference);
     address.setSearch(resolved.formattedAddress);
     address.setSuggestions([]);
     address.setValidation({
@@ -565,7 +566,7 @@ export function SaleRecipientForm({
                     enabled: hasCountry,
                   })}
                 >
-                  Unidad
+                  Número de unidad
                 </span>
                 <input
                   {...noBrowserAutocomplete}
@@ -723,6 +724,7 @@ export function SaleRecipientForm({
             state: form.state,
             postalCode: form.postalCode,
             country: form.country,
+            addressReference: form.addressReference,
           }}
           addressLocation={
             typeof address.validation.lat === "number" && typeof address.validation.lng === "number"
@@ -732,6 +734,7 @@ export function SaleRecipientForm({
           initialEntrance={exactEntranceDraft}
           onClose={dismissMapWindow}
           onAddressResolved={useMapAddress}
+          showOperationalNotes={false}
           onConfirm={(draft) => {
             setExactEntranceDraft(draft);
             dismissMapWindow();

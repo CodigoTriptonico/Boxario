@@ -186,7 +186,9 @@ export function PlatformConsole() {
       const matchesSearch =
         !search ||
         org.name.toLowerCase().includes(search) ||
-        org.slug.toLowerCase().includes(search);
+        org.slug.toLowerCase().includes(search) ||
+        (org.invoice_company_code !== null &&
+          String(org.invoice_company_code).padStart(3, "0").includes(search));
       const matchesStatus =
         statusFilter === "all" ||
         (statusFilter === "active" && org.is_active) ||
@@ -426,6 +428,9 @@ export function PlatformConsole() {
                       </span>
                       <span className={`mt-1 block text-xs font-bold text-slate-400 ${textTruncateSafeClass}`}>
                         {org.slug}
+                        {org.invoice_company_code !== null
+                          ? ` · Empresa ${String(org.invoice_company_code).padStart(3, "0")}`
+                          : ""}
                       </span>
                     </span>
                   </span>
@@ -557,9 +562,11 @@ export function PlatformConsole() {
                   </dd>
                 </div>
                 <div>
-                  <dt className={labelMutedClass}>Tipo</dt>
-                  <dd className="mt-1 text-sm font-black text-slate-200">
-                    Empresa
+                  <dt className={labelMutedClass}>Código de invoice</dt>
+                  <dd className="mt-1 font-mono text-sm font-black tabular-nums text-emerald-300">
+                    {selectedOrg.invoice_company_code !== null
+                      ? String(selectedOrg.invoice_company_code).padStart(3, "0")
+                      : "Pendiente"}
                   </dd>
                 </div>
               </dl>

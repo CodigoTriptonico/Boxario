@@ -42,5 +42,7 @@ describe("shipment-audit", () => {
     assert.equal(shipmentAuditActionLabel("shipment.milestone_recorded"), "Hito del envío");
     assert.equal(shipmentAuditActionLabel("sale.invoice_priority_updated"), "Prioridad");
     assert.equal(shipmentAuditActionLabel("sale.invoice_partial_payment"), "Abono");
+    assert.equal(shipmentAuditActionLabel("customer.exact_entrance.updated"), "Entrada exacta actualizada");
+    assert.equal(shipmentAuditActionLabel("recipient.exact_entrance.updated"), "Entrada exacta actualizada");
   });
 });

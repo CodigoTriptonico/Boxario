@@ -30,6 +30,7 @@ type SaleRecipientListProps = {
   searchActive?: boolean;
   getCardClass: (recipient: Recipient) => string;
   onChoose: (recipient: Recipient) => void;
+  onAddressClick?: (recipient: Recipient) => void;
   onViewShipmentHistory?: (recipient: Recipient) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, recipient: Recipient) => void;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>, recipient: Recipient) => void;
@@ -64,6 +65,7 @@ export function SaleRecipientList({
   searchActive = false,
   getCardClass,
   onChoose,
+  onAddressClick,
   onViewShipmentHistory,
   onOpenContextMenu,
   onIconClick,
@@ -110,7 +112,25 @@ export function SaleRecipientList({
             {
               label: "Dirección",
               className: "min-w-[20rem]",
-              render: (recipient) => <span className="inline-flex items-start gap-1.5 font-bold text-slate-300"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden /><span>{[recipient.street, recipient.houseNumber, recipient.neighborhood, recipient.city, recipient.state, recipient.postalCode].filter(Boolean).join(", ") || "Sin dirección"}</span></span>,
+              render: (recipient) => {
+                const label = [recipient.street, recipient.houseNumber, recipient.neighborhood, recipient.city, recipient.state, recipient.postalCode].filter(Boolean).join(", ") || "Sin dirección";
+                return onAddressClick && label !== "Sin dirección" ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-start gap-1.5 text-left font-bold text-sky-200 underline decoration-dotted underline-offset-2 hover:text-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                    title="Mostrar dirección en el mapa"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onAddressClick(recipient);
+                    }}
+                  >
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>{label}</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-start gap-1.5 font-bold text-slate-300"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden /><span>{label}</span></span>
+                );
+              },
             },
             {
               label: "Actividad",
@@ -177,6 +197,7 @@ export function SaleRecipientList({
                           ? () => onViewShipmentHistory(recipient)
                           : undefined
                       }
+                      onAddressClick={onAddressClick ? () => onAddressClick(recipient) : undefined}
                       className={getCardClass(recipient)}
                       contextProps={recipientContextProps(recipient)}
                       onClick={() => onChoose(recipient)}
@@ -239,6 +260,7 @@ export function SaleRecipientList({
                       ? () => onViewShipmentHistory(recipient)
                       : undefined
                   }
+                  onAddressClick={onAddressClick ? () => onAddressClick(recipient) : undefined}
                   className={getCardClass(recipient)}
                   contextProps={recipientContextProps(recipient)}
                   onClick={() => onChoose(recipient)}

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef } from "react";
+import { type ReactNode, useEffect, useId, useRef } from "react";
 import { secondaryButtonClass } from "@/components/ui-blocks";
 
 export type ActionConfirmTone = "warning" | "danger";
@@ -24,6 +24,7 @@ type ActionConfirmDialogProps = {
   confirmingLabel?: string;
   dialogId?: string;
   overlayClassName?: string;
+  details?: ReactNode;
   onCancel: () => void;
   onConfirm: () => void;
 };
@@ -39,6 +40,7 @@ export function ActionConfirmDialog({
   confirmingLabel = "Guardando...",
   dialogId,
   overlayClassName = "z-[140]",
+  details,
   onCancel,
   onConfirm,
 }: ActionConfirmDialogProps) {
@@ -152,6 +154,7 @@ export function ActionConfirmDialog({
         >
           {message}
         </p>
+        {details ? <div className="mt-3">{details}</div> : null}
 
         <div className="mt-5 grid gap-3 sm:grid-cols-2">
           <button

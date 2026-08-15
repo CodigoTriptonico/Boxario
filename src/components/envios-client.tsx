@@ -102,7 +102,10 @@ export function EnviosClient({
   const hasServerBootstrap = initialShipments !== undefined && initialRoutes !== undefined;
   const [shipments, setShipments] = useState<ShipmentRow[]>(initialShipments || []);
   const [page, setPage] = useState(0);
-  const [shipmentsLoading, setShipmentsLoading] = useState(false);
+  // El bootstrap del servidor se muestra mientras se valida en segundo plano.
+  // Si llega vacío, mantener la carga evita pintar el estado vacío antes de
+  // conocer el resultado fresco de la primera consulta.
+  const [shipmentsLoading, setShipmentsLoading] = useState(supabaseReady);
   const [hasMore, setHasMore] = useState(
     Boolean(initialShipments && initialShipments.length === ENVIOS_SHIPMENTS_PAGE_SIZE),
   );
@@ -210,7 +213,9 @@ export function EnviosClient({
 
     let cancelled = false;
     queueMicrotask(() => {
-      setShipmentsLoading(true);
+      if (!cancelled) {
+        setShipmentsLoading(true);
+      }
     });
 
     void (async () => {
@@ -676,7 +681,7 @@ export function EnviosClient({
           canManageSalesSettings={canManageSalesSettings}
           isConductor={isConductor}
         />
-        <PageLoading inline />
+        <PageLoading inline seamless />
       </Panel>
     );
   }

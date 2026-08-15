@@ -1,19 +1,24 @@
 "use client";
 
+import { useEffect } from "react";
+
 import {
   boxInvoicesForSale,
   saleBoxCatalogKey,
   type RouteAssignmentRetry,
 } from "@/components/sale/venta/shared";
-import { allocateInvoiceNumberAction } from "@/app/actions/pricing";
+import { reserveInvoiceNumberAction } from "@/app/actions/pricing";
 import { requestCustomerRouteAssignmentAction } from "@/app/actions/customer-route-assignments";
 import { createShipmentAction } from "@/app/actions/shipments";
-import { type QuickEmptyBoxDraft } from "@/components/sale/sale-quick-empty-box-modal";
+import { type QuickEmptyBoxDraft } from "@/components/sale/sale-quick-box-types";
 import { saleRouteDecisionTask, saleRouteDecisionTemplateId, type SaleRouteDecision } from "@/lib/sale-route-decision";
 import { listCustomerLogisticsChargeHistoryAction } from "@/app/actions/sale-customer-history";
 import { billingWithRecordedPayment, disabledLogisticsAdditionalCharge, invoiceAccountingStateForPayment, logisticsAdditionalChargeIsValid, type InvoiceBillingSnapshot } from "@/lib/invoice-billing";
 import { emptyCustomerLogisticsChargeHistory } from "@/lib/logistics-charge-history";
 import { formatMoneyValue, parseMoneyValue } from "@/lib/logistics-fees";
+import { defaultSaleDepositDraft } from "@/lib/sale-deposit-charge";
+import { formatInvoiceReference } from "@/lib/invoice-reference";
+import { createInvoiceReservationToken } from "@/lib/invoice-reservation";
 import { recordRecentSale } from "@/lib/sale-recent-storage";
 import {
   EMPTY_BOX_DRIVER_MODE,
@@ -38,6 +43,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     creatingOpenInvoice,
     currentDriverTaskCount,
     currentLogisticsSummary,
+    createdInvoice,
     emptyBoxAdditionalCharge,
     emptyBoxMode,
     emptyBoxRouteDecision,
@@ -51,6 +57,8 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     invoiceBilling,
     invoicePaymentMethod,
     invoicePaymentNote,
+    invoiceReservation,
+    invoiceReservationToken,
     logisticsFees,
     logisticsNotes,
     logisticsPlanReady,
@@ -58,10 +66,13 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     notify,
     quickEmptyBoxAdditionalCharge,
     quickInvoiceBilling,
-    quickInvoiceNumber,
     quickPaymentMethod,
     quickPaymentNote,
+    quickSaleCountry,
+    quickSaleSender,
     quickSaleDraft,
+    quickCheckoutCompleted,
+    releaseInvoiceReservation,
     reloadHistory,
     reloadSaleShortcuts,
     selectedBox,
@@ -71,7 +82,10 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     selectedCartSummary,
     selectedRecipient,
     selectedSender,
+    sellerCode,
+    companyCode,
     setActiveCopyGroup,
+    setActiveStep,
     setContextMenu,
     setCreatedInvoice,
     setCreatingOpenInvoice,
@@ -81,6 +95,8 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setInvoiceConfirmOpen,
     setInvoicePaymentMethod,
     setInvoicePaymentNote,
+    setInvoiceReservation,
+    setInvoiceReservationToken,
     setInvoiceSequence,
     setQuickCheckoutCompleted,
     setQuickEmptyBoxRouteDecision,
@@ -92,13 +108,96 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setQuickSaleCountry,
     setQuickSaleCountryPickerOpen,
     setQuickSaleDraft,
+    setQuickSaleAdvancing,
     setQuickSaleSender,
     setQuickSelectedPromotionId,
+    setQuickEmptyBoxDeliveredAt,
     setQuickTrackingToken,
     setRouteAssignmentRetries,
     setShowQuickCheckout,
     setStockMessage,
   } = context;
+
+  async function reserveInvoiceNumber(country: string | undefined, city: string | undefined, boxCount: number) {
+    if (!isSupabaseConfigured()) {
+      return null;
+    }
+
+    const reservationToken = invoiceReservationToken || createInvoiceReservationToken();
+    const result = await reserveInvoiceNumberAction({
+      reservationToken,
+      country,
+      city,
+      boxCount,
+    });
+
+    if (!result.ok) {
+      setStockMessage(result.error);
+      notify.error(result.error);
+      return null;
+    }
+
+    setInvoiceReservationToken(reservationToken);
+    setInvoiceReservation(result.data);
+    setInvoiceSequence(result.data.sequence);
+    return result.data;
+  }
+
+  useEffect(() => {
+    if (
+      !invoiceReservation ||
+      !invoiceReservationToken ||
+      createdInvoice ||
+      quickCheckoutCompleted ||
+      !isSupabaseConfigured()
+    ) {
+      return;
+    }
+
+    const country = quickSaleDraft?.country || selectedRecipient?.country;
+    const city = quickSaleDraft?.sender.city || selectedRecipient?.city;
+    const boxCount = quickSaleDraft?.boxCount || selectedBoxCount;
+    if (!country || boxCount < 1) {
+      return;
+    }
+
+    const renew = () => {
+      void reserveInvoiceNumberAction({
+        reservationToken: invoiceReservationToken,
+        country,
+        city,
+        boxCount,
+      }).then((result) => {
+        if (result.ok) {
+          setInvoiceReservation(result.data);
+          setInvoiceSequence(result.data.sequence);
+        }
+      });
+    };
+
+    const interval = window.setInterval(renew, 5 * 60 * 1000);
+    const onVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        renew();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisibilityChange);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [
+    createdInvoice,
+    invoiceReservation,
+    invoiceReservationToken,
+    quickCheckoutCompleted,
+    quickSaleDraft,
+    selectedBoxCount,
+    selectedRecipient,
+    setInvoiceReservation,
+    setInvoiceSequence,
+  ]);
 
   async function refreshCustomerLogisticsChargeHistory(customerId?: string | null) {
     const id = String(customerId || "").trim();
@@ -273,19 +372,13 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setCreatingOpenInvoice(true);
 
     try {
-      const invoiceResult = await allocateInvoiceNumberAction();
+      const reservation = await reserveInvoiceNumber(selectedRecipient.country, selectedRecipient.city, selectedBoxCount);
 
-      if (!invoiceResult.ok) {
-        setStockMessage(invoiceResult.error);
+      if (!reservation) {
         return;
       }
 
-      const invoice = invoiceResult.data.invoiceNumber;
-      const match = invoice.match(/(\d+)$/);
-
-      if (match) {
-        setInvoiceSequence(Number(match[1]));
-      }
+      const invoice = reservation.invoiceNumber;
 
       const payment = resolveSalePaymentInput({
         choice: invoicePaymentMethod as SalePaymentChoice,
@@ -320,6 +413,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
 
       if (!shipmentResult.ok) {
         setStockMessage(shipmentResult.error);
+        await releaseInvoiceReservation();
         return;
       }
 
@@ -390,6 +484,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
         boxInvoices: boxInvoicesForSale(invoice, selectedBoxLines),
         serviceOperation: "deliver_empty_box",
         billing: recordedBilling,
+        emptyBoxDeliveredAt: shipmentResult.data.empty_box_delivered_at,
       });
       setFinishDocTab("invoice");
       setInvoiceConfirmOpen(false);
@@ -403,6 +498,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
         notify.success(`Invoice ${invoice} creado.`);
       }
     } catch (error) {
+      await releaseInvoiceReservation();
       const message = error instanceof Error ? error.message : "No se pudo crear el invoice.";
       setStockMessage(message);
       notify.error(message);
@@ -441,7 +537,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     );
   }
 
-  async function proceedQuickEmptyBox(draft: QuickEmptyBoxDraft) {
+  async function proceedQuickEmptyBox(draft: QuickEmptyBoxDraft): Promise<boolean> {
     setQuickSaleDraft(draft);
     setQuickEmptyBoxRouteDecision(null);
     setQuickSelectedPromotionId("");
@@ -453,25 +549,76 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
         : "pending",
     );
     setQuickPaymentNote("");
-    setQuickSaleSender(null);
-    setQuickSaleCountry(null);
+    setQuickSaleSender(draft.sender);
+    setQuickSaleCountry(draft.country);
     setQuickSaleCountryPickerOpen(false);
     setContextMenu(null);
     setActiveCopyGroup(null);
     setStockMessage("");
 
     if (isSupabaseConfigured()) {
-      const result = await allocateInvoiceNumberAction();
-      if (!result.ok) {
-        notify.error(result.error);
-        return;
+      const reservation = await reserveInvoiceNumber(draft.country, draft.sender.city, draft.boxCount);
+      if (!reservation) {
+        return false;
       }
-      setQuickInvoiceNumber(result.data.invoiceNumber);
+      setQuickInvoiceNumber(reservation.invoiceNumber);
     } else {
-      setQuickInvoiceNumber(nextInvoiceNumber);
+      const previewSequence = Number(nextInvoiceNumber.match(/(\d+)$/)?.[1] || 1);
+      setQuickInvoiceNumber(formatInvoiceReference({
+        sequence: previewSequence,
+        country: draft.country,
+        city: draft.sender.city,
+        sellerCode,
+        companyCode,
+        boxCount: draft.boxCount,
+      }));
     }
 
     setShowQuickCheckout(true);
+    return true;
+  }
+
+  async function proceedQuickSaleFromSelectedBox() {
+    if (!quickSaleSender || !quickSaleCountry || !selectedBox || selectedBoxCount < 1) {
+      return;
+    }
+
+    setQuickSaleAdvancing(true);
+
+    try {
+      const quotedTotal = selectedBoxLines.reduce(
+        (total, line) => total + parseMoneyValue(line.box[1] || "$0") * line.quantity,
+        0,
+      );
+      const opened = await proceedQuickEmptyBox({
+        sender: quickSaleSender,
+        country: quickSaleCountry,
+        box: selectedBox,
+        boxLines: selectedBoxLines.map((line) => ({
+          ...line,
+          box: [...line.box],
+        })),
+        boxCount: selectedBoxCount,
+        depositPaid: true,
+        paymentMode: "deposit",
+        payNowAmount: defaultSaleDepositDraft(
+          logisticsFees.minimumDeposit,
+          quotedTotal,
+          selectedBoxCount,
+        ),
+        emptyBoxMode: EMPTY_BOX_OFFICE_MODE,
+        emptyBoxScheduleMode: "",
+        emptyBoxScheduleAt: "",
+        deliverySummary: "Cliente recoge caja vacía en oficina",
+        routeDecision: null,
+      });
+
+      if (opened) {
+        setActiveStep("finish");
+      }
+    } finally {
+      setQuickSaleAdvancing(false);
+    }
   }
 
   async function confirmQuickEmptyBoxCharge(): Promise<boolean> {
@@ -489,7 +636,6 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     }
 
     setStockMessage("");
-    const invoice = quickInvoiceNumber || nextInvoiceNumber;
 
     if (!isSupabaseConfigured()) {
       setStockMessage("Configura Supabase en .env.local para crear invoices abiertos.");
@@ -499,6 +645,15 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     setCreatingQuickInvoice(true);
 
     try {
+      const reservation = await reserveInvoiceNumber(quickSaleDraft.country, quickSaleDraft.sender.city, quickSaleDraft.boxCount);
+
+      if (!reservation) {
+        return false;
+      }
+
+      const invoice = reservation.invoiceNumber;
+      setQuickInvoiceNumber(invoice);
+
       const payment = resolveSalePaymentInput({
         choice: quickPaymentMethod as SalePaymentChoice,
         payNow: quickInvoiceBilling.payNow,
@@ -514,10 +669,16 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
           : quickSaleDraft.sender.id,
         customerName: personFullName(quickSaleDraft.sender),
         country: quickSaleDraft.country,
-        carrier: quickSaleDraft.box[3] || "Deposito caja vacia",
+        carrier:
+          quickSaleDraft.boxLines.length > 1
+            ? quickSaleDraft.boxLines.map((line) => line.box[0]).join(" + ")
+            : quickSaleDraft.box[3] || "Deposito caja vacia",
         paid: payment.paid,
         cost: formatMoneyValue(
-          parseMoneyValue(quickSaleDraft.box[2] || "$0") * quickSaleDraft.boxCount,
+          quickSaleDraft.boxLines.reduce(
+            (total, line) => total + parseMoneyValue(line.box[2] || "$0") * line.quantity,
+            0,
+          ),
         ),
         saleKind: "empty_box_deposit",
         invoiceStatus: invoiceState.invoiceStatus,
@@ -533,6 +694,15 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
             carrier: quickSaleDraft.box[3] || "",
             time: quickSaleDraft.box[4] || "",
           },
+          boxLines: quickSaleDraft.boxLines.map((line) => ({
+            label: line.box[0],
+            paid: line.box[1] || "0",
+            cost: line.box[2] || "0",
+            carrier: line.box[3] || "",
+            time: line.box[4] || "",
+            catalogKey: saleBoxCatalogKey(line.box),
+            quantity: line.quantity,
+          })),
           boxCount: quickSaleDraft.boxCount,
           emptyBox: {
             label: "empty_box",
@@ -582,6 +752,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
 
       if (!shipmentResult.ok) {
         setStockMessage(shipmentResult.error);
+        await releaseInvoiceReservation();
         return false;
       }
 
@@ -634,6 +805,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
 
       setQuickCheckoutCompleted(true);
       setQuickTrackingToken(shipmentResult.data.publicTrackingToken || "");
+      setQuickEmptyBoxDeliveredAt(shipmentResult.data.empty_box_delivered_at);
       setQuickPaymentMethod(SALE_PAYMENT_UNSET);
       setQuickPaymentNote("");
       if (completionWarnings.length) {
@@ -658,6 +830,7 @@ export function useVentaInvoices(context: VentaInvoicesContext) {
     createOpenInvoice,
     retryRouteAssignment,
     proceedQuickEmptyBox,
+    proceedQuickSaleFromSelectedBox,
     confirmQuickEmptyBoxCharge,
   };
 }

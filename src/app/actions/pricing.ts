@@ -14,6 +14,8 @@ import {
 } from "@/lib/pricing/sale-derivatives";
 import type { PricingConfigPayload } from "@/lib/pricing/types";
 import { buildPricingRpcPayload } from "@/lib/pricing/rpc-payload";
+import { formatInvoiceReference, invoiceReferenceCityCode, invoiceReferenceCountryCode } from "@/lib/invoice-reference";
+import type { InvoiceNumberReservation } from "@/lib/invoice-reservation";
 
 export async function loadPricingConfigAction(): Promise<ActionResult<PricingConfigPayload>> {
   try {
@@ -98,7 +100,11 @@ export async function loadSaleCountryBoxesAction(): Promise<
 
 
 
-export async function allocateInvoiceNumberAction(): Promise<ActionResult<{ invoiceNumber: string }>> {
+export async function allocateInvoiceNumberAction(input: {
+  country?: string;
+  city?: string;
+  boxCount?: number;
+} = {}): Promise<ActionResult<{ invoiceNumber: string }>> {
   try {
     const session = await requireAppSession();
 
@@ -111,6 +117,36 @@ export async function allocateInvoiceNumberAction(): Promise<ActionResult<{ invo
       return fail("Supabase no configurado");
     }
 
+    const [{ data: seller, error: sellerError }, { data: organization, error: organizationError }] = await Promise.all([
+      supabase
+      .from("profiles")
+      .select("seller_code")
+      .eq("id", session.userId)
+      .eq("organization_id", session.organizationId)
+      .single(),
+      supabase
+        .from("organizations")
+        .select("invoice_company_code")
+        .eq("id", session.organizationId)
+        .single(),
+    ]);
+
+    if (sellerError) {
+      return fail(sellerError.message);
+    }
+    if (organizationError) {
+      return fail(organizationError.message);
+    }
+
+    const sellerCode = Number(seller.seller_code);
+    if (!Number.isInteger(sellerCode) || sellerCode < 1 || sellerCode > 999) {
+      return fail("Tu usuario no tiene un codigo de vendedor valido.");
+    }
+    const companyCode = Number(organization.invoice_company_code);
+    if (!Number.isInteger(companyCode) || companyCode < 1) {
+      return fail("Tu empresa no tiene un codigo de invoice valido.");
+    }
+
     const { data, error } = await supabase.rpc("next_organization_invoice_number", {
       target_org_id: session.organizationId,
     });
@@ -120,9 +156,139 @@ export async function allocateInvoiceNumberAction(): Promise<ActionResult<{ invo
     }
 
     const sequence = Number(data) || 1;
-    const invoiceNumber = `INV-${String(sequence).padStart(6, "0")}`;
+    const invoiceNumber = formatInvoiceReference({
+      sequence,
+      country: input.country,
+      city: input.city,
+      sellerCode,
+      companyCode,
+      boxCount: input.boxCount || 1,
+    });
 
     return ok({ invoiceNumber });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function reserveInvoiceNumberAction(input: {
+  reservationToken: string;
+  country?: string;
+  city?: string;
+  boxCount?: number;
+}): Promise<ActionResult<InvoiceNumberReservation>> {
+  try {
+    const session = await requireAppSession();
+
+    if (!sessionHasPermission(session, "sales.manage")) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const reservationToken = input.reservationToken.trim();
+    if (!reservationToken) {
+      return fail("No se pudo identificar la reserva del invoice.");
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return fail("Supabase no configurado");
+    }
+
+    const [{ data: seller, error: sellerError }, { data: organization, error: organizationError }] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("seller_code")
+        .eq("id", session.userId)
+        .eq("organization_id", session.organizationId)
+        .single(),
+      supabase
+        .from("organizations")
+        .select("invoice_company_code")
+        .eq("id", session.organizationId)
+        .single(),
+    ]);
+
+    if (sellerError) {
+      return fail(sellerError.message);
+    }
+    if (organizationError) {
+      return fail(organizationError.message);
+    }
+
+    const sellerCode = Number(seller.seller_code);
+    if (!Number.isInteger(sellerCode) || sellerCode < 1 || sellerCode > 999) {
+      return fail("Tu usuario no tiene un codigo de vendedor valido.");
+    }
+    const companyCode = Number(organization.invoice_company_code);
+    if (!Number.isInteger(companyCode) || companyCode < 1) {
+      return fail("Tu empresa no tiene un codigo de invoice valido.");
+    }
+
+    const { data, error } = await supabase.rpc("reserve_organization_invoice_number", {
+      target_org_id: session.organizationId,
+      target_reservation_token: reservationToken,
+      target_country_code: invoiceReferenceCountryCode(input.country),
+      target_city_code: invoiceReferenceCityCode(input.city),
+      target_box_count: Math.max(1, Math.floor(input.boxCount || 1)),
+      target_seller_code: sellerCode,
+      target_company_code: companyCode,
+    });
+
+    if (error) {
+      return fail(error.message);
+    }
+
+    const reservation = data as Partial<InvoiceNumberReservation> | null;
+    if (
+      !reservation ||
+      typeof reservation.invoiceNumber !== "string" ||
+      typeof reservation.reservationToken !== "string" ||
+      typeof reservation.expiresAt !== "string"
+    ) {
+      return fail("No se pudo reservar el numero del invoice.");
+    }
+
+    return ok({
+      reservationToken: reservation.reservationToken,
+      invoiceNumber: reservation.invoiceNumber,
+      sequence: Number(reservation.sequence) || 1,
+      expiresAt: reservation.expiresAt,
+    });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+export async function releaseInvoiceNumberAction(input: {
+  reservationToken: string;
+}): Promise<ActionResult<{ released: boolean }>> {
+  try {
+    const session = await requireAppSession();
+
+    if (!sessionHasPermission(session, "sales.manage")) {
+      throw new Error("FORBIDDEN");
+    }
+
+    const reservationToken = input.reservationToken.trim();
+    if (!reservationToken) {
+      return ok({ released: false });
+    }
+
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) {
+      return ok({ released: false });
+    }
+
+    const { data, error } = await supabase.rpc("release_organization_invoice_number", {
+      target_org_id: session.organizationId,
+      target_reservation_token: reservationToken,
+    });
+
+    if (error) {
+      return fail(error.message);
+    }
+
+    return ok({ released: Boolean(data) });
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

@@ -209,7 +209,7 @@ export async function authoritativeSaleQuote(
   const fullBoxDriver = Boolean(fullBoxPlan.driverTaskNeeded);
   const { data: routeSettings, error: routeSettingsError } = await supabase
     .from("organization_route_settings")
-    .select("minimum_deposit, pickup_included_days, late_pickup_fee")
+    .select("minimum_deposit, pickup_included_enabled, pickup_included_days, late_pickup_fee")
     .eq("organization_id", organizationId)
     .maybeSingle();
   if (routeSettingsError) throw new Error(routeSettingsError.message);
@@ -218,6 +218,7 @@ export async function authoritativeSaleQuote(
     fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
     minimumDeposit:
       String(routeSettings?.minimum_deposit || defaultInvoiceBillingConfig.minimumDeposit),
+    pickupIncludedEnabled: routeSettings?.pickup_included_enabled ?? true,
     pickupIncludedDays: Math.max(Number(routeSettings?.pickup_included_days) || 30, 1),
     latePickupFee: String(routeSettings?.late_pickup_fee || "$0"),
     logisticsFeeMode: "per_trip" as const,
@@ -355,12 +356,16 @@ export async function authoritativeSaleQuote(
         fullBoxPickup: billing.fullBoxPickup,
         total: billing.logisticsSubtotal,
       },
-      pickupPolicy: {
-        includedDays: billing.pickupIncludedDays,
-        latePickupFee: billing.latePickupFeeConfigured,
-        startsWhen: "empty_box_delivered_at",
-        snapshottedAt: new Date().toISOString(),
-      },
+      ...(billing.pickupIncludedDays > 0
+        ? {
+            pickupPolicy: {
+              includedDays: billing.pickupIncludedDays,
+              latePickupFee: billing.latePickupFeeConfigured,
+              startsWhen: "empty_box_delivered_at",
+              snapshottedAt: new Date().toISOString(),
+            },
+          }
+        : {}),
       billing,
       quote: {
         total: billing.quotedTotal,

@@ -96,10 +96,6 @@ export function emptyBoxLegLocked(row: ShipmentRow) {
 }
 
 export function fullBoxLegLocked(row: ShipmentRow) {
-  if (row.sale_kind === "empty_box_deposit") {
-    return true;
-  }
-
   if (OFFICE_RECEIVED_STATUSES.has(row.status)) {
     return true;
   }
@@ -126,10 +122,6 @@ export function emptyBoxLegLockReason(row: ShipmentRow) {
 }
 
 export function fullBoxLegLockReason(row: ShipmentRow) {
-  if (row.sale_kind === "empty_box_deposit") {
-    return "Este invoice es solo depósito de caja vacía.";
-  }
-
   if (OFFICE_RECEIVED_STATUSES.has(row.status)) {
     return "La caja llena ya está registrada en oficina.";
   }
@@ -145,10 +137,6 @@ export function fullBoxLegLockReason(row: ShipmentRow) {
 
 /** True when office full-box reception can still be undone (no later transit milestones). */
 export function canRevertFullBoxOfficeReception(row: ShipmentRow) {
-  if (row.sale_kind === "empty_box_deposit") {
-    return false;
-  }
-
   if (!row.full_box_collected_at && !row.office_received_at) {
     return false;
   }

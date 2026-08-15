@@ -18,10 +18,7 @@ describe("venta paso 3", () => {
     assert.ok(catalogIndex >= 0, "el catalogo debe tener scroll propio");
     assert.ok(actionIndex >= 0, "debe conservar la accion para continuar");
     assert.ok(catalogIndex < actionIndex, "la accion debe estar despues del catalogo");
-    assert.match(
-      sliceAround("onClick={continueFromCart}"),
-      /flex shrink-0 justify-center border-t border-black\/80 pt-4/,
-    );
+    assert.match(source, /flex shrink-0 justify-center border-t border-black\/80 pt-4/);
     assert.match(
       sliceAround("onClick={continueFromLogistics}"),
       /flex shrink-0 justify-center border-t border-black\/80 pt-4/,

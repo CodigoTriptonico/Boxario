@@ -57,6 +57,7 @@ type DataLayer = {
 type MarkerInstance = {
   setMap: (map: MapInstance | null) => void;
   setPosition: (position: { lat: number; lng: number }) => void;
+  getPosition?: () => { lat: () => number; lng: () => number } | null;
   setLabel?: (label: string | Record<string, unknown> | null) => void;
   setIcon?: (icon: unknown) => void;
   setOpacity?: (opacity: number) => void;
@@ -120,7 +121,10 @@ type GeometryLike = {
 };
 
 type UserLocation = { lat: number; lng: number };
-export type CoverageMapFocusLocation = UserLocation & { label: string };
+export type CoverageMapFocusLocation = UserLocation & {
+  label: string;
+  source?: "exact_entrance" | "address";
+};
 
 type CoverageMapGeometry = {
   id: string;
@@ -517,10 +521,15 @@ export function GeographicRouteCoverageMap({
   canPickPlaces = false,
   highlightedPlaceId = null,
   focusLocation = null,
+  focusLocationRequest = 0,
+  fitCoverageRequest = 0,
+  onFocusLocationChange,
   showLocationControl = true,
   resizable = true,
+  fillHeight = false,
   onSelectPlace,
   onSelectPlaces,
+  onCoveragePlaceClick,
 }: {
   postalCodes?: string[];
   places?: RouteCoveragePlace[];
@@ -533,8 +542,16 @@ export function GeographicRouteCoverageMap({
   highlightedPlaceId?: string | null;
   /** Fixed point to compare against the coverage polygons, such as a customer address. */
   focusLocation?: CoverageMapFocusLocation | null;
+  /** Increments when the user explicitly asks to center the map on the fixed point. */
+  focusLocationRequest?: number;
+  /** Increments when the user changes the route view and asks to frame its coverage. */
+  fitCoverageRequest?: number;
+  /** Called after the customer pin is dragged to a new position. */
+  onFocusLocationChange?: (location: CoverageMapFocusLocation) => void;
   showLocationControl?: boolean;
   resizable?: boolean;
+  /** Makes the map fill the height of its coverage surface instead of using the saved map height. */
+  fillHeight?: boolean;
   /** Called after a deliberate map click identifies a city or zone. */
   onSelectPlace?: (place: RouteCoveragePlace) => void;
   /** Called after a rectangle selects one or more catalog polygons. Progressive batches may pass `{ progressive: true }`. */
@@ -542,6 +559,8 @@ export function GeographicRouteCoverageMap({
     places: RouteCoveragePlace[],
     options?: { progressive?: boolean },
   ) => void;
+  /** Called when a coverage polygon is clicked, without enabling place editing. */
+  onCoveragePlaceClick?: (placeId: string) => void;
 }) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapInstance | null>(null);
@@ -562,6 +581,9 @@ export function GeographicRouteCoverageMap({
   }>({ active: false, startClient: null });
   const onSelectPlaceRef = useRef(onSelectPlace);
   const onSelectPlacesRef = useRef(onSelectPlaces);
+  const onCoveragePlaceClickRef = useRef(onCoveragePlaceClick);
+  const focusLocationRef = useRef(focusLocation);
+  const onFocusLocationChangeRef = useRef(onFocusLocationChange);
   const seededGeometryRef = useRef(
     new Map<string, { geojson: Record<string, unknown>; bounds: RouteCoveragePlaceBounds | null }>(),
   );
@@ -569,6 +591,10 @@ export function GeographicRouteCoverageMap({
   const catalogRequestIdRef = useRef(0);
   const [geometries, setGeometries] = useState<CoverageMapGeometry[]>([]);
   const [catalogPlaces, setCatalogPlaces] = useState<CensusCatalogPlace[]>([]);
+  const catalogByGeoid = useMemo(
+    () => new Map(catalogPlaces.map((place) => [place.geoid, place])),
+    [catalogPlaces],
+  );
   const [hoveredCatalogGeoid, setHoveredCatalogGeoid] = useState<string | null>(null);
   const [areaMode, setAreaMode] = useState(false);
   const [areaDraftBox, setAreaDraftBox] = useState<{
@@ -635,11 +661,11 @@ export function GeographicRouteCoverageMap({
     [geometries, previewPlaceIds],
   );
   const focusLocationKey = focusLocation
-    ? `${focusLocation.lat}:${focusLocation.lng}:${focusLocation.label}`
+    ? `${focusLocation.lat}:${focusLocation.lng}:${focusLocation.label}:${focusLocation.source || ""}`
     : "";
   const hoverLabel = useMemo(() => {
     if (hoveredCatalogGeoid) {
-      return catalogByGeoidRef.current.get(hoveredCatalogGeoid)?.displayName || null;
+      return catalogByGeoid.get(hoveredCatalogGeoid)?.displayName || null;
     }
     if (!highlightedPlaceId) return null;
     return (
@@ -647,14 +673,17 @@ export function GeographicRouteCoverageMap({
       geometries.find((item) => item.id === highlightedPlaceId)?.label ||
       null
     );
-  }, [geometries, highlightedPlaceId, hoveredCatalogGeoid, places]);
+  }, [catalogByGeoid, geometries, highlightedPlaceId, hoveredCatalogGeoid, places]);
 
   useEffect(() => {
     visiblePlacesRef.current = visiblePlaces;
     previewPlacesRef.current = previewPlaces;
     onSelectPlaceRef.current = onSelectPlace;
     onSelectPlacesRef.current = onSelectPlaces;
-  }, [onSelectPlace, onSelectPlaces, previewPlaces, visiblePlaces]);
+    onCoveragePlaceClickRef.current = onCoveragePlaceClick;
+    focusLocationRef.current = focusLocation;
+    onFocusLocationChangeRef.current = onFocusLocationChange;
+  }, [focusLocation, onCoveragePlaceClick, onFocusLocationChange, onSelectPlace, onSelectPlaces, previewPlaces, visiblePlaces]);
 
   useEffect(() => {
     areaModeRef.current = areaMode;
@@ -665,6 +694,7 @@ export function GeographicRouteCoverageMap({
   }, [catalogPlaces]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- restore persisted panel geometry once on mount.
     setMapHeight(readStoredMapHeight());
     const host = mapRootRef.current;
     const available = mapWidthFromHost(host);
@@ -820,7 +850,7 @@ export function GeographicRouteCoverageMap({
   }, [canPickPlaces, clearAreaRectangle]);
 
   const selectCatalogPlace = useCallback(async (geoid: string) => {
-    if (!canPickPlaces || mapClickBusyRef.current || areaModeRef.current) return;
+    if (mapClickBusyRef.current || areaModeRef.current) return;
     const catalogPlace = catalogByGeoidRef.current.get(geoid);
     if (!catalogPlace?.geojson) {
       setStatus("Esa pieza del mapa no tiene geometría disponible.");
@@ -870,7 +900,7 @@ export function GeographicRouteCoverageMap({
       mapClickBusyRef.current = false;
       setMapClickBusy(false);
     }
-  }, [canPickPlaces]);
+  }, []);
 
   const resolveAreaSelection = useCallback(async (drawn: RouteCoveragePlaceBounds) => {
     if (!canPickPlaces || mapClickBusyRef.current) return;
@@ -1005,6 +1035,8 @@ export function GeographicRouteCoverageMap({
     );
     if (!featurePlaceId) return;
     lastFeatureClickAtRef.current = Date.now();
+    onCoveragePlaceClickRef.current?.(featurePlaceId);
+    if (!canPickPlaces) return;
     const previewPlace = previewPlacesRef.current.find((place) => place.placeId === featurePlaceId);
     if (previewPlace) {
       onSelectPlaceRef.current?.(previewPlace);
@@ -1026,14 +1058,14 @@ export function GeographicRouteCoverageMap({
     const catalogLayer = catalogLayerRef.current;
     if (map) {
       map.data.revertStyle?.();
-      map.data.setStyle((feature) => styleForFeature(feature, color, highlightedPlaceId, canPickPlaces));
+      map.data.setStyle((feature) => styleForFeature(feature, color, highlightedPlaceId, canPickPlaces || Boolean(onCoveragePlaceClick)));
       resizeMapInstance(map, runtime);
     }
     if (catalogLayer) {
       catalogLayer.revertStyle?.();
       catalogLayer.setStyle((feature) => styleForCatalogFeature(feature, hoveredCatalogGeoid, canPickPlaces));
     }
-  }, [canPickPlaces, color, geometries, highlightedPlaceId, hoveredCatalogGeoid, placesKey]);
+  }, [canPickPlaces, color, geometries, highlightedPlaceId, hoveredCatalogGeoid, onCoveragePlaceClick, placesKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1286,7 +1318,7 @@ export function GeographicRouteCoverageMap({
     return () => {
       cancelled = true;
     };
-  }, [canPickPlaces, catalogPlaces.length, color, label, placesKey, postalKey, previewKey]);
+  }, [canPickPlaces, catalogPlaces.length, color, label, placesKey, postalCodes, postalKey, previewKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -1347,7 +1379,7 @@ export function GeographicRouteCoverageMap({
 
         const map = mapRef.current;
         clearDataLayer(map.data);
-        map.data.setStyle((feature) => styleForFeature(feature, color, highlightedPlaceIdRef.current, canPickPlaces));
+        map.data.setStyle((feature) => styleForFeature(feature, color, highlightedPlaceIdRef.current, canPickPlaces || Boolean(onCoveragePlaceClick)));
 
         for (const geometry of geometries) {
           if (geometry.geojson) {
@@ -1398,20 +1430,13 @@ export function GeographicRouteCoverageMap({
 
         if (focusLocation) {
           if (!focusMarkerRef.current) {
-            const circleSymbol = runtime.SymbolPath?.CIRCLE;
-            focusMarkerRef.current = new runtime.Marker({
+            const focusMarker = new runtime.Marker({
               map,
               position: focusLocation,
-              title: focusLocation.label,
-              icon: {
-                path: circleSymbol ?? "M 0,0 m -6,0 a 6,6 0 1,0 12,0 a 6,6 0 1,0 -12,0",
-                fillColor: "#fb7185",
-                fillOpacity: 1,
-                strokeColor: "#f8fafc",
-                strokeWeight: 2.5,
-                scale: circleSymbol === undefined ? 1 : 7,
-                labelOrigin: { x: 0, y: -14 },
-              },
+              draggable: Boolean(onFocusLocationChangeRef.current),
+              title: focusLocation.source === "address"
+                ? `${focusLocation.label} (ubicación aproximada)`
+                : focusLocation.label,
               label: {
                 text: "Cliente",
                 color: "#f8fafc",
@@ -1420,10 +1445,26 @@ export function GeographicRouteCoverageMap({
               },
               zIndex: 10,
             });
+            focusMarker.addListener?.("dragend", () => {
+              const position = focusMarker.getPosition?.();
+              const currentLocation = focusLocationRef.current;
+              if (!position || !currentLocation) return;
+              onFocusLocationChangeRef.current?.({
+                lat: position.lat(),
+                lng: position.lng(),
+                label: currentLocation.label,
+                source: "exact_entrance",
+              });
+            });
+            focusMarkerRef.current = focusMarker;
           } else {
             focusMarkerRef.current.setMap(map);
             focusMarkerRef.current.setPosition(focusLocation);
-            focusMarkerRef.current.setTitle?.(focusLocation.label);
+            focusMarkerRef.current.setTitle?.(
+              focusLocation.source === "address"
+                ? `${focusLocation.label} (ubicación aproximada)`
+                : focusLocation.label,
+            );
           }
         } else if (focusMarkerRef.current) {
           focusMarkerRef.current.setMap(null);
@@ -1442,14 +1483,16 @@ export function GeographicRouteCoverageMap({
     return () => {
       cancelled = true;
     };
-  }, [apiKey, canPickPlaces, color, focusLocation, geometries, userLocation]);
+  }, [apiKey, canPickPlaces, color, focusLocation, geometries, onCoveragePlaceClick, onFocusLocationChange, userLocation]);
 
   useEffect(() => {
     const map = mapRef.current;
     const catalogLayer = catalogLayerRef.current;
-    if (!mapReady || !map || !canPickPlaces || areaMode) return;
+    if (!mapReady || !map || (!canPickPlaces && !onCoveragePlaceClick) || areaMode) return;
 
-    map.setOptions({ draggableCursor: "crosshair", draggable: true, gestureHandling: "greedy" });
+    if (canPickPlaces) {
+      map.setOptions({ draggableCursor: "crosshair", draggable: true, gestureHandling: "greedy" });
+    }
     const coverageClickListener = map.data.addListener("click", (event) => {
       identifyCoverageFeature(event);
     });
@@ -1480,9 +1523,9 @@ export function GeographicRouteCoverageMap({
       catalogHoverListener?.remove();
       catalogOutListener?.remove();
       emptyClickListener.remove();
-      map.setOptions({ draggableCursor: null });
+      if (canPickPlaces) map.setOptions({ draggableCursor: null });
     };
-  }, [areaMode, canPickPlaces, identifyCoverageFeature, mapReady, selectCatalogPlace]);
+  }, [areaMode, canPickPlaces, identifyCoverageFeature, mapReady, onCoveragePlaceClick, selectCatalogPlace]);
 
   useEffect(() => {
     const map = mapRef.current;
@@ -1565,6 +1608,7 @@ export function GeographicRouteCoverageMap({
 
   useEffect(() => {
     if (!mapReady || !canPickPlaces) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect -- clear data when the external map capability disappears.
       setCatalogPlaces([]);
       return;
     }
@@ -1696,7 +1740,7 @@ export function GeographicRouteCoverageMap({
       fittedPreviewIdRef.current = "";
     }
 
-    const cameraKey = `${coverageIdsKey}|focus:${focusLocationKey}`;
+    const cameraKey = `${coverageIdsKey}|focus:${focusLocationKey}|focus-request:${focusLocationRequest}|coverage-request:${fitCoverageRequest}`;
     if (cameraKey === fittedCoverageKeyRef.current) return;
 
     const committedBounds = new runtime.LatLngBounds();
@@ -1708,7 +1752,7 @@ export function GeographicRouteCoverageMap({
       }
     }
 
-    if (focusLocation) {
+    if (focusLocation && !fitCoverageRequest) {
       committedBounds.extend({ lat: focusLocation.lat, lng: focusLocation.lng });
     }
 
@@ -1719,17 +1763,31 @@ export function GeographicRouteCoverageMap({
 
     // Wait for geojson/bounds — never fit on center alone (that opens street-level zoom).
     // Do not mark fitted yet so the first real outline can frame once without a second jump.
-    if (!hasOutline && focusLocation) {
+    // In the customer preview, the address is the anchor. Some route coverage
+    // collections can contain distant or broad geometries; fitting all of them
+    // would open the map at a world view instead of showing the customer area.
+    if (focusLocation && !fitCoverageRequest) {
       fittedCoverageKeyRef.current = cameraKey;
       map.setCenter(focusLocation);
-      map.setZoom(12);
+      map.setZoom(10);
       return;
     }
-    if (!hasOutline || committedBounds.isEmpty()) return;
+
+    if (!hasOutline || committedBounds.isEmpty()) {
+      if (fitCoverageRequest) {
+        const fallbackCenter = geometries.find((item) => item.center)?.center;
+        if (fallbackCenter) {
+          fittedCoverageKeyRef.current = cameraKey;
+          map.setCenter(fallbackCenter);
+          map.setZoom(10);
+        }
+      }
+      return;
+    }
 
     fittedCoverageKeyRef.current = cameraKey;
     fitCoverageCamera(map, committedBounds);
-  }, [coverageIdsKey, fitPreview, focusLocation, focusLocationKey, geometries, mapReady, previewPlaceIds, previewPlaces]);
+  }, [coverageIdsKey, fitCoverageRequest, fitPreview, focusLocation, focusLocationKey, focusLocationRequest, geometries, mapReady, previewPlaceIds, previewPlaces]);
 
   async function locateMe() {
     setLocationBusy(true);
@@ -1755,7 +1813,7 @@ export function GeographicRouteCoverageMap({
   }
 
   return (
-    <div ref={mapRootRef} className="grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5">
+    <div ref={mapRootRef} className={`grid w-full min-w-0 grid-cols-[minmax(0,1fr)] gap-1.5 ${fillHeight ? "h-full grid-rows-[auto_minmax(0,1fr)]" : ""}`}>
       <div
         className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${mapWidthFill ? "w-full" : ""}`}
         style={mapWidthFill ? undefined : { width: mapWidth }}
@@ -1807,12 +1865,16 @@ export function GeographicRouteCoverageMap({
           </button> : null}
         </div>
       </div>
-      <div ref={mapShellRef} className="w-full min-w-0 max-w-full overflow-x-hidden">
-        <div className={`flex max-w-full items-stretch ${mapWidthFill ? "w-full" : ""}`}>
+      <div ref={mapShellRef} className={`w-full min-w-0 max-w-full overflow-x-hidden ${fillHeight ? "h-full" : ""}`}>
+        <div className={`flex max-w-full items-stretch ${mapWidthFill ? "w-full" : ""} ${fillHeight ? "h-full" : ""}`}>
           <div
             ref={mapFrameRef}
             className={`relative isolate min-w-0 overflow-hidden rounded-lg border border-black bg-surface-card ${mapWidthFill ? "flex-1" : ""}`}
-            style={{ height: mapHeight, width: mapWidthFill ? undefined : mapWidth }}
+            style={{
+              height: fillHeight ? "100%" : mapHeight,
+              minHeight: fillHeight ? "16rem" : undefined,
+              width: mapWidthFill ? undefined : mapWidth,
+            }}
           >
             <div ref={containerRef} className="absolute inset-0" />
             {areaResolveProgress ? (

@@ -27,6 +27,7 @@ const routeConfig: PricingRouteConfig = {
   emptyBoxDeliveryFee: "$15",
   fullBoxPickupFee: "$10",
   minimumDeposit: "$25",
+  pickupIncludedEnabled: true,
   pickupIncludedDays: 30,
   latePickupFee: "$18",
   logisticsFeeMode: "per_trip",

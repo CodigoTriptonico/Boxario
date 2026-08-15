@@ -48,7 +48,7 @@ export function nextCoveragePlaceColor(places: RouteCoveragePlace[], fallback = 
   for (const candidate of COVERAGE_PLACE_PALETTE) {
     if (!used.has(candidate)) return candidate;
   }
-  return COVERAGE_PLACE_PALETTE[places.length % COVERAGE_PLACE_PALETTE.length];
+  return normalizeCoveragePlaceColor(fallback, COVERAGE_PLACE_PALETTE[places.length % COVERAGE_PLACE_PALETTE.length]);
 }
 
 export type RouteCoverageAddress = {
@@ -64,6 +64,25 @@ export type RouteCoverageAddress = {
   lat?: number | string | null;
   lng?: number | string | null;
 };
+
+export type GeoPoint = { lat: number; lng: number };
+
+function normalizeGeoCoordinate(value: unknown, minimum: number, maximum: number) {
+  if (value === null || value === undefined) return null;
+  if (typeof value !== "number" && typeof value !== "string") return null;
+  if (typeof value === "string" && !value.trim()) return null;
+  const coordinate = Number(value);
+  return Number.isFinite(coordinate) && coordinate >= minimum && coordinate <= maximum
+    ? coordinate
+    : null;
+}
+
+/** Converts persisted coordinates without turning missing values into the real point 0,0. */
+export function normalizeGeoPoint(latValue: unknown, lngValue: unknown): GeoPoint | null {
+  const lat = normalizeGeoCoordinate(latValue, -90, 90);
+  const lng = normalizeGeoCoordinate(lngValue, -180, 180);
+  return lat === null || lng === null ? null : { lat, lng };
+}
 
 export function normalizeUsPostalCode(value: unknown): string | null {
   const normalized = String(value || "").trim();
@@ -82,6 +101,7 @@ export function normalizedAddressPart(value: unknown) {
 
 export function normalizedAddressFingerprintSource(address: RouteCoverageAddress) {
   const postalCode = normalizeUsPostalCode(address.postalCode) || "";
+  const point = normalizeGeoPoint(address.lat, address.lng);
   return [
     normalizedAddressPart(address.placeId),
     normalizedAddressPart(address.formattedAddress),
@@ -92,8 +112,8 @@ export function normalizedAddressFingerprintSource(address: RouteCoverageAddress
     normalizedAddressPart(address.state),
     postalCode,
     normalizedAddressPart(address.country || "USA"),
-    address.lat == null ? "" : Number(address.lat).toFixed(6),
-    address.lng == null ? "" : Number(address.lng).toFixed(6),
+    point?.lat.toFixed(6) || "",
+    point?.lng.toFixed(6) || "",
   ].join("|");
 }
 
@@ -118,9 +138,8 @@ function placeMatchesAddress(place: RouteCoveragePlace, address: RouteCoverageAd
   } else if (namesMatch(address.neighborhood, place.displayName) || namesMatch(address.city, place.displayName)) {
     return true;
   }
-  const lat = address.lat == null ? NaN : Number(address.lat);
-  const lng = address.lng == null ? NaN : Number(address.lng);
-  if (Number.isFinite(lat) && Number.isFinite(lng) && pointInBounds(lat, lng, place.bounds)) {
+  const point = normalizeGeoPoint(address.lat, address.lng);
+  if (point && pointInBounds(point.lat, point.lng, place.bounds)) {
     return true;
   }
   return false;

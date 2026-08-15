@@ -7,7 +7,6 @@ import {
   updateCustomerCardStyleAction,
   updateRecipientCardStyleAction,
 } from "@/app/actions/customers";
-import { allocateInvoiceNumberAction } from "@/app/actions/pricing";
 import { listSaleShortcutsAction } from "@/app/actions/sale-shortcuts";
 import { syncShipmentPartyAction } from "@/app/actions/shipments";
 import type { SalePersonCardVariantId } from "@/components/sale/sale-person-card-variants";
@@ -61,11 +60,14 @@ export function useVentaFlow(context: VentaFlowContext) {
     setSelectedPromotionId,
     setStockMessage,
     setInvoiceSequence,
+    setInvoiceReservation,
+    setInvoiceReservationToken,
     setShowQuickCheckout,
     setQuickSaleDraft,
     setQuickEmptyBoxAdditionalCharge,
     setQuickInvoiceNumber,
     setQuickTrackingToken,
+    setQuickEmptyBoxDeliveredAt,
     setQuickPayNowDraft,
     setQuickPayNowDraftTouched,
     setQuickPaymentMethod,
@@ -74,6 +76,9 @@ export function useVentaFlow(context: VentaFlowContext) {
     setQuickSelectedPromotionId,
     setSenderList,
     setQuickSaleSender,
+    setQuickSaleCountry,
+    setQuickSaleCountryPickerOpen,
+    setQuickEmptyBoxRouteDecision,
     senderList,
     notify,
     selectedSender,
@@ -123,6 +128,8 @@ export function useVentaFlow(context: VentaFlowContext) {
 
   function startNewSale() {
     setCreatedInvoice(null);
+    setInvoiceReservation(null);
+    setInvoiceReservationToken("");
     setFinishDocTab("invoice");
     setSelectedSender(null);
     setSelectedRecipient(null);
@@ -144,6 +151,7 @@ export function useVentaFlow(context: VentaFlowContext) {
     setQuickEmptyBoxAdditionalCharge(disabledLogisticsAdditionalCharge());
     setQuickInvoiceNumber("");
     setQuickTrackingToken("");
+    setQuickEmptyBoxDeliveredAt(null);
     setQuickPayNowDraft("");
     setQuickPayNowDraftTouched(false);
     setQuickPaymentMethod(SALE_PAYMENT_UNSET);
@@ -153,19 +161,21 @@ export function useVentaFlow(context: VentaFlowContext) {
   }
 
   async function finishQuickCheckoutNewSale() {
-    if (isSupabaseConfigured()) {
-      const nextInvoice = await allocateInvoiceNumberAction();
-      if (nextInvoice.ok) {
-        const match = nextInvoice.data.invoiceNumber.match(/(\d+)$/);
-        if (match) {
-          setInvoiceSequence(Number(match[1]));
-        }
-      }
-    } else {
-      setInvoiceSequence((current) => current + 1);
-    }
+    setInvoiceSequence((current) => current + 1);
+    setInvoiceReservation(null);
+    setInvoiceReservationToken("");
 
     closeQuickCheckout();
+    setSelectedSender(null);
+    setSelectedRecipient(null);
+    setSelectedBoxLines([]);
+    resetSaleLogistics();
+    setQuickSaleSender(null);
+    setQuickSaleCountry(null);
+    setQuickSaleCountryPickerOpen(false);
+    setQuickEmptyBoxRouteDecision(null);
+    setMode("sale");
+    setActiveStep("client");
   }
 
   const patchSenderRecipients = useCallback(

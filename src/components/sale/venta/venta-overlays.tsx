@@ -3,8 +3,6 @@
 import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { SaleContextMenu } from "@/components/sale/sale-context-menu";
 import { SaleCustomerHistoryDrawer } from "@/components/sale/sale-customer-history-drawer";
-import { SaleQuickEmptyBoxModal } from "@/components/sale/sale-quick-empty-box-modal";
-import { SaleQuickCheckoutModal } from "@/components/sale/sale-quick-checkout-modal";
 import { SaleQuickCountryPicker } from "@/components/sale/sale-quick-country-picker";
 import { SaleInvoiceConfirmDialog } from "@/components/sale/sale-invoice-confirm-dialog";
 import { SaleDocumentPartyEditDialog } from "@/components/sale/sale-document-party-edit-dialog";
@@ -16,10 +14,7 @@ import { SalePersonStylePicker } from "@/components/sale/sale-person-style-picke
 import { configPricesCountryHref } from "@/lib/country-options";
 import { saleFinishActionLabel } from "@/lib/invoice-billing";
 import { parseMoneyValue } from "@/lib/logistics-fees";
-import { EMPTY_BOX_DRIVER_MODE } from "@/lib/sale-logistics-modes";
-import { SALE_PAYMENT_UNSET } from "@/lib/sale-payment-choice";
 import { personFullName } from "@/components/sale/venta-parts";
-import { resolveCountryPromotions } from "@/components/sale/venta/shared";
 import type { VentaController } from "@/components/sale/venta/use-venta-controller";
 
 export function VentaOverlays({ controller }: { controller: VentaController; }) {
@@ -35,10 +30,9 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
     clientAddressSuggestions,
     clientAddressValidation,
     closeDocumentPartyEdit,
-    closeQuickCheckout,
     closeQuickSaleCountryFlow,
+    enterQuickSaleCountry,
     confirmDeletePerson,
-    confirmQuickEmptyBoxCharge,
     confirmSalePendingDay,
     confirmSalePendingRoute,
     confirmSalePreferredRoute,
@@ -47,13 +41,11 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
     copyGroups,
     copyValue,
     countries,
-    countryPromotions,
     createClient,
     createOpenInvoice,
     createRecipient,
     createdInvoice,
     creatingOpenInvoice,
-    creatingQuickInvoice,
     defaultRecipientCardStyle,
     defaultSenderCardStyle,
     deleteConfirm,
@@ -64,7 +56,6 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
     editContextTarget,
     editingCustomerId,
     editingRecipientId,
-    finishQuickCheckoutNewSale,
     fullAddress,
     historyDrawer,
     invoiceBilling,
@@ -99,28 +90,9 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
     newRecipientStreet,
     nextInvoiceNumber,
     openCustomerHistoryFromMenu,
-    openRoutePlanner,
-    organizationBranding,
-    proceedQuickEmptyBox,
-    quickCheckoutCompleted,
-    customerLogisticsChargeHistory,
-    quickEmptyBoxAdditionalCharge,
-    quickEmptyBoxRouteDecision,
-    quickInvoiceBilling,
-    quickInvoiceBillingForPayment,
-    quickInvoiceNumber,
-    quickPayNowDraft,
-    quickPayNowDraftTouched,
-    quickPaymentMethod,
-    quickPaymentNote,
-    quickSaleBoxCatalog,
     quickSaleCountries,
-    quickSaleCountry,
     quickSaleCountryPickerOpen,
-    quickSaleDraft,
     quickSaleSender,
-    quickSelectedPromotionId,
-    quickTrackingToken,
     recipientAddressSearch,
     recipientAddressSearching,
     recipientAddressSuggestions,
@@ -171,21 +143,11 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
     setNewRecipientPostalCode,
     setNewRecipientState,
     setNewRecipientStreet,
-    setQuickEmptyBoxAdditionalCharge,
-    setQuickEmptyBoxRouteDecision,
-    setQuickPayNowDraft,
-    setQuickPayNowDraftTouched,
-    setQuickPaymentMethod,
-    setQuickPaymentNote,
-    setQuickSaleCountry,
-    setQuickSaleCountryPickerOpen,
-    setQuickSelectedPromotionId,
     setRecipientAddressSearch,
     setRecipientAddressSuggestions,
     setRecipientAddressValidation,
     setRecipientCountryGateOpen,
     setRoutePlannerLeg,
-    showQuickCheckout,
     startQuickEmptyBox,
     stockMessage,
     touchClientAddressField,
@@ -472,76 +434,8 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
           countries={quickSaleCountries}
           onClose={closeQuickSaleCountryFlow}
           onSelect={(country) => {
-            setQuickSaleCountry(country);
-            setQuickSaleCountryPickerOpen(false);
+            enterQuickSaleCountry(country);
           }}
-        />
-      ) : null}
-
-      {quickSaleSender && quickSaleCountry && quickSaleBoxCatalog && !quickSaleCountryPickerOpen ? (
-        <SaleQuickEmptyBoxModal
-          sender={quickSaleSender}
-          country={quickSaleBoxCatalog.country}
-          boxes={quickSaleBoxCatalog.boxes}
-          promotions={resolveCountryPromotions(
-            countryPromotions,
-            quickSaleBoxCatalog.country,
-          )}
-          minimumDeposit={logisticsFees.minimumDeposit}
-          routeDecision={quickEmptyBoxRouteDecision}
-          onClose={closeQuickSaleCountryFlow}
-          onClearRoute={() => setQuickEmptyBoxRouteDecision(null)}
-          onRequestRoute={() => void openRoutePlanner("quickEmptyBox")}
-          onProceed={(draft) => void proceedQuickEmptyBox(draft)}
-        />
-      ) : null}
-
-      {showQuickCheckout && quickSaleDraft ? (
-        <SaleQuickCheckoutModal
-          branding={organizationBranding}
-          invoiceNumber={quickInvoiceNumber}
-          trackingToken={quickTrackingToken}
-          draft={quickSaleDraft}
-          billing={quickInvoiceBilling}
-          billingForPayment={quickInvoiceBillingForPayment}
-          selectedPromotionId={quickSelectedPromotionId}
-          onPromotionChange={setQuickSelectedPromotionId}
-          payNowDraft={quickPayNowDraft}
-          payNowDraftTouched={quickPayNowDraftTouched}
-          onPayNowDraftChange={(value) => {
-            setQuickPayNowDraftTouched(true);
-            const nextValue = value.replace(/[^\d]/g, "");
-            setQuickPayNowDraft(nextValue);
-            setQuickPaymentMethod(nextValue && Number(nextValue) > 0
-              ? SALE_PAYMENT_UNSET
-              : "pending");
-            setQuickPaymentNote("");
-          }}
-          onInitialPaymentWaivedChange={(waived) => {
-            setQuickPayNowDraft(waived ? "0" : "");
-            setQuickPayNowDraftTouched(waived);
-            setQuickPaymentMethod(waived ? "pending" : SALE_PAYMENT_UNSET);
-            setQuickPaymentNote("");
-          }}
-          paymentMethod={quickPaymentMethod}
-          paymentNote={quickPaymentNote}
-          onPaymentMethodChange={setQuickPaymentMethod}
-          onPaymentNoteChange={setQuickPaymentNote}
-          completed={quickCheckoutCompleted}
-          stockMessage={stockMessage}
-          onClose={closeQuickCheckout}
-          onPrint={() => window.print()}
-          onConfirmCharge={() => confirmQuickEmptyBoxCharge()}
-          onStartNewSale={() => void finishQuickCheckoutNewSale()}
-          confirming={creatingQuickInvoice}
-          logisticsCharge={
-            quickSaleDraft.emptyBoxMode === EMPTY_BOX_DRIVER_MODE
-              ? quickEmptyBoxAdditionalCharge
-              : null
-          }
-          logisticsChargeHistory={customerLogisticsChargeHistory.emptyBoxDelivery}
-          onLogisticsChargeChange={setQuickEmptyBoxAdditionalCharge}
-          paymentSettings={logisticsFees}
         />
       ) : null}
 

@@ -7,6 +7,7 @@ export type SaleLogisticsFeesPayload = Pick<
   | "emptyBoxDeliveryFee"
   | "fullBoxPickupFee"
   | "minimumDeposit"
+  | "pickupIncludedEnabled"
   | "pickupIncludedDays"
   | "latePickupFee"
   | "logisticsFeeMode"
@@ -49,6 +50,7 @@ export function saleLogisticsFeesFromRouteConfig(routeConfig: PricingRouteConfig
     emptyBoxDeliveryFee: routeConfig.emptyBoxDeliveryFee,
     fullBoxPickupFee: routeConfig.fullBoxPickupFee,
     minimumDeposit: routeConfig.minimumDeposit,
+    pickupIncludedEnabled: routeConfig.pickupIncludedEnabled,
     pickupIncludedDays: routeConfig.pickupIncludedDays,
     latePickupFee: routeConfig.latePickupFee,
     logisticsFeeMode: "per_trip",

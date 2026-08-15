@@ -195,6 +195,10 @@ export function shipmentAuditActionLabel(action: string) {
     return "Ruta propuesta reemplazada";
   }
 
+  if (action === "customer.exact_entrance.updated" || action === "recipient.exact_entrance.updated") {
+    return "Entrada exacta actualizada";
+  }
+
   if (action === "shipment.driver_payment_not_collected") {
     return "Cobro pendiente";
   }

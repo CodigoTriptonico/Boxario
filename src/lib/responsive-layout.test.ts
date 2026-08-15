@@ -31,7 +31,6 @@ test("core dialogs scroll inside the available phone viewport", () => {
     "src/components/logistica/live-route-change-reason-dialog.tsx",
     "src/components/logistica/logistics-admin-task-exception-dialog.tsx",
     "src/components/sale/sale-invoice-confirm-dialog.tsx",
-    "src/components/sale/sale-quick-empty-box-modal.tsx",
     "src/components/sale/sale-quick-checkout-modal.tsx",
     "src/components/product-countries-modal.tsx",
   ];

@@ -1,5 +1,53 @@
 # Decisiones técnicas y compatibilidad
 
+### 2026-08-14 - Coordenadas ausentes no representan `0,0`
+
+**Contexto:** El mapa de dirección y coberturas convertía `NULL` a `0` al preparar el pin del cliente. Eso centraba Google Maps en el Golfo de Guinea aunque la cobertura sugerida correspondiera a Santa Clarita.
+
+**Decisión:** Las coordenadas persistidas solo se usan como ubicación cuando latitud y longitud forman un par numérico válido dentro de sus rangos geográficos. Valores nulos, vacíos o inválidos producen ausencia de pin; la cobertura continúa evaluándose por sus datos geográficos configurados y la interfaz explica cuando falta la geolocalización de la dirección.
+
+**Resultado:** El sistema no inventa una ubicación mundial para direcciones sin coordenadas y conserva la diferencia entre cobertura coincidente y pin de dirección disponible.
+
+### 2026-08-14 - Respaldo visual para direcciones sin coordenadas persistidas
+
+**Contexto:** Algunos clientes conservan calle, ciudad, estado y código postal, pero no tienen `lat/lng` guardados. El comparador necesita mostrar su ubicación sin convertir esa ausencia en `0,0` ni bloquear el mapa.
+
+**Decisión:** La acción de rutas selecciona en este orden `exact_entrance_lat/lng`, `lat/lng` de la dirección y, como último respaldo, consulta Google Geocoding con los campos postales guardados. El último resultado es efímero, solo se devuelve para la vista del mapa, se marca como ubicación aproximada y no se escribe en Supabase. La cobertura no se calcula con ese respaldo.
+
+**Resultado:** Una dirección existente puede aparecer en el mapa aunque no tenga entrada exacta ni coordenadas persistidas; el operador recibe una advertencia clara cuando el punto es aproximado.
+
+### 2026-08-14 - Compatibilidad de referencias de invoice sin separadores
+
+**Decisión:** `formatInvoiceReference` genera referencias sin guiones (`COL20010010004`). Los sufijos de caja continúan siendo una extensión separada para no perder la identificación física. No se contempla compatibilidad con referencias antiguas.
+
+**Compatibilidad:** La búsqueda, los QR, el seguimiento y las etiquetas reciben la misma referencia desde la fuente compartida.
+
+### 2026-08-14 - Código público de empresa dentro de la referencia de invoice
+
+**Contexto:** `organization_invoice_counters` asigna correctamente una secuencia común por empresa, pero dos organizaciones pueden producir el mismo código legible cuando coinciden país, vendedor, cajas y consecutivo.
+
+**Decisión:** Mantener `organization_invoice_counters` como fuente autoritativa y atómica del correlativo de todos los clientes de una organización. Agregar a `organizations` un código público numérico con restricción global `unique`, inmutable y no reutilizable, asignado secuencialmente desde `001` y mostrado con un mínimo de tres dígitos. La referencia nueva se compone como `<PAÍS><CAJAS><VENDEDOR><EMPRESA><CONSECUTIVO>`; vendedor se muestra con tres dígitos y el consecutivo con cuatro como mínimo. La cantidad queda junto al país y puede usar uno o más dígitos. En esta fase solo las organizaciones matriz consumen la secuencia; las agencias quedan fuera del alcance.
+
+El código base identifica el invoice y los sufijos `-A`, `-B`, etc. identifican exclusivamente sus cajas. Los UUID y el token público de seguimiento continúan siendo identidades técnicas globales. La migración no reescribe referencias históricas y debe impedir tanto la edición como la reutilización futura de un código empresarial ya asignado.
+
+**Resultado:** La referencia es inequívoca entre empresas sin perder la secuencia comercial independiente de cada organización ni alterar el rastreo seguro existente.
+
+### 2026-08-14 - Identidad de plataforma fuera de las secuencias comerciales de tenants
+
+**Contexto:** `organization_seller_code_counters` ya separa la numeración por `organization_id`, pero `assign_profile_seller_code()` determina elegibilidad por rol o permisos. Así, un usuario registrado en `platform_admins` puede consumir numeración de una empresa cliente si su perfil también tiene rol `administrador` o permiso `all`.
+
+**Decisión:** La pertenencia a `platform_admins` prevalece sobre roles y permisos de tenant para la asignación de `seller_code`: esas identidades deben quedar excluidas del trigger, del backfill y de los contadores comerciales. La corrección de perfiles existentes se realizará mediante una migración auditable que compruebe referencias históricas antes de cambiar códigos; los identificadores de invoices ya persistidos no se reescriben.
+
+**Resultado:** Los privilegios transversales de Boxario no producen identidad comercial dentro de SCGS ni de otra empresa, y cada tenant conserva una secuencia independiente que comienza en `001`.
+
+### 2026-08-13 - Referencia visible compuesta con vendedor estable
+
+**Decisión:** la secuencia autoritativa de `organization_invoice_counters` continúa asignando el consecutivo. Cada perfil autorizado para vender recibe además un `seller_code` único e inmutable dentro de su organización, asignado automáticamente con tres dígitos desde `001`. La capa de aplicación formatea la referencia como `COL20010010001` usando país, cantidad, vendedor, empresa y secuencia; los códigos de caja se derivan de esa referencia.
+
+**Compatibilidad:** El formato anterior con guiones fue reemplazado el 2026-08-14 por `COL20010010001`; no se contempla compatibilidad con referencias antiguas.
+
+**Resultado:** los nuevos códigos son informativos, identifican al vendedor sin confiar en datos del navegador y siguen siendo compatibles con QR, búsqueda, seguimiento y etiquetas sin reescribir ventas existentes.
+
 ### 2026-08-12 - Conservar el indicador visual de compilación de Next.js durante desarrollo
 
 **Contexto:** se ocultó temporalmente la cápsula `Compiling…` / `Rendering…`, pero el usuario aclaró que prefiere verla mientras Boxario continúe en etapa de desarrollo para recordar que las recompilaciones pertenecen al entorno de prueba.
@@ -587,3 +635,24 @@ Una entrada reemplazada no se borra: se marca como histórica indicando la fuent
 **Decisión:** el mapa de entrada usa `window.open` desde el clic de `Abrir mapa` y monta su interfaz mediante un portal React en el documento same-origin de la ventana creada. La ventana copia las hojas de estilo activas, carga su propia instancia de Google Maps y se cierra al desmontarse el formulario. Se conserva una advertencia local cuando el navegador bloquea popups; no se intenta eludir esa política.
 
 **Resultado:** Venta permanece en la pantalla principal mientras el mapa es una ventana nativa, redimensionable y trasladable entre monitores, sin duplicar el estado del formulario ni crear una segunda aplicación.
+### 2026-08-14 - Reutilizacion del mapa de entrada exacta en tarjetas
+
+**Contexto:** ya existia un flujo de mapa para crear o editar contactos y duplicarlo en las tarjetas podia producir reglas distintas.
+
+**Decision:** las tarjetas llaman al componente compartido `SaleExactEntranceWindow`; un adaptador persiste el pin mediante las acciones existentes de cliente o destinatario y actualiza el estado local de Venta. Si faltan coordenadas, el mapa usa `/api/validate-address` con la direccion postal guardada.
+
+**Resultado:** se conserva una sola implementacion de arrastre, satelite y Street View, con el mismo control de permisos, auditoria y guardado.
+### 2026-08-14 - Solicitud separada para reencuadre de cobertura
+
+**Contexto:** el mapa ya usaba una solicitud para volver al pin del cliente, pero no distinguia ese gesto del cambio de ruta.
+
+**Decision:** `GeographicRouteCoverageMap` recibe `fitCoverageRequest` separado de `focusLocationRequest`. El primero reencuadra la cobertura filtrada y el segundo centra el cliente, evitando que una accion tape a la otra.
+
+**Resultado:** cambiar de ruta vuelve a encuadrar la zona correcta sin perder el boton independiente para volver a la direccion del cliente.
+### 2026-08-14 - Pin exacto compartido y bitacora
+
+**Contexto:** el mismo cliente puede ser editado desde Ventas o desde la cobertura de Logistica.
+
+**Decision:** `GeographicRouteCoverageMap` expone un callback de pin arrastrado; el modal conserva el borrador y usa una action protegida por `sales.manage`, `customers.manage` o `routes.update_status`. La action actualiza solo las coordenadas de entrada exacta y escribe metadata JSON con posiciones anterior/nueva, fuente y actor mediante `activity_history`.
+
+**Resultado:** ambos modulos reutilizan la misma fuente de verdad y la auditoria no depende de que el cambio haya comenzado en Ventas o Logistica.

@@ -23,15 +23,18 @@ export {
   loadCensusPlaceGeometryAction,
   loadCensusPlacesCatalogAction,
   loadZctaGeometryAction,
+  resolveAddressGeographicRoutesAction,
   resolveCompatibleGeographicRoutesAction,
   resolveCoveragePlaceAtMapClickAction,
   resolveCoveragePlaceDetailsAction,
   resolveCoveragePlaceFromCensusPolygonAction,
   saveSystemDayRouteCoverageAction,
   searchCoveragePlacesAction,
+  updateCustomerExactEntranceLocationAction,
   updateGeographicRouteDefinitionAction,
   type CensusPlaceGeometry,
   type CompatibleGeographicRoute,
+  type CustomerMapLocation,
   type ZctaGeometry,
 } from "@/app/actions/logistics-geographic-route-actions";
 export {

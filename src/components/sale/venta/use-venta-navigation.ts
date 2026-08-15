@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo } from "react";
+import { createElement, useEffect, useMemo } from "react";
+import { X } from "lucide-react";
 import { useContextNav } from "@/hooks/use-context-nav";
-import { saleFinishActionLabel } from "@/lib/invoice-billing";
+import { useSetShellConfig } from "@/components/app-frame";
 import { FULL_BOX_DEFERRED_SUMMARY } from "@/lib/sale-logistics-modes";
-import { personFullName, type SaleStepBarItem, saleSteps, senderPhonesLabel } from "@/components/sale/venta-parts";
+import { personFullName, type SaleStep, type SaleStepBarItem, saleSteps, quickSaleSteps, senderPhonesLabel } from "@/components/sale/venta-parts";
 import type { VentaCore } from "@/components/sale/venta/use-venta-core";
 import type { VentaFoundation } from "@/components/sale/venta/use-venta-foundation";
 import type { VentaData } from "@/components/sale/venta/use-venta-data";
@@ -18,6 +19,7 @@ import type { VentaContextActions } from "@/components/sale/venta/use-venta-cont
 type VentaNavigationContext = VentaCore & VentaFoundation & VentaData & VentaFlow & VentaEffects & VentaForms & VentaSelection & VentaInvoices & VentaContextActions;
 
 export function useVentaNavigation(context: VentaNavigationContext) {
+  const setShellConfig = useSetShellConfig();
   const {
     activeStep,
     completedStepIndex,
@@ -30,14 +32,22 @@ export function useVentaNavigation(context: VentaNavigationContext) {
     emptyBoxRouteDecision,
     fullBoxMode,
     fullBoxRouteDecision,
-    invoiceBillingForPayment,
     logisticsPlanReady,
     maxUnlockedStepIndex,
     mode,
     nextInvoiceNumber,
     quickEmptyBoxRouteDecision,
+    quickCheckoutCompleted,
+    quickSaleActive,
+    quickSaleAdvancing,
+    quickSaleBoxSelectionChanged,
+    quickSaleCountry,
+    quickSaleDraft,
+    cancelQuickSale,
+    continueFromLogistics,
     resetNewClientForm,
     resetNewRecipientForm,
+    releaseInvoiceReservation,
     routePlannerLeg,
     scrollToStep,
     selectedBox,
@@ -49,9 +59,62 @@ export function useVentaNavigation(context: VentaNavigationContext) {
     setActiveStep,
     setEditingFromFinish,
     setMode,
+    openStep,
+    proceedQuickSaleFromSelectedBox,
   } = context;
 
+  useEffect(() => {
+    if (!quickSaleActive || quickCheckoutCompleted) {
+      return;
+    }
+
+    setShellConfig({
+      headerAction: createElement(
+        "button",
+        {
+          type: "button",
+          onClick: cancelQuickSale,
+          title: "Cancelar venta rápida",
+          "aria-label": "Cancelar venta rápida",
+          className: "inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg border border-emerald-700/40 bg-emerald-400/10 text-emerald-300 transition hover:bg-emerald-400/15 hover:text-emerald-200 active:scale-[0.98]",
+        },
+        createElement(X, { className: "h-4 w-4", strokeWidth: 2.5, "aria-hidden": true }),
+      ),
+    });
+
+    return () => setShellConfig({ headerAction: undefined });
+  }, [cancelQuickSale, quickCheckoutCompleted, quickSaleActive, setShellConfig]);
+
+  function openSaleStep(step: SaleStep) {
+    if (
+      quickSaleActive &&
+      step === "finish" &&
+      quickSaleDraft &&
+      quickSaleBoxSelectionChanged
+    ) {
+      if (!quickSaleAdvancing) {
+        void proceedQuickSaleFromSelectedBox();
+      }
+      return;
+    }
+
+    if (step === "finish" && !quickSaleActive && !createdInvoice) {
+      void continueFromLogistics();
+      return;
+    }
+
+    if (activeStep === "finish" && step !== "finish" && !createdInvoice && !quickSaleActive) {
+      void releaseInvoiceReservation();
+    }
+
+    openStep(step);
+  }
+
   const ventaNavTitle = useMemo(() => {
+    if (quickSaleActive && !quickCheckoutCompleted) {
+      return "Venta rápida";
+    }
+
     if (mode === "new-client") {
       return editingCustomerId ? "Editar remitente" : "Nuevo remitente";
     }
@@ -65,9 +128,14 @@ export function useVentaNavigation(context: VentaNavigationContext) {
     }
 
     return null;
-  }, [editingCustomerId, editingRecipientId, mode]);
+  }, [editingCustomerId, editingRecipientId, mode, quickCheckoutCompleted, quickSaleActive]);
 
   function handleVentaNavBack() {
+    if (quickSaleActive && !quickCheckoutCompleted) {
+      cancelQuickSale();
+      return;
+    }
+
     if (mode === "new-client") {
       resetNewClientForm();
       setEditingFromFinish(false);
@@ -87,10 +155,14 @@ export function useVentaNavigation(context: VentaNavigationContext) {
       return;
     }
 
-    const activeStepIndex = saleSteps.findIndex((step) => step.id === activeStep);
-    const previousStep = saleSteps[activeStepIndex - 1];
+    const activeFlowSteps = quickSaleActive ? quickSaleSteps : saleSteps;
+    const activeStepIndex = activeFlowSteps.findIndex((step) => step.id === activeStep);
+    const previousStep = activeFlowSteps[activeStepIndex - 1];
 
     if (previousStep) {
+      if (activeStep === "finish" && !createdInvoice && !quickSaleActive) {
+        void releaseInvoiceReservation();
+      }
       setActiveStep(previousStep.id);
       scrollToStep(previousStep.id);
     }
@@ -103,10 +175,16 @@ export function useVentaNavigation(context: VentaNavigationContext) {
   });
 
   const saleStepBarItems = useMemo((): SaleStepBarItem[] => {
-    return saleSteps.map((step, index) => {
+    const activeFlowSteps = quickSaleActive ? quickSaleSteps : saleSteps;
+    return activeFlowSteps.map((step, visibleIndex) => {
       const isActive = activeStep === step.id;
-      const isDone = index < completedStepIndex;
-      const isUnlocked = index <= maxUnlockedStepIndex;
+      const isDone = visibleIndex < completedStepIndex;
+      const isUnlocked =
+        visibleIndex <= maxUnlockedStepIndex ||
+        (quickSaleActive &&
+          step.id === "finish" &&
+          quickSaleBoxSelectionChanged &&
+          !quickSaleAdvancing);
 
       const value =
         step.id === "client"
@@ -119,7 +197,7 @@ export function useVentaNavigation(context: VentaNavigationContext) {
               : "Seleccionar"
             : step.id === "box"
               ? selectedBoxLines.length
-                ? selectedCartSummary
+                ? `${selectedBoxCount} producto${selectedBoxCount === 1 ? "" : "s"}`
                 : "Seleccionar"
               : step.id === "delivery"
                 ? logisticsPlanReady
@@ -133,10 +211,14 @@ export function useVentaNavigation(context: VentaNavigationContext) {
                       ? "Pendiente"
                       : FULL_BOX_DEFERRED_SUMMARY
                     : "Pendiente"
-                : createdInvoice
-                  ? "Listo"
+                : quickSaleDraft
+                  ? quickCheckoutCompleted
+                    ? "Listo"
+                    : "Revisar invoice"
+                  : createdInvoice
+                    ? "Listo"
                   : logisticsPlanReady
-                    ? saleFinishActionLabel(invoiceBillingForPayment, { phase: "setup" })
+                    ? "Crear invoice"
                     : "Pendiente";
 
       const detail =
@@ -150,7 +232,7 @@ export function useVentaNavigation(context: VentaNavigationContext) {
               : ""
             : step.id === "box"
               ? selectedBoxLines.length
-                ? `${selectedBoxCount} producto${selectedBoxCount === 1 ? "" : "s"}`
+                ? selectedCartSummary
                 : ""
               : step.id === "delivery"
                 ? logisticsPlanReady || emptyBoxComplete
@@ -167,13 +249,13 @@ export function useVentaNavigation(context: VentaNavigationContext) {
           ? "USA"
           : step.id === "recipient" && selectedRecipient
             ? selectedRecipient.country
-            : "";
+            : step.id === "box"
+              ? (quickSaleActive ? quickSaleCountry : selectedRecipient?.country) || ""
+              : "";
 
       const subtitle =
-        step.id === "box" && selectedBoxLines.length
-          ? selectedBoxLines.length === 1
-            ? selectedBox?.[4] || ""
-            : "Carrito mixto"
+        step.id === "box" && selectedBoxLines.length === 1
+          ? selectedBox?.[4] || ""
           : "";
 
       return {
@@ -191,7 +273,7 @@ export function useVentaNavigation(context: VentaNavigationContext) {
         isActive,
         isDone,
         isUnlocked,
-        index,
+        index: visibleIndex,
       };
     });
   }, [
@@ -211,7 +293,12 @@ export function useVentaNavigation(context: VentaNavigationContext) {
     currentDriverTaskCount,
     currentLogisticsDetails,
     nextInvoiceNumber,
-    invoiceBillingForPayment,
+    quickCheckoutCompleted,
+    quickSaleDraft,
+    quickSaleActive,
+    quickSaleAdvancing,
+    quickSaleBoxSelectionChanged,
+    quickSaleCountry,
   ]);
 
   const boundedPersonListLayout =
@@ -234,9 +321,11 @@ export function useVentaNavigation(context: VentaNavigationContext) {
     routePlannerLeg === "fullBox" ? "Recoger caja llena" : "Dejar caja vacía";
 
   return {
+    openStep: openSaleStep,
     saleStepBarItems,
     boundedPersonListLayout,
     routePlannerDecision,
     routePlannerTaskLabel,
+    cancelQuickSale,
   };
 }

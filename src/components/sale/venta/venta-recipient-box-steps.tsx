@@ -1,5 +1,6 @@
 "use client";
 
+import { useCallback } from "react";
 import { ChevronRight, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
@@ -8,6 +9,10 @@ import { InlineSearchCombobox } from "@/components/inline-search-picker";
 import { SaleRecipientForm } from "@/components/sale/sale-recipient-form";
 import { SaleBoxPicker } from "@/components/sale/sale-box-picker";
 import { SaleRecipientList } from "@/components/sale/sale-recipient-list";
+import {
+  useSalePersonAddressMap,
+  type SalePersonAddressMapTarget,
+} from "@/components/sale/sale-person-address-map";
 import { SalePersonListSortControl } from "@/components/sale/sale-person-list-sort-control";
 import { SalePersonListToolbar } from "@/components/sale/sale-person-list-toolbar";
 import { configPricesCountryHref } from "@/lib/country-options";
@@ -18,6 +23,7 @@ import { boxCardClass, personFullName, recipientIdentityKey } from "@/components
 import { resolveCountryPromotions, saleCartLineId } from "@/components/sale/venta/shared";
 import type { VentaController } from "@/components/sale/venta/use-venta-controller";
 import { SALE_RECIPIENT_SORT_OPTIONS } from "@/lib/sale-person-list-sort";
+import type { Recipient } from "@/components/sale/venta/parts-types";
 
 export function VentaRecipientBoxSteps({ controller }: { controller: VentaController; }) {
   const {
@@ -25,6 +31,8 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     activeStep,
     addRecipientEmail,
     boxesForCountry,
+    quickSaleActive,
+    quickSaleCountry,
     boxStockByKey,
     boxesRef,
     chooseBox,
@@ -32,6 +40,8 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     contextCardClass,
     contextPersonClass,
     continueFromCart,
+    proceedQuickSaleFromSelectedBox,
+    quickSaleAdvancing,
     countries,
     countryPromotions,
     createRecipient,
@@ -68,6 +78,8 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     selectedRecipient,
     selectedSender,
     setCardStylePicker,
+    setSelectedRecipient,
+    setSenderList,
     setMode,
     setNewRecipientAddressReference,
     setNewRecipientCity,
@@ -94,6 +106,29 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     updateRecipientEmail,
     viewLayout,
   } = controller;
+
+  const handleAddressMapSaved = useCallback((target: SalePersonAddressMapTarget, person: Recipient | unknown) => {
+    if (target.kind !== "recipient" || !target.senderId) return;
+    const nextRecipient = person as Recipient;
+    setSenderList((current) =>
+      current.map((sender) =>
+        sender.id === target.senderId
+          ? {
+              ...sender,
+              recipients: sender.recipients.map((recipient) =>
+                recipient.id === nextRecipient.id ? nextRecipient : recipient,
+              ),
+            }
+          : sender,
+      ),
+    );
+    setSelectedRecipient((current) =>
+      current?.id === nextRecipient.id ? nextRecipient : current,
+    );
+  }, [setSelectedRecipient, setSenderList]);
+  const addressMap = useSalePersonAddressMap({ onSaved: handleAddressMapSaved });
+
+  const boxCountry = quickSaleActive ? quickSaleCountry || "" : selectedRecipient?.country || "";
 
   return (
     selectedSender &&
@@ -240,6 +275,7 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                 suggestedRecipientId={suggestedRecipientId}
                 searchActive={Boolean(recipientQuery.trim())}
                 onChoose={chooseRecipient}
+                onAddressClick={activeSender ? (recipient) => addressMap.openRecipient(recipient, activeSender.id) : undefined}
                 onViewShipmentHistory={openRecipientShipmentHistory}
                 onIconClick={(event, recipient) => {
                   const rect = event.currentTarget.getBoundingClientRect();
@@ -290,13 +326,13 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
           </div>
         ) : null}
 
-        {selectedRecipient && activeStep === "box" ? (
+        {(selectedRecipient || quickSaleActive) && activeStep === "box" ? (
           <div
             ref={boxesRef}
             className={`flex min-h-0 flex-1 flex-col ${stepShellClass("box")}`}
           >
             <div className={`${flowStepBodyClass} flex min-h-0 flex-1 flex-col !space-y-0`}>
-              {!selectedRecipient ? (
+              {!selectedRecipient && !quickSaleActive ? (
                 <p className="text-center text-xl font-black text-slate-400">
                   Selecciona un destinatario.
                 </p>
@@ -304,16 +340,16 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                 <section className="rounded-xl border border-dashed border-slate-600/60 p-8">
                   <div className="mx-auto flex max-w-xl flex-col items-center text-center">
                     <Link
-                      href={configPricesCountryHref(selectedRecipient.country)}
+                      href={configPricesCountryHref(boxCountry)}
                       className="flex h-20 w-20 items-center justify-center rounded-2xl border-2 border-emerald-400/70 bg-emerald-400/15 text-emerald-300 shadow-[0_12px_28px_rgba(16,185,129,0.18)] transition hover:scale-[1.02] hover:bg-emerald-400/25"
-                      aria-label={`Configurar productos para ${selectedRecipient.country}`}
+                      aria-label={`Configurar productos para ${boxCountry}`}
                     >
                       <Plus className="h-10 w-10" strokeWidth={2.5} />
                     </Link>
                     <h3 className="mt-5 text-xl font-black text-[#f8fafc]">
                       Aún no hay productos para{" "}
                       <CountryName
-                        name={selectedRecipient.country}
+                        name={boxCountry}
                         size="sm"
                         labelClassName="font-black"
                       />
@@ -324,7 +360,7 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                     </p>
                     <div className="mt-5 flex flex-wrap items-center justify-center gap-2">
                       <Link
-                        href={configPricesCountryHref(selectedRecipient.country)}
+                        href={configPricesCountryHref(boxCountry)}
                         className={primaryButtonClass}
                       >
                         <Plus className="h-4 w-4" />
@@ -332,7 +368,7 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                       </Link>
                       <Link
                         href={inventarioHrefWithReturn(
-                          configPricesCountryHref(selectedRecipient.country),
+                          configPricesCountryHref(boxCountry),
                         )}
                         className={secondaryButtonClass}
                       >
@@ -355,13 +391,13 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                         return cartLine?.quantity ?? null;
                       }}
                       getPromoCount={(box) =>
-                        selectedRecipient
-                          ? resolveCountryPromotions(
-                            countryPromotions,
-                            selectedRecipient.country,
-                            box,
-                          ).length
-                          : 0
+                        resolveCountryPromotions(
+                          countryPromotions,
+                          quickSaleActive
+                            ? quickSaleCountry || ""
+                            : selectedRecipient?.country || "",
+                          box,
+                        ).length
                       }
                       getCardClass={(box, selected) =>
                         contextCardClass(
@@ -377,20 +413,37 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                       firstBoxCoachTarget={ONBOARDING_TARGETS.VENTA_SELECT_PRODUCT}
                     />
                   </div>
-                  <div className="flex shrink-0 justify-center border-t border-black/80 pt-4">
+                  <div className="flex shrink-0 justify-center border-t border-black/80 pt-4 sticky bottom-0 z-10 bg-[#1a221f] pb-1 shadow-[0_-10px_20px_rgba(26,34,31,0.85)]">
                     <div className="flex w-full max-w-md flex-col items-center gap-2">
-                      <button
-                        type="button"
-                        disabled={selectedBoxCount < 1}
-                        onClick={continueFromCart}
-                        className={`${primaryButtonClass} flex h-12 w-full items-center justify-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-35`}
-                      >
-                        Siguiente
-                        <ChevronRight className="h-4 w-4" aria-hidden />
-                      </button>
+                      {quickSaleActive ? (
+                        <button
+                          type="button"
+                          disabled={selectedBoxCount < 1 || quickSaleAdvancing}
+                          onClick={() => {
+                            void proceedQuickSaleFromSelectedBox();
+                          }}
+                          className={`${primaryButtonClass} flex h-12 w-full items-center justify-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-35`}
+                          aria-busy={quickSaleAdvancing}
+                        >
+                          {quickSaleAdvancing ? "Abriendo invoice..." : "Siguiente"}
+                          {!quickSaleAdvancing ? <ChevronRight className="h-4 w-4" aria-hidden /> : null}
+                        </button>
+                      ) : (
+                        <button
+                          type="button"
+                          disabled={selectedBoxCount < 1}
+                          onClick={continueFromCart}
+                          className={`${primaryButtonClass} flex h-12 w-full items-center justify-center gap-2 text-sm disabled:cursor-not-allowed disabled:opacity-35`}
+                        >
+                          Siguiente
+                          <ChevronRight className="h-4 w-4" aria-hidden />
+                        </button>
+                      )}
                       {selectedBoxCount < 1 ? (
                         <p className="text-center text-xs font-bold text-slate-500">
-                          Clic izquierdo en una caja para agregar &middot; clic derecho para quitar.
+                          {quickSaleActive
+                            ? "Clic izquierdo agrega, clic derecho quita. Luego pulsa Siguiente."
+                            : "Clic izquierdo en una caja para agregar · clic derecho para quitar."}
                         </p>
                       ) : null}
                     </div>
@@ -400,6 +453,12 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
             </div>
           </div>
         ) : null}
+        {addressMap.mapError ? (
+          <p role="alert" className="mt-2 rounded-lg border border-amber-600/70 bg-amber-950/30 px-3 py-2 text-xs font-bold text-amber-100">
+            {addressMap.mapError}
+          </p>
+        ) : null}
+        {addressMap.addressMap}
       </div>
     ) : null
   );

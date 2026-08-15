@@ -194,7 +194,7 @@ export function EnviosShipmentsPanel({
       <div className="relative min-h-0 flex-1">
         <div className="h-full min-h-0 overflow-y-auto pr-1">
           {shipmentsLoading && !displayShipments.length && !isServerEmptyPage ? (
-            <PageLoading inline />
+            <PageLoading inline seamless />
           ) : displayShipments.length ? (
             viewLayout === "rows" ? (
               <EnviosShipmentRowsList

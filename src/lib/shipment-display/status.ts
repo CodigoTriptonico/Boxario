@@ -563,7 +563,10 @@ export function resolvePendingShipmentStatus(
     return PENDING_EMPTY_BOX_STATUS;
   }
 
-  if (row.sale_kind === "full" && !row.full_box_collected_at) {
+  // Una venta rápida entrega la caja vacía en oficina, pero deja abierto
+  // el siguiente hito: recibir/recolectar la caja llena. El estado debe
+  // reflejar ese hito sin depender de que exista un destinatario.
+  if (!row.full_box_collected_at) {
     return PENDING_FULL_BOX_STATUS;
   }
 

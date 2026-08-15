@@ -45,6 +45,7 @@ export type PricingRouteConfig = PaymentMethodSettings & {
   emptyBoxDeliveryFee: string;
   fullBoxPickupFee: string;
   minimumDeposit: string;
+  pickupIncludedEnabled: boolean;
   pickupIncludedDays: number;
   latePickupFee: string;
   logisticsFeeMode: "per_trip" | "per_box";

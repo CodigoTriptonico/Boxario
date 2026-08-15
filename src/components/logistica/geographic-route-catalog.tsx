@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Archive, CalendarDays, Clock3, Loader2, MapPin, Plus, X } from "lucide-react";
+import { Archive, CalendarDays, Clock3, List, Loader2, Map as MapIcon, MapPinned, Plus, X } from "lucide-react";
 import {
   activateLogisticsRouteWeekdayAction,
   archiveGeographicRouteDefinitionAction,
@@ -14,6 +14,7 @@ import {
   type LogisticsRouteDefinitionRow,
 } from "@/app/actions/logistics-routes";
 import { TimePickerInput } from "@/components/time-picker-input";
+import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { GeographicRouteCoverageMap } from "@/components/logistica/geographic-route-coverage-map";
 import { GeographicRoutePlacesEditor } from "@/components/logistica/geographic-route-places-editor";
 import { CompactInfoDisclosure, primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
@@ -25,7 +26,7 @@ import { formatTime12Hour } from "@/lib/sale/schedule-time";
 import type { RouteMemberRow } from "@/lib/shipment-types";
 
 type PendingCoveragePlaces = {
-  scope: "day" | "draft";
+  scope: "day" | "subroute";
   places: RouteCoveragePlace[];
   /** Fit the map once to the preview selected from search. */
   fitPreview: boolean;
@@ -56,6 +57,14 @@ type RouteDraft = {
   schedules: ScheduleDraft[];
 };
 
+type SubrouteEditorTab = "schedules" | "coverage";
+
+type PendingSubrouteDiscard =
+  | { action: "close" }
+  | { action: "new" }
+  | { action: "open"; route: LogisticsRouteDefinitionRow; tab: SubrouteEditorTab }
+  | { action: "color"; route: LogisticsRouteDefinitionRow; color: string };
+
 const emptySchedule = (weekday = 0): ScheduleDraft => ({
   weekday,
   startTime: "10:00",
@@ -70,7 +79,7 @@ const emptyDraft = (weekday = 0): RouteDraft => ({
   name: "",
   zoneName: "",
   color: "#10b981",
-  coverageMode: "places",
+  coverageMode: "day_only",
   postalCodes: [],
   places: [],
   schedules: [emptySchedule(weekday)],
@@ -129,6 +138,63 @@ function coverageDraftSnapshotKey(draft: RouteDraft) {
     placesKey,
     schedulesKey,
   ].join("::");
+}
+
+function coveragePlacesSnapshotKey(places: RouteCoveragePlace[]) {
+  return places
+    .map(
+      (place) =>
+        `${place.placeId}:${place.selectionRole}:${place.parentPlaceId || ""}:${place.color || ""}`,
+    )
+    .sort()
+    .join("|");
+}
+
+function draftCoverageLabel(draft: RouteDraft) {
+  const roots = draft.places.filter(
+    (place) => place.selectionRole === "root_whole" || place.selectionRole === "root_partial",
+  );
+  if (!roots.length) return "sin cobertura";
+  return roots
+    .map((root) => {
+      if (root.selectionRole === "root_whole") return `${root.displayName} (ciudad completa)`;
+      const children = draft.places.filter(
+        (place) => place.selectionRole === "child_included" && place.parentPlaceId === root.placeId,
+      );
+      return `${root.displayName} (${children.length} zonas seleccionadas)`;
+    })
+    .join(", ");
+}
+
+function draftSchedulesLabel(draft: RouteDraft) {
+  if (!draft.schedules.length) return "sin horarios";
+  return draft.schedules.map(scheduleSummary).join(" · ");
+}
+
+function subrouteChangeDetails(current: RouteDraft, baseline: RouteDraft | null) {
+  if (!baseline) return [];
+  const changes: string[] = [];
+  const displayValue = (value: string) => value.trim() || "vacío";
+
+  if (current.name !== baseline.name) {
+    changes.push(`Ruta: ${displayValue(baseline.name)} → ${displayValue(current.name)}`);
+  }
+  if (current.zoneName !== baseline.zoneName) {
+    changes.push(`Zona: ${displayValue(baseline.zoneName)} → ${displayValue(current.zoneName)}`);
+  }
+  if (current.color !== baseline.color) {
+    changes.push(`Color: ${baseline.color} → ${current.color}`);
+  }
+  if (
+    current.coverageMode !== baseline.coverageMode ||
+    coveragePlacesSnapshotKey(current.places) !== coveragePlacesSnapshotKey(baseline.places)
+  ) {
+    changes.push(`Cobertura: ${draftCoverageLabel(baseline)} → ${draftCoverageLabel(current)}`);
+  }
+  if (coverageDraftSnapshotKey(current).split("::").at(-1) !== coverageDraftSnapshotKey(baseline).split("::").at(-1)) {
+    changes.push(`Horarios: ${draftSchedulesLabel(baseline)} → ${draftSchedulesLabel(current)}`);
+  }
+  return changes;
 }
 
 function buildDayCoverageKey(places: RouteCoveragePlace[]) {
@@ -255,12 +321,14 @@ function CoverageSurfaceTabs({
   onChange,
   zonesPanelId,
   mapPanelId,
+  listLabel = "Zonas",
   pendingCount = 0,
 }: {
   active: CoverageSurfaceTab;
   onChange: (next: CoverageSurfaceTab) => void;
   zonesPanelId: string;
   mapPanelId: string;
+  listLabel?: string;
   pendingCount?: number;
 }) {
   return (
@@ -271,10 +339,10 @@ function CoverageSurfaceTabs({
     >
       {(
         [
-          ["zones", "Zonas", zonesPanelId],
-          ["map", "Mapa", mapPanelId],
+          ["zones", listLabel, zonesPanelId, List],
+          ["map", "Mapa", mapPanelId, MapIcon],
         ] as const
-      ).map(([id, label, panelId]) => {
+      ).map(([id, label, panelId, Icon]) => {
         const selected = active === id;
         return (
           <button
@@ -291,6 +359,7 @@ function CoverageSurfaceTabs({
                 : "text-slate-400 hover:bg-surface-card hover:text-slate-100"
             }`}
           >
+            <Icon className="h-3.5 w-3.5" aria-hidden />
             <span>{label}</span>
             {id === "map" && pendingCount > 0 ? (
               <span
@@ -343,18 +412,18 @@ export function GeographicRouteCatalog({
   const [draft, setDraft] = useState<RouteDraft>(emptyDraft);
   const [busy, setBusy] = useState("");
   const [showForm, setShowForm] = useState(false);
-  const [subrouteSchedulesOpen, setSubrouteSchedulesOpen] = useState(false);
-  const [subrouteCoverageOpen, setSubrouteCoverageOpen] = useState(false);
+  const [subrouteEditorTab, setSubrouteEditorTab] = useState<SubrouteEditorTab>("schedules");
+  const [subrouteHighlightPlaceId, setSubrouteHighlightPlaceId] = useState<string | null>(null);
   const [subrouteBaselineKey, setSubrouteBaselineKey] = useState("");
+  const [subrouteBaselineDraft, setSubrouteBaselineDraft] = useState<RouteDraft | null>(null);
+  const [pendingSubrouteDiscard, setPendingSubrouteDiscard] = useState<PendingSubrouteDiscard | null>(null);
   const [editingDaySchedule, setEditingDaySchedule] = useState(false);
   const [dayScheduleStart, setDayScheduleStart] = useState("10:00");
   const [dayScheduleEnd, setDayScheduleEnd] = useState("");
   const [dayWithoutEnd, setDayWithoutEnd] = useState(false);
   const [dayPlaces, setDayPlaces] = useState<RouteCoveragePlace[]>([]);
   const [dayHighlightPlaceId, setDayHighlightPlaceId] = useState<string | null>(null);
-  const [draftHighlightPlaceId, setDraftHighlightPlaceId] = useState<string | null>(null);
   const [pendingCoveragePlaces, setPendingCoveragePlaces] = useState<PendingCoveragePlaces | null>(null);
-  const [draftCoverageTab, setDraftCoverageTab] = useState<CoverageSurfaceTab>("zones");
   const [dayCoverageTab, setDayCoverageTab] = useState<CoverageSurfaceTab>("zones");
   const [coverageSaveState, setCoverageSaveState] = useState<"idle" | "pending" | "saving" | "saved" | "error">("idle");
   const coverageSyncedKeyRef = useRef("");
@@ -421,6 +490,7 @@ export function GeographicRouteCatalog({
 
   function beginDaySchedule(weekday: number) {
     const existing = catalog.weekdayScheduleByWeekday[weekday];
+    setDayCoverageTab("zones");
     setSelectedWeekday(weekday);
     setDayScheduleStart(existing?.startTime || "10:00");
     setDayScheduleEnd(existing?.estimatedEndTime || "");
@@ -429,7 +499,7 @@ export function GeographicRouteCatalog({
   }
 
   function proposeCoveragePlaces(
-    scope: "day" | "draft",
+    scope: "day" | "subroute",
     incoming: RouteCoveragePlace[],
     options?: { fitPreview?: boolean; progressive?: boolean },
   ) {
@@ -441,7 +511,7 @@ export function GeographicRouteCatalog({
       if (incoming.length === 1) {
         const only = incoming[0];
         if (scope === "day") setDayHighlightPlaceId(only.placeId);
-        else setDraftHighlightPlaceId(only.placeId);
+        else setSubrouteHighlightPlaceId(only.placeId);
         notify.success(`${only.displayName} ya está en la cobertura`);
       } else {
         notify.success("Esas zonas ya están parte de la cobertura");
@@ -472,24 +542,25 @@ export function GeographicRouteCatalog({
       fitPreview: options?.fitPreview === true,
       batchColor: normalizeCoveragePlaceColor(colored[0]?.color, batchColor),
     });
+    if (scope === "day") setDayCoverageTab("map");
     // Multi-select previews share the same fill; don't pin highlight to the first piece
     // (that used to attenuate every other pending outline to an edge-only look).
     const highlightId = colored.length === 1 ? colored[0]?.placeId || null : null;
     if (scope === "day") setDayHighlightPlaceId(highlightId);
-    else setDraftHighlightPlaceId(highlightId);
+    else setSubrouteHighlightPlaceId(highlightId);
   }
 
   function proposeCoveragePlace(
-    scope: "day" | "draft",
+    scope: "day" | "subroute",
     place: RouteCoveragePlace,
     options?: { fitPreview?: boolean },
   ) {
     proposeCoveragePlaces(scope, [place], options);
   }
 
-  function selectCoveragePlaceFromMap(scope: "day" | "draft", place: RouteCoveragePlace) {
+  function selectCoveragePlaceFromMap(scope: "day" | "subroute", place: RouteCoveragePlace) {
     // While a preview batch is open, map clicks edit that pending list (add/remove), not confirmed coverage.
-    if (pendingCoveragePlaces && pendingCoveragePlaces.scope === scope) {
+    if (pendingCoveragePlaces?.scope === scope) {
       if (pendingCoveragePlaces.places.some((item) => item.placeId === place.placeId)) {
         removePendingCoveragePlace(place.placeId);
         return;
@@ -506,7 +577,7 @@ export function GeographicRouteCatalog({
         scope === "day" ? systemDayRoute?.color || "#10b981" : draft.color,
       );
       setPendingCoveragePlaces((current) => {
-        if (!current || current.scope !== scope) return current;
+        if (!current) return current;
         if (current.places.some((item) => item.placeId === place.placeId)) return current;
         const withColor: RouteCoveragePlace = {
           ...place,
@@ -520,7 +591,7 @@ export function GeographicRouteCatalog({
         };
       });
       if (scope === "day") setDayHighlightPlaceId(place.placeId);
-      else setDraftHighlightPlaceId(place.placeId);
+      else setSubrouteHighlightPlaceId(place.placeId);
       return;
     }
 
@@ -531,8 +602,8 @@ export function GeographicRouteCatalog({
         setDayPlaces(next);
         setDayHighlightPlaceId(null);
       } else {
-        setDraft((currentDraft) => ({ ...currentDraft, places: next }));
-        setDraftHighlightPlaceId(null);
+        updateDraftCoverage(next);
+        setSubrouteHighlightPlaceId(null);
       }
       notify.success(`${place.displayName} se quitó de la cobertura`);
       return;
@@ -542,7 +613,7 @@ export function GeographicRouteCatalog({
   }
 
   function selectCoveragePlacesFromMap(
-    scope: "day" | "draft",
+    scope: "day" | "subroute",
     places: RouteCoveragePlace[],
     options?: { progressive?: boolean },
   ) {
@@ -583,11 +654,8 @@ export function GeographicRouteCatalog({
       setDayPlaces((current) => applyPendingPlacesToCoverage(current, pending, batchColor, fallbackColor));
       setDayHighlightPlaceId(pending[0]?.placeId || null);
     } else {
-      setDraft((current) => ({
-        ...current,
-        places: applyPendingPlacesToCoverage(current.places, pending, batchColor, current.color),
-      }));
-      setDraftHighlightPlaceId(pending[0]?.placeId || null);
+      updateDraftCoverage((current) => applyPendingPlacesToCoverage(current, pending, batchColor, draft.color));
+      setSubrouteHighlightPlaceId(pending[0]?.placeId || null);
     }
     setPendingCoveragePlaces(null);
     notify.success(
@@ -632,19 +700,6 @@ export function GeographicRouteCatalog({
   }
 
   useEffect(() => {
-    if (!pendingCoveragePlaces?.places.length) return;
-    if (pendingCoveragePlaces.scope === "draft") {
-      setDraftCoverageTab("map");
-      setSubrouteCoverageOpen(true);
-    }
-    else setDayCoverageTab("map");
-  }, [pendingCoveragePlaces]);
-
-  useEffect(() => {
-    setDayCoverageTab("zones");
-  }, [selectedWeekday]);
-
-  useEffect(() => {
     if (coverageSaveState !== "saved") return;
     const timer = window.setTimeout(() => {
       setCoverageSaveState((current) => (current === "saved" ? "idle" : current));
@@ -673,24 +728,56 @@ export function GeographicRouteCatalog({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [canManage, dayCoverageLocalKey, dayIsRoute, selectedWeekday]);
 
-  async function saveRoute() {
-    let placesToSave = draft.places;
-    if (
-      draft.coverageMode === "places" &&
-      pendingCoveragePlaces?.scope === "draft" &&
-      pendingCoveragePlaces.places.length
-    ) {
-      placesToSave = applyPendingPlacesToCoverage(
-        draft.places,
-        pendingCoveragePlaces.places,
-        pendingCoveragePlaces.batchColor,
-        draft.color,
-      );
-      setPendingCoveragePlaces(null);
-      setDraft((current) => ({ ...current, places: placesToSave }));
-      setDraftHighlightPlaceId(placesToSave[0]?.placeId || draftHighlightPlaceId);
+  function updateDraftCoverage(
+    nextPlaces: RouteCoveragePlace[] | ((current: RouteCoveragePlace[]) => RouteCoveragePlace[]),
+  ) {
+    setDraft((current) => {
+      const places = typeof nextPlaces === "function" ? nextPlaces(current.places) : nextPlaces;
+      return {
+        ...current,
+        places,
+        coverageMode: places.length ? "places" : "day_only",
+      };
+    });
+  }
+
+  function toggleSubrouteCoveragePlaceFromMap(place: RouteCoveragePlace) {
+    if (draft.places.some((item) => item.placeId === place.placeId)) {
+      updateDraftCoverage(removeCoveragePlaceSelection(draft.places, place.placeId));
+      setSubrouteHighlightPlaceId(null);
+      notify.success(`${place.displayName} se quitó de la cobertura`);
+      return;
     }
 
+    const color = normalizeCoveragePlaceColor(place.color, draft.color);
+    updateDraftCoverage((currentPlaces) =>
+      upsertCoverageRootPlace(currentPlaces, { ...place, color }, draft.color),
+    );
+    setSubrouteHighlightPlaceId(place.placeId);
+  }
+
+  function addSubrouteCoveragePlacesFromMap(places: RouteCoveragePlace[]) {
+    if (!places.length) return;
+    updateDraftCoverage((currentPlaces) => {
+      let nextPlaces = currentPlaces;
+      for (const place of places) {
+        if (nextPlaces.some((item) => item.placeId === place.placeId)) continue;
+        nextPlaces = upsertCoverageRootPlace(
+          nextPlaces,
+          {
+            ...place,
+            color: normalizeCoveragePlaceColor(place.color, draft.color),
+          },
+          draft.color,
+        );
+      }
+      return nextPlaces;
+    });
+    setSubrouteHighlightPlaceId(places.length === 1 ? places[0].placeId : null);
+  }
+
+  async function saveRoute() {
+    const placesToSave = draft.places;
     if (draft.coverageMode === "places") {
       const rootCount = placesToSave.filter(
         (place) => place.selectionRole === "root_whole" || place.selectionRole === "root_partial",
@@ -729,11 +816,12 @@ export function GeographicRouteCatalog({
         : await createGeographicRouteDefinitionAction(payload);
       if (!result.ok) return notify.error(result.error);
       notify.success(draft.id ? "Subruta actualizada" : "Subruta creada");
-      const nextDraft = emptyDraft(selectedWeekday);
-      setDraft(nextDraft);
-      setSubrouteBaselineKey("");
-      setShowForm(false);
-      setSubrouteSchedulesOpen(false);
+      const savedDraft = { ...draft, id: draft.id || result.data.id };
+      setDraft(savedDraft);
+      setSubrouteBaselineKey(coverageDraftSnapshotKey(savedDraft));
+      setSubrouteBaselineDraft(savedDraft);
+      setShowForm(true);
+      setSubrouteHighlightPlaceId(null);
       onCatalogChange();
     } catch (error) {
       notify.error(error instanceof Error ? error.message : "No se pudo guardar la subruta");
@@ -746,6 +834,7 @@ export function GeographicRouteCatalog({
     const key = logisticsWeekdayKeys[weekday];
     const label = logisticsWeekdayLabels[weekday] || key;
     const enabled = catalog.enabledDays.includes(key);
+    setDayCoverageTab("zones");
     setSelectedWeekday(weekday);
     setBusy(`day:${weekday}`);
     try {
@@ -816,23 +905,50 @@ export function GeographicRouteCatalog({
     }
   }
 
+  function hasUnsavedSubrouteChanges() {
+    return showForm && Boolean(subrouteBaselineKey) && coverageDraftSnapshotKey(draft) !== subrouteBaselineKey;
+  }
+
+  function loadSubrouteDraft(nextDraft: RouteDraft, tab: SubrouteEditorTab = "schedules") {
+    setDraft(nextDraft);
+    setSubrouteBaselineKey(coverageDraftSnapshotKey(nextDraft));
+    setSubrouteBaselineDraft(nextDraft);
+    setSubrouteHighlightPlaceId(null);
+    setSubrouteEditorTab(tab);
+    setShowForm(true);
+  }
+
+  function resetSubrouteEditor() {
+    setShowForm(false);
+    setSubrouteEditorTab("schedules");
+    setSubrouteHighlightPlaceId(null);
+    setSubrouteBaselineKey("");
+    setSubrouteBaselineDraft(null);
+    setDraft(emptyDraft(selectedWeekday));
+  }
+
   function closeSubrouteForm() {
-    if (
-      showForm &&
-      subrouteBaselineKey &&
-      coverageDraftSnapshotKey(draft) !== subrouteBaselineKey &&
-      !window.confirm("Hay cambios sin guardar. ¿Cerrar sin guardar?")
-    ) {
+    if (hasUnsavedSubrouteChanges()) {
+      setPendingSubrouteDiscard({ action: "close" });
       return;
     }
-    setPendingCoveragePlaces((current) => (current?.scope === "draft" ? null : current));
-    setShowForm(false);
-    setSubrouteSchedulesOpen(false);
-    setSubrouteCoverageOpen(false);
-    setSubrouteBaselineKey("");
-    setDraftCoverageTab("zones");
-    setDraft(emptyDraft(selectedWeekday));
-    setDraftHighlightPlaceId(null);
+    resetSubrouteEditor();
+  }
+
+  function openSubrouteEditor(
+    route: (typeof selectedDayRoutes)[number],
+    tab: SubrouteEditorTab = "schedules",
+  ) {
+    if (showForm && draft.id === route.id) {
+      setSubrouteEditorTab(tab);
+      return;
+    }
+    if (hasUnsavedSubrouteChanges()) {
+      setPendingSubrouteDiscard({ action: "open", route, tab });
+      return;
+    }
+    const nextDraft = routeToDraft(route);
+    loadSubrouteDraft(nextDraft, tab);
   }
 
   function toggleSubrouteEditor(route: (typeof selectedDayRoutes)[number]) {
@@ -840,23 +956,7 @@ export function GeographicRouteCatalog({
       closeSubrouteForm();
       return;
     }
-    if (
-      showForm &&
-      subrouteBaselineKey &&
-      coverageDraftSnapshotKey(draft) !== subrouteBaselineKey &&
-      !window.confirm("Hay cambios sin guardar en la subruta abierta. ¿Descartarlos?")
-    ) {
-      return;
-    }
-    setPendingCoveragePlaces((current) => (current?.scope === "draft" ? null : current));
-    const nextDraft = routeToDraft(route);
-    setDraft(nextDraft);
-    setSubrouteBaselineKey(coverageDraftSnapshotKey(nextDraft));
-    setDraftHighlightPlaceId(null);
-    setSubrouteSchedulesOpen(false);
-    setSubrouteCoverageOpen(false);
-    setDraftCoverageTab("zones");
-    setShowForm(true);
+    openSubrouteEditor(route);
   }
 
   function changeSubrouteColor(route: (typeof selectedDayRoutes)[number], color: string) {
@@ -864,74 +964,58 @@ export function GeographicRouteCatalog({
       setDraft((current) => ({ ...current, color }));
       return;
     }
-    if (
-      showForm &&
-      subrouteBaselineKey &&
-      coverageDraftSnapshotKey(draft) !== subrouteBaselineKey &&
-      !window.confirm("Hay cambios sin guardar en la subruta abierta. ¿Descartarlos?")
-    ) {
+    if (hasUnsavedSubrouteChanges()) {
+      setPendingSubrouteDiscard({ action: "color", route, color });
       return;
     }
-    setPendingCoveragePlaces((current) => (current?.scope === "draft" ? null : current));
     const routeDraft = routeToDraft(route);
-    setDraft({ ...routeDraft, color });
-    setSubrouteBaselineKey(coverageDraftSnapshotKey(routeDraft));
-    setDraftHighlightPlaceId(null);
-    setSubrouteSchedulesOpen(false);
-    setSubrouteCoverageOpen(false);
-    setDraftCoverageTab("zones");
-    setShowForm(true);
+    loadSubrouteDraft({ ...routeDraft, color });
   }
 
   function beginNewSubroute() {
-    if (
-      showForm &&
-      subrouteBaselineKey &&
-      coverageDraftSnapshotKey(draft) !== subrouteBaselineKey &&
-      !window.confirm("Hay cambios sin guardar. ¿Descartarlos?")
-    ) {
+    if (hasUnsavedSubrouteChanges()) {
+      setPendingSubrouteDiscard({ action: "new" });
       return;
     }
-    setPendingCoveragePlaces((current) => (current?.scope === "draft" ? null : current));
-    const nextDraft = emptyDraft(selectedWeekday);
-    setDraft(nextDraft);
-    setSubrouteBaselineKey(coverageDraftSnapshotKey(nextDraft));
-    setDraftHighlightPlaceId(null);
-    setSubrouteSchedulesOpen(true);
-    setSubrouteCoverageOpen(false);
-    setDraftCoverageTab("zones");
-    setShowForm(true);
+    loadSubrouteDraft(emptyDraft(selectedWeekday));
   }
 
-  const draftScheduleSummary = draft.schedules
-    .filter((item) => item.isActive)
-    .map(scheduleSummary)
-    .join(" · ");
+  function confirmPendingSubrouteDiscard() {
+    const pending = pendingSubrouteDiscard;
+    if (!pending) return;
+    setPendingSubrouteDiscard(null);
+    if (pending.action === "close") {
+      resetSubrouteEditor();
+      return;
+    }
+    if (pending.action === "new") {
+      loadSubrouteDraft(emptyDraft(selectedWeekday));
+      return;
+    }
+    const nextDraft = routeToDraft(pending.route);
+    loadSubrouteDraft(
+      pending.action === "color" ? { ...nextDraft, color: pending.color } : nextDraft,
+      pending.action === "open" ? pending.tab : "schedules",
+    );
+  }
+
   const subrouteDirty =
     showForm && Boolean(subrouteBaselineKey) && coverageDraftSnapshotKey(draft) !== subrouteBaselineKey;
-  const draftHasPendingPlaces =
-    pendingCoveragePlaces?.scope === "draft" && pendingCoveragePlaces.places.length > 0;
-  const draftPlacesMissing =
-    draft.coverageMode === "places" &&
-    !draftHasPendingPlaces &&
-    !draft.places.some(
-      (place) => place.selectionRole === "root_whole" || place.selectionRole === "root_partial",
-    );
-
+  const subrouteChangeDetailsList = subrouteChangeDetails(draft, subrouteBaselineDraft);
   const draftEditor = (
-    <div className="min-w-0">
-      <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-11">
-        <label className="grid min-w-0 gap-1 xl:col-span-4">
-          <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Nombre</span>
+    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+      <div className="mb-3 grid gap-2 border-b border-black/70 pb-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
+        <label className="grid min-w-0 gap-1">
+          <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Ruta</span>
           <input
             value={draft.name}
             onChange={(event) => setDraft({ ...draft, name: event.target.value })}
-            placeholder="Ej. Ruta norte"
+            placeholder="Ruta Norte"
             disabled={!canManage}
-            className="h-9 min-w-0 rounded-lg border border-black bg-surface-card px-3 text-sm font-bold text-white disabled:opacity-60"
+            className="h-9 min-w-0 rounded-lg border border-black bg-surface-card px-3 text-sm font-bold capitalize text-white disabled:opacity-60"
           />
         </label>
-        <label className="grid min-w-0 gap-1 xl:col-span-3">
+        <label className="grid min-w-0 gap-1">
           <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Zona</span>
           <input
             value={draft.zoneName}
@@ -941,141 +1025,55 @@ export function GeographicRouteCatalog({
             className="h-9 min-w-0 rounded-lg border border-black bg-surface-card px-3 text-sm font-bold text-white disabled:opacity-60"
           />
         </label>
-        <label className="grid min-w-0 gap-1 xl:col-span-4">
-          <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Cobertura</span>
-          <select
-            value={draft.coverageMode}
-            onChange={(event) => {
-              const coverageMode = event.target.value as RouteDraft["coverageMode"];
-              setDraft({ ...draft, coverageMode });
-              if (coverageMode === "places") setSubrouteCoverageOpen(true);
-            }}
-            disabled={!canManage}
-            className="h-9 min-w-0 rounded-lg border border-black bg-surface-card px-2 text-xs font-bold text-white disabled:opacity-60"
-          >
-            <option value="day_only">Por día y aprobación</option>
-            <option value="places">Por ciudad / zona</option>
-          </select>
-        </label>
       </div>
-
-      {draft.coverageMode === "places" ? (
-        <div className="mt-4 grid gap-2 border-t border-black/70 pt-3">
-          <button
-            type="button"
-            className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-black bg-surface-inset px-3 py-1.5 text-left outline-none transition hover:bg-white/[0.06] focus-visible:ring-2 focus-visible:ring-sky-400"
-            aria-expanded={subrouteCoverageOpen}
-            aria-controls="subroute-coverage-content"
-            onClick={() => setSubrouteCoverageOpen((current) => !current)}
-          >
-            <MapPin className="h-3.5 w-3.5 shrink-0 text-sky-300" aria-hidden />
-            <span className="flex min-w-0 items-center gap-2">
-              <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-slate-400">Cobertura</span>
-              <span className="min-w-0 truncate text-[11px] font-bold text-slate-300">Ciudades y zonas atendidas por esta subruta</span>
-            </span>
-            <span className="shrink-0 text-[11px] font-black text-emerald-300">
-              {subrouteCoverageOpen ? "Ocultar" : "Ver"}
-            </span>
-          </button>
-          {subrouteCoverageOpen ? (
-            <div id="subroute-coverage-content" className="grid gap-2">
-              <div className="flex justify-end">
-                <CoverageSurfaceTabs
-                  active={draftCoverageTab}
-                  onChange={setDraftCoverageTab}
-                  zonesPanelId="subroute-coverage-zones"
-                  mapPanelId="subroute-coverage-map"
-                  pendingCount={
-                    pendingCoveragePlaces?.scope === "draft" ? pendingCoveragePlaces.places.length : 0
-                  }
-                />
-              </div>
-              {draftCoverageTab === "map" ? (
-            <div
-              id="subroute-coverage-map"
-              role="tabpanel"
-              aria-labelledby="subroute-coverage-map-tab"
-              className="min-h-0 min-w-0 overflow-x-hidden"
-            >
-              <GeographicRouteCoverageMap
-                places={draft.places}
-                previewPlaces={pendingCoveragePlaces?.scope === "draft" ? pendingCoveragePlaces.places : []}
-                fitPreview={pendingCoveragePlaces?.scope === "draft" ? pendingCoveragePlaces.fitPreview : false}
-                color={draft.color}
-                label="subruta"
-                canPickPlaces={canManage}
-                highlightedPlaceId={draftHighlightPlaceId}
-                onSelectPlace={(place) => selectCoveragePlaceFromMap("draft", place)}
-                onSelectPlaces={(places, options) => selectCoveragePlacesFromMap("draft", places, options)}
-              />
-              {pendingCoveragePlaces?.scope === "draft" ? (
-                <PendingCoverageAction
-                  places={pendingCoveragePlaces.places}
-                  batchColor={pendingCoveragePlaces.batchColor}
-                  onCancel={cancelPendingCoveragePlaces}
-                  onConfirm={confirmPendingCoveragePlaces}
-                  onRemovePlace={removePendingCoveragePlace}
-                  onBatchColorChange={setPendingBatchColor}
-                />
-              ) : null}
-            </div>
-              ) : (
-            <div
-              id="subroute-coverage-zones"
-              role="tabpanel"
-              aria-labelledby="subroute-coverage-zones-tab"
-              className="min-w-0"
-            >
-              <GeographicRoutePlacesEditor
-                places={draft.places}
-                onChange={(next) => setDraft((current) => ({
-                  ...current,
-                  places: typeof next === "function" ? next(current.places) : next,
-                }))}
-                canManage={canManage}
-                compact
-                defaultColor={draft.color}
-                highlightedPlaceId={draftHighlightPlaceId}
-                onHighlightPlaceId={setDraftHighlightPlaceId}
-                onProposePlace={(place) => proposeCoveragePlace("draft", place, { fitPreview: true })}
-              />
-              {draftPlacesMissing ? (
-                <p
-                  role="status"
-                  className="mt-2 rounded-md border border-rose-700/70 bg-rose-950/40 px-3 py-2 text-[12px] font-bold text-rose-100"
-                >
-                  Selecciona al menos una zona para poder guardar los cambios.
-                </p>
-              ) : null}
-            </div>
-              )}
-            </div>
-          ) : null}
-        </div>
-      ) : null}
-
-      <div className="mt-3 border-t border-black/70">
+      <div
+        className="mb-3 flex items-center gap-5 border-b border-black/70"
+        role="tablist"
+        aria-label="Secciones de la subruta"
+      >
         <button
           type="button"
-          className="inline-flex min-w-0 max-w-full items-center gap-2 rounded-full border border-black bg-surface-inset px-3 py-1.5 text-left transition hover:bg-white/[0.06] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-          aria-expanded={subrouteSchedulesOpen}
-          onClick={() => setSubrouteSchedulesOpen((current) => !current)}
+          role="tab"
+          aria-selected={subrouteEditorTab === "schedules"}
+          aria-controls="subroute-schedules-panel"
+          onClick={() => setSubrouteEditorTab("schedules")}
+          className={`inline-flex h-9 items-center justify-center gap-1.5 border-b-2 px-1 text-xs font-black transition ${
+            subrouteEditorTab === "schedules"
+              ? "border-emerald-400 text-emerald-200"
+              : "border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-100"
+          }`}
         >
-          <Clock3 className="h-3.5 w-3.5 shrink-0 text-emerald-300" aria-hidden />
-          <span className="flex min-w-0 items-center gap-2">
-            <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-slate-400">Horarios</span>
-            <span className="min-w-0 truncate text-[11px] font-bold text-slate-300">
-              {draftScheduleSummary || "Sin horarios"}
-            </span>
-          </span>
-          <span className="shrink-0 text-[11px] font-black text-emerald-300">
-            {subrouteSchedulesOpen ? "Ocultar" : canManage ? "Editar" : "Ver"}
+          <Clock3 className="h-4 w-4" aria-hidden />
+          Horarios
+          <span className="rounded-full bg-black/20 px-1.5 text-[10px] leading-4 text-current">
+            {draft.schedules.length}
           </span>
         </button>
-        {subrouteSchedulesOpen ? (
-          <div className="grid gap-2 pb-2">
+        <button
+          type="button"
+          role="tab"
+          aria-selected={subrouteEditorTab === "coverage"}
+          aria-controls="subroute-coverage-panel"
+          onClick={() => setSubrouteEditorTab("coverage")}
+          className={`inline-flex h-9 items-center justify-center gap-1.5 border-b-2 px-1 text-xs font-black transition ${
+            subrouteEditorTab === "coverage"
+              ? "border-emerald-400 text-emerald-200"
+              : "border-transparent text-slate-400 hover:border-slate-600 hover:text-slate-100"
+          }`}
+        >
+          <MapPinned className="h-4 w-4" aria-hidden />
+          Cobertura
+          <span className="rounded-full bg-black/20 px-1.5 text-[10px] leading-4 text-current">
+            {draft.places.filter((place) => place.selectionRole !== "child_included").length}
+          </span>
+        </button>
+      </div>
+
+      {subrouteEditorTab === "schedules" ? (
+        <div id="subroute-schedules-panel" role="tabpanel" className="grid gap-2">
             {canManage ? (
-              <div className="flex justify-end">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-slate-500">Define cuándo sale esta subruta</span>
                 <button
                   type="button"
                   className={`${secondaryButtonClass} h-8 px-2 text-[11px]`}
@@ -1088,12 +1086,10 @@ export function GeographicRouteCatalog({
             ) : null}
             {draft.schedules.map((schedule, index) => (
               <div key={schedule.id || index} className="grid gap-2 border-t border-black/50 pt-2 first:border-t-0 first:pt-0">
-                <div className="grid gap-2 sm:grid-cols-[minmax(0,6.5rem)_minmax(0,6.5rem)_minmax(0,6.5rem)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1fr)_auto]">
+                <div className="grid gap-2 sm:grid-cols-[minmax(0,6.5rem)_minmax(0,6.5rem)_minmax(0,6.5rem)_minmax(0,1fr)_auto]">
                   <select value={schedule.weekday} onChange={(event) => setDraft({ ...draft, schedules: draft.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, weekday: Number(event.target.value) } : item) })} className="h-9 min-w-0 rounded-md border border-black bg-surface-card px-2 text-xs font-bold text-white" disabled={!canManage}>{logisticsWeekdayKeys.map((day, weekday) => <option key={day} value={weekday}>{logisticsWeekdayLabels[weekday]}</option>)}</select>
                   <input type="time" value={schedule.startTime} onChange={(event) => setDraft({ ...draft, schedules: draft.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, startTime: event.target.value } : item) })} className="h-9 min-w-0 rounded-md border border-black bg-surface-card px-2 text-xs font-bold text-white" disabled={!canManage} />
                   <input type="time" value={schedule.estimatedEndTime} disabled={!canManage || !schedule.estimatedEndTime} onChange={(event) => setDraft({ ...draft, schedules: draft.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, estimatedEndTime: event.target.value } : item) })} className="h-9 min-w-0 rounded-md border border-black bg-surface-card px-2 text-xs font-bold text-white disabled:opacity-40" />
-                  <input type="number" min={1} value={schedule.maxStops} onChange={(event) => setDraft({ ...draft, schedules: draft.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, maxStops: event.target.value } : item) })} placeholder="Máx. paradas" aria-label="Máximo de paradas" title="Máximo de paradas" className="logistics-capacity-input h-9 w-full min-w-0 appearance-none rounded-md border border-black bg-surface-card px-2 text-xs font-bold text-white" disabled={!canManage} />
-                  <input type="number" min={1} value={schedule.maxBoxes} onChange={(event) => setDraft({ ...draft, schedules: draft.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, maxBoxes: event.target.value } : item) })} placeholder="Máx. cajas" aria-label="Máximo de cajas" title="Máximo de cajas" className="logistics-capacity-input h-9 w-full min-w-0 appearance-none rounded-md border border-black bg-surface-card px-2 text-xs font-bold text-white" disabled={!canManage} />
                   <select value={schedule.defaultDriverId} onChange={(event) => setDraft({ ...draft, schedules: draft.schedules.map((item, itemIndex) => itemIndex === index ? { ...item, defaultDriverId: event.target.value } : item) })} className="h-9 min-w-0 rounded-md border border-black bg-surface-card px-2 text-xs font-bold text-white" disabled={!canManage}><option value="">Sin conductor</option>{routeMembers.filter((member) => member.roleSlug === "conductor").map((member) => <option key={member.id} value={member.id}>{member.label}</option>)}</select>
                   {canManage ? (
                     <button type="button" aria-label="Quitar horario" disabled={draft.schedules.length === 1} onClick={() => setDraft({ ...draft, schedules: draft.schedules.filter((_, itemIndex) => itemIndex !== index) })} className="grid h-9 w-9 shrink-0 place-items-center rounded-md border border-black text-rose-300 disabled:opacity-30"><X className="h-4 w-4" /></button>
@@ -1115,40 +1111,45 @@ export function GeographicRouteCatalog({
                   Sin hora de fin · hasta terminar
                 </label>
               </div>
-            ))}
-          </div>
-        ) : null}
-      </div>
-
-      <div className="-mx-3 -mb-3 mt-2 flex flex-wrap items-center justify-end gap-2 border-t border-black/70 bg-black/10 px-3 py-3">
-        {draftPlacesMissing ? (
-          <p className="mr-auto text-[11px] font-bold text-rose-200">
-            Selecciona al menos una zona para poder guardar los cambios
-          </p>
-        ) : subrouteDirty ? (
-          <p className="mr-auto text-[11px] font-bold text-amber-200">Cambios sin guardar</p>
-        ) : null}
-        {canManage ? (
-          <>
-            <button type="button" className={`${secondaryButtonClass} h-9 px-3 text-xs`} onClick={closeSubrouteForm}>
-              Cancelar
-            </button>
-            <button
-              type="button"
-              className={`${primaryButtonClass} h-9 px-3 text-xs`}
-              disabled={busy === "save"}
-              onClick={() => void saveRoute()}
+             ))}
+         </div>
+      ) : (
+        <div id="subroute-coverage-panel" role="tabpanel" className="flex min-h-0 flex-1 flex-col gap-2">
+          <div className="grid min-h-0 min-w-0 flex-1 gap-3 lg:grid-cols-[minmax(0,1.35fr)_minmax(16rem,0.65fr)] lg:items-stretch">
+            <div id="subroute-coverage-map" aria-label="Mapa de cobertura" className="min-h-0 min-w-0 overflow-visible lg:h-full">
+              <GeographicRouteCoverageMap
+                places={draft.places}
+                color={draft.color}
+                label={draft.name || "ruta"}
+                canPickPlaces={canManage}
+                highlightedPlaceId={subrouteHighlightPlaceId}
+                showLocationControl
+                resizable={false}
+                fillHeight
+                onSelectPlace={toggleSubrouteCoveragePlaceFromMap}
+                onSelectPlaces={addSubrouteCoveragePlacesFromMap}
+              />
+            </div>
+            <div
+              id="subroute-coverage-list"
+              aria-label="Listado de cobertura"
+              className="min-w-0 border-t border-black/70 pt-3 lg:border-l lg:border-t-0 lg:pl-3 lg:pt-0"
             >
-              {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              Guardar
-            </button>
-          </>
-        ) : (
-          <button type="button" className={`${secondaryButtonClass} h-9 px-3 text-xs`} onClick={closeSubrouteForm}>
-            Cerrar
-          </button>
-        )}
-      </div>
+              <GeographicRoutePlacesEditor
+                places={draft.places}
+                onChange={updateDraftCoverage}
+                canManage={canManage}
+                defaultColor={draft.color}
+                highlightedPlaceId={subrouteHighlightPlaceId}
+                onHighlightPlaceId={setSubrouteHighlightPlaceId}
+                compact
+                rootOnly
+              />
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 
@@ -1171,6 +1172,7 @@ export function GeographicRouteCatalog({
                 aria-pressed={selected}
                 onClick={() => {
                   setPendingCoveragePlaces(null);
+                  setDayCoverageTab("zones");
                   setSelectedWeekday(weekday);
                 }}
                 className="flex h-9 min-w-0 flex-1 items-center rounded-md px-2 text-left outline-none transition-colors hover:bg-white/[0.03] focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sky-400 lg:px-1.5 xl:px-2"
@@ -1378,119 +1380,141 @@ export function GeographicRouteCatalog({
       </section>
 
       <section className="border-b border-black pb-3">
-        <div className="mb-2 flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2">
-            <h3 className="text-sm font-black text-white">Subrutas</h3>
-            {selectedDayRoutes.length > 0 ? (
-              <CompactInfoDisclosure
-                compact
-                ariaLabel={`Cómo funcionan las subrutas del ${selectedWeekdayLabel}`}
-                title="Cómo funcionan las subrutas"
-              >
-                Con subrutas, el <strong className="text-white">{selectedWeekdayLabel}</strong> ya no es la ruta: cada subruta usa su propio horario.
-              </CompactInfoDisclosure>
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <div className="flex items-center gap-2">
+              <h3 className="text-base font-black text-white">Subrutas</h3>
+              {selectedDayRoutes.length > 0 ? (
+                <CompactInfoDisclosure
+                  compact
+                  ariaLabel={`Cómo funcionan las subrutas del ${selectedWeekdayLabel}`}
+                  title="Cómo funcionan las subrutas"
+                >
+                  Con subrutas, el <strong className="text-white">{selectedWeekdayLabel}</strong> ya no es la ruta: cada subruta usa su propio horario.
+                </CompactInfoDisclosure>
+              ) : null}
+            </div>
+            <p className="mt-1 text-[11px] font-bold text-slate-500">{selectedWeekdayLabel} · {selectedDayRoutes.length} {selectedDayRoutes.length === 1 ? "subruta configurada" : "subrutas configuradas"}</p>
+          </div>
+          <div className="flex flex-wrap items-center justify-end gap-2">
+            {subrouteDirty ? <p className="text-[11px] font-bold text-amber-200">Cambios sin guardar</p> : null}
+            {canManage && selectedDayEnabled ? (
+              <button type="button" className={`${primaryButtonClass} h-9 px-3 text-xs`} onClick={beginNewSubroute}>
+                <Plus className="h-4 w-4" /> Nueva subruta
+              </button>
+            ) : null}
+            {showForm ? (
+              canManage ? (
+                <>
+                  <button type="button" className={`${secondaryButtonClass} h-9 px-3 text-xs`} onClick={closeSubrouteForm}>
+                    Cancelar
+                  </button>
+                  <button
+                    type="button"
+                    className={`${primaryButtonClass} h-9 px-3 text-xs`}
+                    disabled={busy === "save"}
+                    onClick={() => void saveRoute()}
+                  >
+                    {busy === "save" ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
+                    Guardar
+                  </button>
+                </>
+              ) : (
+                <button type="button" className={`${secondaryButtonClass} h-9 px-3 text-xs`} onClick={closeSubrouteForm}>
+                  Cerrar
+                </button>
+              )
             ) : null}
           </div>
-          {canManage && selectedDayEnabled ? (
-            <button
-              type="button"
-              className={`${primaryButtonClass} h-9 px-3 text-xs`}
-              onClick={beginNewSubroute}
-            >
-              <Plus className="h-4 w-4" />
-              Nueva subruta
-            </button>
-          ) : null}
         </div>
 
-        {showForm && !draft.id ? (
-          <div className="mb-3 min-w-0 rounded-lg border border-black bg-surface-card px-3 py-3">{draftEditor}</div>
-        ) : null}
-
-        {selectedDayRoutes.length ? (
-          <div className="grid gap-2">
-            {selectedDayRoutes.map((route) => {
-              const selectedDaySchedules = route.schedules.filter((item) => item.weekday === selectedWeekday && item.isActive);
-              const expanded = showForm && draft.id === route.id;
-              const visiblePlaces = (route.places || []).filter((place) => place.selectionRole !== "child_included").length;
-              const coverageSummary = route.coverageMode === "places"
-                ? `${visiblePlaces} ${visiblePlaces === 1 ? "lugar" : "lugares"}`
-                : "Sin cobertura configurada";
-              return (
-                <article key={route.id} className={`overflow-hidden rounded-xl border bg-surface-card transition-colors ${expanded ? "border-emerald-700/70" : "border-black hover:border-slate-700"}`}>
-                  <div className={`flex items-center gap-2 px-3 py-2.5 ${expanded ? "bg-emerald-400/[0.04]" : ""}`}>
-                    {canManage ? (
-                      <label
-                        className="relative h-10 w-4 shrink-0 cursor-pointer rounded-full outline-none transition-transform hover:scale-110 focus-within:ring-2 focus-within:ring-sky-400 focus-within:ring-offset-2 focus-within:ring-offset-surface-card"
-                        title={`Cambiar color de ${route.name}`}
-                      >
-                        <span
-                          className="absolute inset-x-1 inset-y-0 rounded-full"
-                          style={{ backgroundColor: expanded ? draft.color : route.color }}
-                          aria-hidden
-                        />
-                        <input
-                          type="color"
-                          value={expanded ? draft.color : route.color}
-                          aria-label={`Cambiar color de ${route.name}`}
-                          className="absolute inset-0 h-full w-full cursor-pointer opacity-0"
-                          onChange={(event) => changeSubrouteColor(route, event.target.value)}
-                        />
-                      </label>
-                    ) : (
-                      <span className="h-10 w-2 shrink-0 rounded-full" style={{ backgroundColor: route.color }} aria-hidden />
-                    )}
-                    <button
-                      type="button"
-                      className="group flex min-w-0 flex-1 items-center gap-3 rounded-lg px-1 py-1.5 text-left transition hover:bg-white/[0.04] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40"
-                      aria-expanded={expanded}
-                      aria-controls={`subroute-editor-${route.id}`}
-                      onClick={() => toggleSubrouteEditor(route)}
-                    >
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate text-sm font-black text-white">{route.name}</span>
-                        <span className="mt-1 flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] font-bold text-slate-400">
-                          <span className="inline-flex items-center gap-1.5"><Clock3 className="h-3.5 w-3.5 text-slate-500" />{selectedDaySchedules.map(scheduleSummary).join(" · ") || "Sin horario"}</span>
-                          <span className="inline-flex items-center gap-1.5"><MapPin className="h-3.5 w-3.5 text-slate-500" />{coverageSummary}</span>
-                        </span>
-                      </span>
-                      <span className={`shrink-0 rounded-full px-2.5 py-1 text-[10px] font-black transition ${expanded ? "bg-emerald-400/15 text-emerald-200" : "bg-surface-inset text-slate-400 group-hover:text-slate-200"}`}>
-                        {expanded ? "Editando" : "Abrir"}
-                      </span>
-                    </button>
-                    {expanded ? (
-                      <CompactInfoDisclosure
-                        compact
-                        align="right"
-                        ariaLabel={`Información para configurar ${route.name}`}
-                        title="Configuración de la subruta"
-                      >
-                        Identidad, cobertura y horario en una sola vista.
-                      </CompactInfoDisclosure>
-                    ) : null}
-                    {canManage ? (
+        <div className="grid min-h-[18rem] border border-black bg-surface-inset lg:min-h-[calc(100svh-18rem)] lg:grid-cols-[minmax(13rem,0.34fr)_minmax(0,0.66fr)]">
+          <nav aria-label="Subrutas del día" className="border-b border-black lg:border-b-0 lg:border-r">
+            <div className="border-b border-black px-3 py-2 text-[10px] font-black uppercase tracking-[0.14em] text-slate-500">Rutas del día</div>
+            {selectedDayRoutes.length ? (
+              <div className="divide-y divide-black/70">
+                {selectedDayRoutes.map((route) => {
+                  const selectedDaySchedules = route.schedules.filter((item) => item.weekday === selectedWeekday && item.isActive);
+                  const selected = showForm && draft.id === route.id;
+                  return (
+                    <div key={route.id} className={`group relative ${selected ? "bg-emerald-400/[0.09]" : "hover:bg-white/[0.035]"}`}>
                       <button
                         type="button"
-                        className={`${secondaryButtonClass} h-8 w-8 shrink-0 p-0 text-rose-200`}
-                        aria-label={`Archivar ${route.name}`}
-                        disabled={busy === `archive:${route.id}`}
-                        onClick={() => void archiveRoute(route)}
+                        className="flex min-h-[5.25rem] w-full items-start gap-3 px-3 py-3 text-left focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-400"
+                        aria-pressed={selected}
+                        onClick={() => toggleSubrouteEditor(route)}
                       >
-                        {busy === `archive:${route.id}` ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Archive className="h-3.5 w-3.5" />}
+                        <span className="mt-1 h-8 w-1 shrink-0 rounded-full" style={{ backgroundColor: selected ? draft.color : route.color }} aria-hidden />
+                        <span className="min-w-0 flex-1">
+                          <span className="block truncate text-sm font-black capitalize text-white">{route.name}</span>
+                          <span className="mt-1 block truncate text-[11px] font-bold text-slate-400">{selectedDaySchedules.map(scheduleSummary).join(" · ") || "Sin horario"}</span>
+                          <span className="mt-2 block text-[10px] font-black uppercase tracking-wide text-slate-500">{selected ? "Seleccionada" : "Editar subruta"}</span>
+                        </span>
                       </button>
-                    ) : null}
-                  </div>
-                  {expanded ? (
-                    <div id={`subroute-editor-${route.id}`} className="min-w-0 overflow-x-hidden border-t border-black px-3 py-3">
-                      {draftEditor}
+                      <div className="flex items-center justify-end gap-1 px-3 pb-3 pl-10">
+                        {canManage ? (
+                          <>
+                            <label className="relative grid h-7 w-7 cursor-pointer place-items-center rounded-md border border-black text-slate-400 hover:text-white" title={`Cambiar color de ${route.name}`}>
+                              <span className="h-3 w-3 rounded-sm" style={{ backgroundColor: selected ? draft.color : route.color }} aria-hidden />
+                              <input type="color" value={selected ? draft.color : route.color} aria-label={`Cambiar color de ${route.name}`} className="absolute inset-0 h-full w-full cursor-pointer opacity-0" onChange={(event) => changeSubrouteColor(route, event.target.value)} />
+                            </label>
+                            <button type="button" className={`${secondaryButtonClass} h-7 w-7 shrink-0 p-0 text-rose-200`} aria-label={`Archivar ${route.name}`} disabled={busy === `archive:${route.id}`} onClick={() => void archiveRoute(route)}>
+                              {busy === `archive:${route.id}` ? <Loader2 className="h-3 w-3 animate-spin" /> : <Archive className="h-3 w-3" />}
+                            </button>
+                          </>
+                        ) : null}
+                      </div>
                     </div>
-                  ) : null}
-                </article>
-              );
-            })}
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="px-3 py-6 text-center text-xs font-bold text-slate-500">Aún no hay subrutas para este día.</div>
+            )}
+          </nav>
+
+          <div id={showForm && draft.id ? `subroute-editor-${draft.id}` : "subroute-new-editor"} className="flex h-full min-h-0 min-w-0 flex-col bg-surface-card px-3 py-3 sm:px-4">
+            {showForm ? (
+              <>
+                <div className="mb-3 flex items-start justify-between gap-3 border-b border-black/70 pb-3">
+                  <div>
+                    <p className="text-[10px] font-black uppercase tracking-[0.16em] text-emerald-200">{draft.id ? "Editar subruta" : "Nueva subruta"}</p>
+                    <p className="mt-1 text-xs font-bold text-slate-400">{draft.id ? draft.name || "Sin nombre" : "Crea una ruta independiente para este día"}</p>
+                  </div>
+                  <span className="shrink-0 text-[10px] font-black uppercase tracking-wide text-slate-500">{selectedWeekdayLabel}</span>
+                </div>
+                {draftEditor}
+              </>
+            ) : (
+              <div className="grid min-h-[16rem] place-items-center px-6 text-center">
+                <div>
+                  <p className="text-sm font-black text-slate-300">Selecciona una subruta</p>
+                  <p className="mx-auto mt-1 max-w-xs text-xs font-bold leading-5 text-slate-500">El editor aparecerá aquí. Así puedes recorrer las rutas sin abrir y cerrar tarjetas.</p>
+                  {canManage && selectedDayEnabled ? <button type="button" className={`${secondaryButtonClass} mt-4 h-9 px-3 text-xs`} onClick={beginNewSubroute}><Plus className="h-4 w-4" /> Nueva subruta</button> : null}
+                </div>
+              </div>
+            )}
           </div>
-        ) : null}
+        </div>
       </section>
+
+      <ActionConfirmDialog
+        open={Boolean(pendingSubrouteDiscard)}
+        title="Cambios sin guardar"
+        message="La subruta abierta tiene cambios que todavía no se han guardado. Si continúas, se descartarán:"
+        details={
+          <ul className="list-disc space-y-1 pl-5 text-sm font-bold leading-snug text-slate-200">
+            {(subrouteChangeDetailsList.length ? subrouteChangeDetailsList : ["Cambios de la subruta abierta"]).map((change) => (
+              <li key={change}>{change}</li>
+            ))}
+          </ul>
+        }
+        confirmLabel="Descartar cambios"
+        cancelLabel="Seguir editando"
+        tone="warning"
+        onCancel={() => setPendingSubrouteDiscard(null)}
+        onConfirm={confirmPendingSubrouteDiscard}
+      />
 
     </div>
   );

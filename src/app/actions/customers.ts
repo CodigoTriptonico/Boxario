@@ -35,6 +35,28 @@ type RecipientDbRow = Parameters<typeof mapRecipientRow>[0];
 type CustomerActionDatabase =
   Awaited<ReturnType<typeof requireScopedActionContext>>["supabase"];
 
+type CoordinateSnapshot = { lat: number; lng: number };
+
+function coordinateSnapshot(latValue: unknown, lngValue: unknown): CoordinateSnapshot | null {
+  const lat = Number(latValue);
+  const lng = Number(lngValue);
+  return Number.isFinite(lat) && lat >= -90 && lat <= 90 && Number.isFinite(lng) && lng >= -180 && lng <= 180
+    ? { lat, lng }
+    : null;
+}
+
+function exactEntranceSnapshot(row: { exact_entrance_lat?: unknown; exact_entrance_lng?: unknown }) {
+  return coordinateSnapshot(row.exact_entrance_lat, row.exact_entrance_lng);
+}
+
+function sameCoordinate(left: CoordinateSnapshot | null, right: CoordinateSnapshot | null) {
+  return left?.lat === right?.lat && left?.lng === right?.lng;
+}
+
+function formatCoordinate(point: CoordinateSnapshot | null) {
+  return point ? `${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}` : "sin coordenadas";
+}
+
 async function customerActionContext() {
   return requireScopedActionContext(["sales.manage", "customers.manage"]);
 }
@@ -177,7 +199,7 @@ export async function updateCustomerAction(
 
     const { data: previousCustomer } = await supabase
       .from("customers")
-      .select("city, postal_code, lat, lng")
+      .select("city, postal_code, lat, lng, exact_entrance_lat, exact_entrance_lng")
       .eq("id", input.customerId)
       .eq("organization_id", session.organizationId)
       .maybeSingle();
@@ -291,6 +313,27 @@ export async function updateCustomerAction(
       title: `Cliente editado: ${firstName} ${lastName}`.trim(),
       description: phones.join(", "),
     });
+
+    const previousExact = exactEntranceSnapshot(previousCustomer || {});
+    const previousAddress = coordinateSnapshot(previousCustomer?.lat, previousCustomer?.lng);
+    const nextExact = exactEntranceSnapshot(data);
+    const nextAddress = coordinateSnapshot(data.lat, data.lng);
+    if (!sameCoordinate(previousExact, nextExact)) {
+      await recordActivityHistory(supabase, session, {
+        action: "customer.exact_entrance.updated",
+        entityType: "customer",
+        entityId: data.id,
+        title: `Entrada exacta actualizada: ${firstName} ${lastName}`.trim(),
+        description: `Pin anterior: ${formatCoordinate(previousExact || previousAddress)} · pin nuevo: ${formatCoordinate(nextExact || nextAddress)}`,
+        metadata: {
+          source: "sales_contact_form",
+          previous: previousExact || previousAddress,
+          previousSource: previousExact ? "exact_entrance" : previousAddress ? "address" : null,
+          next: nextExact || nextAddress,
+          nextSource: nextExact ? "exact_entrance" : nextAddress ? "address" : null,
+        },
+      });
+    }
 
     return ok(mapCustomerRow(data as CustomerDbRow));
   } catch (error) {
@@ -409,6 +452,13 @@ export async function updateRecipientAction(
     }
     const { firstName, lastName, emails, patch } = normalized.value;
 
+    const { data: previousRecipient } = await supabase
+      .from("customer_recipients")
+      .select("lat, lng, exact_entrance_lat, exact_entrance_lng")
+      .eq("id", input.recipientId)
+      .eq("organization_id", session.organizationId)
+      .maybeSingle();
+
     const { data, error } = await supabase
       .from("customer_recipients")
       .update({
@@ -432,6 +482,27 @@ export async function updateRecipientAction(
       title: `Destinatario editado: ${firstName} ${lastName}`.trim(),
       description: [input.country.trim(), input.phone.trim(), emails[0]].filter(Boolean).join(" · "),
     });
+
+    const previousExact = exactEntranceSnapshot(previousRecipient || {});
+    const previousAddress = coordinateSnapshot(previousRecipient?.lat, previousRecipient?.lng);
+    const nextExact = exactEntranceSnapshot(data);
+    const nextAddress = coordinateSnapshot(data.lat, data.lng);
+    if (!sameCoordinate(previousExact, nextExact)) {
+      await recordActivityHistory(supabase, session, {
+        action: "recipient.exact_entrance.updated",
+        entityType: "recipient",
+        entityId: data.id,
+        title: `Entrada exacta actualizada: ${firstName} ${lastName}`.trim(),
+        description: `Pin anterior: ${formatCoordinate(previousExact || previousAddress)} · pin nuevo: ${formatCoordinate(nextExact || nextAddress)}`,
+        metadata: {
+          source: "sales_contact_form",
+          previous: previousExact || previousAddress,
+          previousSource: previousExact ? "exact_entrance" : previousAddress ? "address" : null,
+          next: nextExact || nextAddress,
+          nextSource: nextExact ? "exact_entrance" : nextAddress ? "address" : null,
+        },
+      });
+    }
 
     return ok(mapRecipientRow(data as RecipientDbRow));
   } catch (error) {

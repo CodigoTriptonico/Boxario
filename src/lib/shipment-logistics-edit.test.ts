@@ -15,7 +15,7 @@ import {
   FULL_BOX_DRIVER_MODE,
   FULL_BOX_OFFICE_MODE,
 } from "@/lib/sale-logistics-modes";
-import { PENDING_EMPTY_BOX_STATUS } from "./shipment-display";
+import { PENDING_EMPTY_BOX_STATUS, PENDING_FULL_BOX_STATUS } from "./shipment-display";
 
 function baseShipment(overrides: Partial<ShipmentRow> = {}): ShipmentRow {
   return {
@@ -67,6 +67,40 @@ describe("shipment-logistics-edit", () => {
   it("locks empty box after counter delivery", () => {
     assert.equal(emptyBoxLegLocked(baseShipment()), true);
     assert.equal(fullBoxLegLocked(baseShipment()), false);
+  });
+
+  it("keeps the full-box follow-up available for a quick empty-box sale", () => {
+    const quickSale = baseShipment({
+      sale_kind: "empty_box_deposit",
+      status: PENDING_FULL_BOX_STATUS,
+      empty_box_delivered_at: "2026-01-01T00:00:00.000Z",
+      logistics_plan: {
+        emptyBox: {
+          mode: EMPTY_BOX_OFFICE_MODE,
+          handingNow: true,
+          stockDeductedAt: "2026-01-01T00:00:00.000Z",
+        },
+        fullBox: null,
+      },
+    });
+
+    assert.equal(fullBoxLegLocked(quickSale), false);
+    assert.equal(
+      validateLogisticsPlanUpdate(quickSale, {
+        emptyBox: {
+          mode: EMPTY_BOX_OFFICE_MODE,
+          handingNow: true,
+          scheduleMode: "pending",
+          scheduleAt: null,
+        },
+        fullBox: {
+          mode: FULL_BOX_OFFICE_MODE,
+          scheduleMode: "pending",
+          scheduleAt: null,
+        },
+      }),
+      "",
+    );
   });
 
   it("blocks changing locked empty box mode", () => {
@@ -326,6 +360,28 @@ describe("shipment-logistics-edit", () => {
 
     assert.equal(canRevertFullBoxOfficeReception(received), true);
     assert.equal(fullBoxLegLocked(received), true);
+  });
+
+  it("allows reverting office reception for a quick empty-box sale", () => {
+    const received = baseShipment({
+      sale_kind: "empty_box_deposit",
+      empty_box_delivered_at: "2026-01-01T00:00:00.000Z",
+      full_box_collected_at: "2026-01-02T00:00:00.000Z",
+      office_received_at: "2026-01-02T00:00:00.000Z",
+      status: "En oficina",
+      logistics_plan: {
+        emptyBox: {
+          mode: EMPTY_BOX_OFFICE_MODE,
+          handingNow: true,
+          stockDeductedAt: "2026-01-01T00:00:00.000Z",
+        },
+        fullBox: {
+          mode: FULL_BOX_OFFICE_MODE,
+        },
+      },
+    });
+
+    assert.equal(canRevertFullBoxOfficeReception(received), true);
   });
 
   it("blocks reverting office reception after departure", () => {

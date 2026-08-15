@@ -7,6 +7,7 @@ import { EmailDomainSuggestionsInput } from "@/components/email-domain-suggestio
 import { PhoneCountryInput } from "@/components/phone-country-input";
 import { flowFormStackClass } from "@/components/flow-form-styles";
 import { SaleAddressGooglePanel } from "@/components/sale/sale-address-google-panel";
+import { SaleAddressCoverageButton } from "@/components/sale/sale-address-coverage-button";
 import {
   openExactEntranceBrowserWindow,
   SaleExactEntranceWindow,
@@ -222,6 +223,7 @@ export function SaleClientForm({
     form.setCity(resolved.city);
     form.setState(resolved.state);
     form.setPostalCode(resolved.postalCode);
+    form.setAddressReference(resolved.addressReference ?? form.addressReference);
     address.setSearch(resolved.formattedAddress);
     address.setSuggestions([]);
     address.setValidation({
@@ -274,7 +276,7 @@ export function SaleClientForm({
           <input tabIndex={-1} name="fake-city" autoComplete="address-level2" readOnly />
         </div>
         <section className="flex min-w-0 flex-col overflow-visible">
-          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950">
               <UserPlus className="h-4 w-4" />
             </span>
@@ -431,6 +433,41 @@ export function SaleClientForm({
             <button type="button" onClick={openMapWindow} className="ml-1 inline-flex h-9 items-center gap-2 rounded-md border border-sky-400/50 bg-sky-950/30 px-3 text-xs font-black text-sky-100 hover:border-emerald-300">
               <MapPin className="h-4 w-4" /> Cliente verifica mapa
             </button>
+            <SaleAddressCoverageButton
+              address={{
+                street: form.street,
+                houseNumber: form.house,
+                neighborhood: form.neighborhood,
+                city: form.city,
+                state: form.state,
+                postalCode: form.postalCode,
+                country: "USA",
+                formattedAddress: address.validation.formattedAddress || fullAddress,
+                placeId: address.validation.placeId || "",
+                lat: address.validation.lat,
+                lng: address.validation.lng,
+              }}
+              exactEntrance={exactEntranceDraft}
+              addressReference={form.addressReference}
+              exactEntranceNote={exactEntranceDraft?.note || ""}
+              customerId={meta.editingCustomerId}
+              disabled={!hasRequiredAddress}
+              onAddressReferenceChange={form.setAddressReference}
+              onExactEntranceNoteChange={(value) => {
+                setExactEntranceDraft((current) => current ? { ...current, note: value } : current);
+              }}
+              exactEntranceNoteEditable={Boolean(exactEntranceDraft)}
+              onCustomerLocationSaved={(location) => {
+                setExactEntranceDraft((current) => ({
+                  lat: location.lat,
+                  lng: location.lng,
+                  note: current?.note || "",
+                  panoId: current?.panoId,
+                  heading: current?.heading,
+                  pitch: current?.pitch,
+                }));
+              }}
+            />
           </div>
           <div className="space-y-3 p-5">
             {mapPopupError ? <p className="text-xs font-bold text-amber-200">{mapPopupError}</p> : null}
@@ -452,7 +489,7 @@ export function SaleClientForm({
             <div className="grid gap-3 sm:grid-cols-2">
               <label className="grid min-w-0 gap-1.5">
                 <span className={clientFormAddressLabelClass(form.house, { required: false })}>
-                  Unidad
+                  Número de unidad
                 </span>
                 <input
                   {...noBrowserAutocomplete}
@@ -574,6 +611,7 @@ export function SaleClientForm({
             state: form.state,
             postalCode: form.postalCode,
             country: "USA",
+            addressReference: form.addressReference,
           }}
           addressLocation={
             typeof address.validation.lat === "number" && typeof address.validation.lng === "number"
@@ -583,6 +621,7 @@ export function SaleClientForm({
           initialEntrance={exactEntranceDraft}
           onClose={dismissMapWindow}
           onAddressResolved={useMapAddress}
+          showOperationalNotes={false}
           onConfirm={(draft) => {
             setExactEntranceDraft(draft);
             dismissMapWindow();

@@ -39,6 +39,7 @@ export function GeographicRoutePlacesEditor({
   onHighlightPlaceId,
   onProposePlace,
   compact = false,
+  rootOnly = false,
 }: {
   places: RouteCoveragePlace[];
   onChange: (next: RouteCoveragePlace[] | ((current: RouteCoveragePlace[]) => RouteCoveragePlace[])) => void;
@@ -50,6 +51,8 @@ export function GeographicRoutePlacesEditor({
   onProposePlace?: (place: RouteCoveragePlace) => void;
   /** Denser chrome for nested panels (e.g. expanded subroute). */
   compact?: boolean;
+  /** Show only the root city in compact coverage summaries, without child chips or counts. */
+  rootOnly?: boolean;
 }) {
   const notify = useNotify();
   const [query, setQuery] = useState("");
@@ -427,7 +430,7 @@ export function GeographicRoutePlacesEditor({
       <div className={compact ? "divide-y divide-black/60 border-t border-black/60" : "grid gap-1.5"}>
         {roots.map((root) => {
           const children = childrenForRoot(places, root.placeId);
-          const expanded = expandedRootId === root.placeId;
+          const expanded = !rootOnly && expandedRootId === root.placeId;
           const options = availableChildren[root.placeId] || [];
           const highlighted = isRootHighlighted(root);
           const rootColor = placeColor(root);
@@ -437,9 +440,9 @@ export function GeographicRoutePlacesEditor({
               ref={(node) => {
                 cardRefs.current[root.placeId] = node;
               }}
-              className={
+                className={
                 compact
-                  ? `w-fit max-w-full bg-transparent transition ${highlighted ? "ring-1 ring-inset" : ""}`
+                  ? `w-full max-w-full bg-transparent transition ${highlighted ? "ring-1 ring-inset" : ""}`
                   : `rounded-lg border bg-surface-card transition ${
                       highlighted ? "ring-2" : "border-black"
                     }`
@@ -450,16 +453,26 @@ export function GeographicRoutePlacesEditor({
                   : undefined
               }
             >
-              <div className={`${compact ? "inline-flex max-w-full" : "flex"} min-w-0 items-center gap-1 px-2 py-1.5`}>
+              <div className={`${compact ? "flex w-full max-w-full" : "flex"} min-w-0 items-center gap-1 px-2 py-1.5`}>
                 {canManage ? (
                   <button
                     type="button"
-                    className={`min-w-0 rounded-md px-1.5 py-1 text-left transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${compact ? "max-w-xl" : "flex-1"} ${
+                    className={`min-w-0 flex-1 rounded-md px-1.5 py-1 text-left transition hover:bg-white/5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500/40 ${
                       highlightedPlaceId === root.placeId ? "bg-emerald-400/10" : ""
                     }`}
-                    aria-expanded={expanded}
-                    aria-label={expanded ? `Ocultar zonas de ${root.displayName}` : `Desglosar ${root.displayName}`}
+                    aria-expanded={rootOnly ? undefined : expanded}
+                    aria-label={
+                      rootOnly
+                        ? `Señalar ${root.displayName} en el mapa`
+                        : expanded
+                          ? `Ocultar zonas de ${root.displayName}`
+                          : `Desglosar ${root.displayName}`
+                    }
                     onClick={() => {
+                      if (rootOnly) {
+                        togglePlaceHighlight(root.placeId);
+                        return;
+                      }
                       const willExpand = expandedRootId !== root.placeId;
                       void expandRoot(root);
                       if (willExpand) onHighlightPlaceId?.(root.placeId);
@@ -472,12 +485,14 @@ export function GeographicRoutePlacesEditor({
                     >
                       {root.displayName}
                     </span>
-                    <span className="block break-words text-[10px] font-bold text-slate-500">
-                      {root.selectionRole === "root_partial"
-                        ? `${children.length} zona${children.length === 1 ? "" : "s"}`
-                        : "Ciudad completa · todas las zonas"}
-                      {highlightedPlaceId === root.placeId ? " · señalada en el mapa" : ""}
-                    </span>
+                    {rootOnly ? null : (
+                      <span className="block break-words text-[10px] font-bold text-slate-500">
+                        {root.selectionRole === "root_partial"
+                          ? `${children.length} zona${children.length === 1 ? "" : "s"}`
+                          : "Ciudad completa · todas las zonas"}
+                        {highlightedPlaceId === root.placeId ? " · señalada en el mapa" : ""}
+                      </span>
+                    )}
                   </button>
                 ) : (
                   <div className="min-w-0 flex-1 overflow-hidden px-1">
@@ -495,12 +510,14 @@ export function GeographicRoutePlacesEditor({
                       >
                         {root.displayName}
                       </span>
-                      <span className="block break-words text-[10px] font-bold text-slate-500">
-                        {root.selectionRole === "root_partial"
-                          ? `${children.length} zona${children.length === 1 ? "" : "s"}`
-                          : "Ciudad completa · todas las zonas"}
-                        {highlightedPlaceId === root.placeId ? " · señalada en el mapa" : ""}
-                      </span>
+                      {rootOnly ? null : (
+                        <span className="block break-words text-[10px] font-bold text-slate-500">
+                          {root.selectionRole === "root_partial"
+                            ? `${children.length} zona${children.length === 1 ? "" : "s"}`
+                            : "Ciudad completa · todas las zonas"}
+                          {highlightedPlaceId === root.placeId ? " · señalada en el mapa" : ""}
+                        </span>
+                      )}
                     </button>
                   </div>
                 )}
@@ -536,7 +553,7 @@ export function GeographicRoutePlacesEditor({
                   </button>
                 ) : null}
               </div>
-              {expanded && canManage ? (
+              {!rootOnly && expanded && canManage ? (
                 <div className="border-t border-black px-2 py-2">
                   {childBusyRootId === root.placeId ? (
                     <p className="inline-flex items-center gap-1.5 text-[11px] font-bold text-slate-400">
@@ -622,7 +639,7 @@ export function GeographicRoutePlacesEditor({
                   </div>
                 </div>
               ) : null}
-              {!expanded && children.length ? (
+              {!rootOnly && !expanded && children.length ? (
                 <div className="flex max-w-full flex-wrap gap-1 border-t border-black px-2 py-1.5">
                   {children.map((child) => {
                     const childColor = placeColor(child);

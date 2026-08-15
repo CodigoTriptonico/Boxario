@@ -1,5 +1,537 @@
 # Guía de estilo e interacción de Boxario
 
+### 2026-08-15 — Preferencia UI: subrutas como flujo de trabajo
+
+**No repetir:** mostrar los grupos de subrutas como tarjetas grandes y anidadas, ni abrir el formulario de nueva subruta dentro de una caja pesada con mucho espacio vacío.
+
+**Motivo:** la jerarquía visual hacía difícil distinguir el listado, el grupo activo y el formulario; la expansión se sentía aparatosa y poco clara.
+
+**Preferir:** usar un índice maestro de subrutas separado del panel de edición, con filas ligeras y divisores. La nueva subruta se crea en ese mismo panel, de forma compacta y claramente identificada. Las pestañas deben ser discretas y el pie de acciones debe ocupar solo el espacio necesario.
+
+**Resultado:** la sección prioriza el listado y el contexto; seleccionar una subruta cambia el panel de trabajo sin convertir todo el grupo en otra tarjeta.
+
+### 2026-08-15 — Preferencia UI: cobertura sin desplazamiento interno
+
+**No repetir:** introducir un scrollbar vertical dentro del panel de subrutas cuando se muestra el mapa.
+
+**Motivo:** el desplazamiento interno mueve el contenido y hace que el mapa aparezca de forma incómoda, separado del contexto del listado.
+
+**Preferir:** dejar que el panel crezca de forma natural y mostrar el mapa y el listado completos dentro de la misma superficie, sin altura fija ni `overflow-y-auto`.
+
+**Resultado:** la cobertura se presenta completa y estable; solo el desplazamiento normal de la página queda disponible cuando el contenido realmente supera el viewport.
+
+### 2026-08-15 — Preferencia UI: mapa a altura completa
+
+**No repetir:** dejar el mapa reducido a una franja en la parte superior mientras queda espacio vacío debajo dentro del editor.
+
+**Motivo:** la cobertura pierde protagonismo y el mapa deja de aprovechar la superficie disponible.
+
+**Preferir:** hacer que el mapa estire su superficie hasta el final de la cobertura y que quede alineado con la altura del listado. Las acciones `Cancelar`/`Guardar` deben vivir en una fila compacta junto a `Nueva subruta`, fuera de la superficie flexible del editor, para que no creen un hitbox de ancho completo ni recorten la superficie del mapa.
+
+**Resultado:** mapa y listado comparten una superficie de cobertura completa, sin huecos visuales innecesarios.
+
+### 2026-08-15 — Preferencia UI: guardar sin contraer la subruta
+
+**No repetir:** cerrar o contraer el grupo de una subruta después de pulsar `Guardar`.
+
+**Motivo:** la persona necesita comprobar el resultado guardado y continuar trabajando en la misma ruta sin volver a abrirla.
+
+**Preferir:** conservar la subruta expandida, mantener la pestaña visible y limpiar el indicador de cambios sin guardar después de una respuesta exitosa.
+
+**Resultado:** guardar confirma la operación sin cambiar el contexto de trabajo; `Cancelar` o `Cerrar` siguen siendo las acciones para contraer el grupo.
+
+### 2026-08-15 — Preferencia UI: controles del mapa en una sola barra
+
+**No repetir:** colocar una explicación separada encima del mapa cuando la propia barra del mapa ya comunica la acción disponible.
+
+**Motivo:** el texto duplicaba la instrucción de selección y desplazaba innecesariamente el mapa y el listado.
+
+**Preferir:** mantener una barra compacta dentro del mapa con `Seleccionar área` y `Mi ubicación`. `Mi ubicación` debe centrar el mapa en la posición actual del navegador.
+
+**Resultado:** la cobertura empieza directamente con sus controles operativos, sin repetir instrucciones fuera del mapa.
+
+### 2026-08-15 — Preferencia UI: mapa y listado de cobertura en una sola superficie
+
+**No repetir:** separar `Mapa` y `Listado` de una subruta como pestañas excluyentes.
+
+**Motivo:** al seleccionar zonas sobre el mapa, la persona necesita comprobar inmediatamente el resultado en el listado sin cambiar de vista.
+
+**Preferir:** mostrar mapa y listado juntos dentro de `Cobertura`, con el mapa como superficie principal y el listado sincronizado al lado o debajo según el ancho disponible. Ambos editan el mismo borrador local.
+
+**Resultado:** agregar o quitar una zona en el mapa actualiza el listado en el mismo momento y conserva el guardado explícito de la subruta.
+
+### 2026-08-15 — Preferencia UI: listado de cobertura resumido por ciudad
+
+**No repetir:** mostrar en el editor de una subruta el contador, los chips y el desglose de todas las zonas hijas de una ciudad.
+
+**Motivo:** el listado se vuelve demasiado largo y la persona necesita identificar la cobertura por su ciudad principal, no leer cada zona interna.
+
+**Preferir:** mostrar únicamente la ciudad raíz, por ejemplo `Santa Clarita`, dentro del listado de la subruta. El mapa conserva la cobertura completa y las zonas guardadas no se eliminan; el cambio es únicamente de presentación.
+
+**Resultado:** la lista queda compacta y legible sin alterar la cobertura operativa ni el borrador que se guarda.
+
+### 2026-08-15 — Preferencia UI: mapa editable de cobertura de subruta
+
+**No repetir:** presentar el `Mapa` de una subruta como una vista únicamente informativa sin controles para activar o desactivar zonas.
+
+**Motivo:** la cobertura geográfica se trabaja directamente sobre el mapa; obligar a volver al listado para cada zona elimina la interacción que el operador necesita para explorar y ajustar el área.
+
+**Preferir:** permitir clic en piezas individuales y selección por área. Las zonas nuevas aparecen como vista previa con `Agregar zona`, las selecciones existentes se pueden quitar desde el mapa y los cambios permanecen en el borrador hasta `Guardar`.
+
+**Resultado:** `Listado` y `Mapa` editan la misma cobertura local, con confirmación intermedia para nuevas zonas y sin persistir cambios por el solo hecho de explorar el mapa.
+
+### 2026-08-15 — Preferencia UI: horarios de subruta sin límites de paradas o cajas
+
+**No repetir:** mostrar en la pestaña `Horarios` de una subruta los campos `Máx. paradas` y `Máx. cajas`.
+
+**Motivo:** la configuración visible de la subruta debe concentrarse en día, horario y conductor, sin presentar esos límites como opciones editables en este flujo.
+
+**Preferir:** mostrar únicamente día, hora de inicio, hora final opcional, conductor y la opción `Sin hora de fin · hasta terminar`. Los límites que ya existan se conservan internamente para no borrarlos silenciosamente al editar otros datos.
+
+**Resultado:** la pestaña `Horarios` queda más clara y compacta; retirar los controles no altera rutas operativas ni elimina datos persistidos.
+
+### 2026-08-15 — Preferencia UI: Ruta Norte con Horarios y Cobertura separadas
+
+**No repetir:** abrir una subruta con una pestaña independiente de `Datos` y mostrar la cobertura únicamente como una lista dentro del mismo panel.
+
+**Motivo:** la identidad de la subruta debe permanecer visible como `Ruta Norte`, mientras que la persona necesita cambiar directamente entre sus horarios y su cobertura y consultar la cobertura en el formato más útil para cada momento.
+
+**Preferir:** al pulsar la cabecera de la subruta, mostrar dos pestañas principales: `Horarios` y `Cobertura`. Dentro de `Cobertura`, mostrar las opciones `Listado` y `Mapa`; el listado conserva el buscador y la edición de ciudades o zonas, y el mapa queda disponible como vista separada para revisar la cobertura sin apilar ambas superficies.
+
+**Resultado:** la configuración de una subruta se entiende como una sola superficie con identidad, horarios y cobertura; cambiar de `Listado` a `Mapa` es una consulta reversible y no altera el guardado.
+
+### 2026-08-14 — Preferencia UI: variante 3 como invoice oficial
+
+**No repetir:** usar en Ventas el invoice anterior, con una composición operativa de tarjetas, caja de cobro y jerarquía visual fragmentada.
+
+**Motivo:** la variante 3 fue la propuesta aprobada por su presencia editorial, lectura clara del detalle y separación visible entre total, abono y saldo.
+
+**Preferir:** usar la composición `Premium / editorial` como invoice oficial de Ventas y del expediente, manteniendo el mismo documento para impresión, QR, etiquetas, Venta rápida y edición del abono. El diseño debe adaptarse a datos reales de Boxario, conservar referencias continuas sin separadores y mostrar cada caja física con su código e importe.
+
+**Resultado:** la variante 3 dejó de ser únicamente una demo y se convirtió en la fuente visual reutilizable de los invoices productivos.
+
+### 2026-08-14 — Preferencia UI: fecha de emisión en el cierre del invoice
+
+**No repetir:** mostrar la fecha de emisión en la línea superior del documento.
+
+**Motivo:** la cabecera debe priorizar la marca, el título y la referencia; la fecha debe acompañar las condiciones y notas operativas del invoice.
+
+**Preferir:** mostrar `Fecha de emisión: [fecha]` en el bloque inferior, junto a `Conserva esta factura...` y la información de recolección incluida.
+
+**Resultado:** la parte superior queda más limpia y la fecha se consulta junto con el resto de condiciones del documento.
+
+### 2026-08-14 — Preferencia UI: identificación comercial en el cierre del invoice
+
+**No repetir:** mostrar en la cabecera la franja `SCGS / DOCUMENTO COMERCIAL` con la fecha alineada a la derecha.
+
+**Motivo:** esa franja forma parte del cierre documental y debe acompañar las notas, el QR y la información operativa inferior.
+
+**Preferir:** mostrar toda la franja al final del invoice, con la marca a la izquierda y la fecha a la derecha.
+
+**Resultado:** la cabecera queda reservada para el contenido principal de la factura y la identificación documental se concentra en el cierre.
+
+### 2026-08-14 — Cobertura editable desde una subruta
+
+**Contexto:** El botón `Cobertura` de una subruta solo abría una vista de consulta con las zonas ya guardadas; no había una acción clara para agregar o quitar lugares de Ruta Norte, Ruta Sur u otra subruta.
+
+**Decisión:** `Cobertura` debe abrir la sección editable de la subruta. Esa sección muestra el buscador de ciudades y zonas, el desglose de zonas hijas y la acción confirmada para quitar una cobertura. Esta decisión reemplaza la preferencia anterior que ocultaba la cobertura del editor de subrutas.
+
+**Resultado:** La persona puede administrar las zonas de cada subruta desde el mismo contexto donde administra su nombre y horarios, sin depender de un diálogo de solo lectura.
+
+### 2026-08-14 — Cobertura de ruta sin contexto de cliente
+
+**Contexto:** El botón `Cobertura` de la configuración de Logística reutilizaba el comparador de una dirección y mostraba `La dirección del cliente no pudo ubicarse en el mapa`, aunque esa pantalla no tiene cliente seleccionado.
+
+**Decisión:** El comparador debe distinguir la consulta de una dirección de cliente de la consulta de una cobertura configurada. En configuración, usar `Cobertura de la ruta` y `Cobertura configurada para esta ruta`; no mostrar acciones ni mensajes que impliquen que existe un cliente o una dirección pendiente.
+
+**Resultado:** La ventana comunica que se está revisando la configuración de la ruta y no presenta un error de geocodificación inexistente.
+
+### 2026-08-14 — Días visibles fuera del selector de rutas
+
+**Contexto:** Mostrar los días únicamente dentro del desplegable hacía que desaparecieran cuando el selector estaba cerrado.
+
+**Decisión:** La fila de lunes a domingo debe permanecer visible en la superficie principal del comparador, antes del selector de rutas. El desplegable se reserva para listar y elegir las rutas del día.
+
+**Resultado:** El calendario semanal se reconoce sin abrir controles adicionales y la separación por día queda disponible desde el primer vistazo.
+
+### 2026-08-14 — Coberturas separadas por día operativo
+
+**Contexto:** El comparador de `Dirección y coberturas` mezclaba las rutas de lunes a domingo en una sola lista y dejaba el día como un dato secundario.
+
+**Decisión:** Mostrar siempre los siete días de logística en orden de lunes a domingo. Los días activos usan el acento verde y permiten abrir sus coberturas; los días inactivos permanecen grises y deshabilitados. Las rutas se agrupan bajo el día que les corresponde.
+
+**Resultado:** El operador identifica de inmediato qué días están configurados y puede revisar las coberturas de cada día sin mezclar rutas de jornadas distintas.
+
+### 2026-08-14 — Mapa de entrada sin vista a nivel de calle
+
+**No repetir:** mostrar la opción `A nivel de calle` junto a `Mapa` y `Satélite` en el mapa de entrada exacta.
+
+**Motivo:** no es una vista necesaria para este flujo y ocupa espacio en la barra de controles.
+
+**Preferir:** mantener únicamente `Mapa` y `Satélite`.
+
+### 2026-08-14 — Mapa de entrada usa el espacio vertical disponible
+
+**Contexto:** La ventana del mapa ocupaba toda la pantalla, pero el mapa estaba limitado a `30vh` y dejaba gran parte del área inferior vacía.
+
+**Decisión:** El mapa de entrada debe crecer como la superficie flexible principal de la ventana, conservando los controles superiores y las acciones inferiores fuera del mapa. Solo mantiene una altura mínima para que siga siendo utilizable en ventanas pequeñas.
+
+**Resultado:** El mapa aprovecha el espacio vertical disponible y deja de mostrar una zona negra innecesaria debajo.
+
+### 2026-08-14 — Control de activación para recolección incluida
+
+**Contexto:** El bloque de `Recolección incluida` necesitaba una forma clara de indicar si el beneficio está disponible.
+
+**Decisión:** Mostrar junto al título un checkbox compacto con estado textual `Activa`/`Inactiva`. Al desactivar, el campo de días permanece visible pero deshabilitado y atenuado para conservar la configuración sin sugerir que puede editarse mientras la opción está apagada.
+
+**Resultado:** El estado se entiende de un vistazo y el control no agrega una tarjeta o superficie anidada a la configuración.
+
+### 2026-08-14 - Preferencia UI: conservar la edición del abono en Final
+
+**No repetir:** mover la acción `Crear invoice` al paso 4 y saltarse el documento editable del paso 5.
+
+**Motivo:** el vendedor necesita revisar y cambiar el valor del abono antes de confirmar la creación.
+
+**Preferir:** el paso 4 debe decir `Siguiente`; el paso 5 concentra la edición del abono, la revisión del invoice y la confirmación final. Su acción principal visible debe decir `Crear invoice` y abrir la confirmación de pago antes de guardar.
+
+### 2026-08-14 - Preferencia UI: rutas de cobertura dentro de un desplegable
+
+**No repetir:** mostrar todas las rutas de cobertura como un listado permanente dentro del diálogo.
+
+**Motivo:** el listado ocupa espacio y compite visualmente con el mapa y la dirección del cliente.
+
+**Preferir:** mostrar la ruta activa en un selector desplegable cerrado por defecto; dentro del desplegable conservar la búsqueda, `Todas las rutas` y las opciones de rutas con sus estados de cobertura.
+
+### 2026-08-14 - Preferencia UI: una sola selección operativa de ruta
+
+**No repetir:** permitir seleccionar otra ruta dentro del comparador de coberturas cuando el formulario ya tiene un selector externo de ruta.
+
+**Motivo:** el comparador solo cambia la vista del mapa y no guarda la asignación, por lo que dos selectores generan una expectativa falsa y confusa.
+
+**Preferir:** en el flujo de programación, el selector exterior es la única fuente para elegir la ruta y el modal muestra únicamente la cobertura de esa ruta. El comparador conserva la comparación entre rutas solo en contextos que no tienen otro selector operativo.
+
+### 2026-08-14 - Preferencia UI: cobertura sin edición de pin en el paso de ruta
+
+**No repetir:** mostrar `Pin`, `Confirmar pin exacto` o instrucciones para mover la ubicación dentro del paso donde se define la ruta.
+
+**Motivo:** la ubicación del remitente o destinatario se confirma en el paso anterior; mezclar su edición con la selección de ruta hace parecer que ambas operaciones se guardan juntas.
+
+**Preferir:** en el paso de ruta mostrar la ubicación únicamente como referencia fija del mapa y concentrar las acciones en consultar la cobertura, reencuadrar la ruta y elegir la ruta desde el control exterior.
+
+### 2026-08-14 - Actualización UI: comparar otras rutas sin cambiar la asignación
+
+**Contexto:** el paso de rutas necesita consultar la cobertura de rutas alternativas, pero el selector exterior debe seguir siendo el control que define la ruta operativa.
+
+**Decisión:** el nombre de la ruta visible en el modal funciona como un desplegable de vistas. Permite elegir `Todas las rutas` u otra ruta para reencuadrar el mapa, con una aclaración visible de que el cambio solo afecta la visualización.
+
+**Resultado:** se pueden comparar coberturas sin duplicar ni ocultar el control que guarda la ruta elegida.
+
+### 2026-08-14 - Preferencia UI: desplegable de rutas superpuesto
+
+**No repetir:** abrir el selector de rutas dentro del flujo normal del modal y desplazar el mapa o cambiar la altura de la ventana.
+
+**Motivo:** la expansión modifica el contexto visible y mueve elementos que el operador ya estaba consultando.
+
+**Preferir:** anclar el panel de rutas debajo del control activo, superponerlo sobre el contenido y darle scroll propio cuando sea necesario.
+
+### 2026-08-14 - Preferencia UI: selector de rutas neutral y ordenado por remitente
+
+**No repetir:** asignar una paleta de colores distinta a cada ruta dentro del comparador de coberturas.
+
+**Motivo:** con más rutas, los colores por identidad hacen que el selector sea más difícil de leer y no comunican cuál ruta corresponde a la dirección abierta.
+
+**Preferir:** mostrar todas las rutas con el mismo tratamiento neutral, ordenarlas primero por coincidencia de cobertura y después por cercanía aproximada a la dirección del remitente, y resaltar en verde únicamente las rutas cuya cobertura coincide. El listado debe incluir un buscador por nombre, zona o día.
+
+### 2026-08-14 - Preferencia UI: mapa de entrada sin encabezado promocional
+
+**No repetir:** mostrar la barra superior con `Cliente verifica su ubicación`, la descripción del mapa y una X de cierre dentro de la ventana emergente.
+
+**Motivo:** ocupa espacio vertical y duplica acciones que ya están disponibles en el flujo del mapa.
+
+**Preferir:** iniciar directamente con el formulario y el mapa; conservar las acciones inferiores de `Cancelar` y `Confirmar ubicación`.
+
+### 2026-08-14 - Preferencia UI: mapa del cliente sin datos operativos
+
+**No repetir:** mostrar `Referencias` y `Nota para el conductor` dentro de la ventana que se abre con `Cliente verifica mapa`.
+
+**Motivo:** esa ventana se entrega al cliente para confirmar la dirección y la entrada exacta; las instrucciones internas no forman parte de esa revisión.
+
+**Preferir:** mantener el mapa del cliente enfocado en dirección, pin y `Confirmar ubicación`. Mostrar las pestañas `Referencias` y `Nota para el conductor` en el comparador interno que se abre con `Ver rutas y coberturas`.
+
+### 2026-08-14 - Preferencia UI: tarjetas de personas optimizadas para móvil
+
+**No repetir:** reservar una columna lateral completa para `Rápido` ni convertir toda la dirección en una superficie clicable en las listas de remitentes y destinatarios.
+
+**Motivo:** en pantallas estrechas la columna lateral reduce el espacio para leer y seleccionar la persona, y tocar la dirección abre el mapa por accidente.
+
+**Preferir:** colocar `Rápido` debajo del icono de la persona y mantener la dirección como texto; el acceso al mapa debe ser un botón compacto con el icono de ubicación.
+
+### 2026-08-14 - Preferencia UI: subrutas sin selector de cobertura por ciudad
+
+**No repetir:** mostrar en el editor de subrutas el selector `Por ciudad / zona`, el panel de ciudades y zonas atendidas o el contador de lugares de la subruta.
+
+**Motivo:** esa modalidad no debe formar parte de la configuración visible de una subruta.
+
+**Preferir:** mostrar únicamente la identidad y los horarios de la subruta. Los datos históricos de cobertura se conservan internamente para no borrarlos al editar rutas antiguas.
+
+### 2026-08-14 - Consulta de cobertura desde una subruta
+
+**Contexto:** en la lista de subrutas faltaba un acceso directo para comprobar en el mapa qué cobertura tiene la ruta abierta.
+
+**Decisión:** cada subruta muestra una acción compacta `Cobertura` que abre el mapa reutilizando el diálogo compartido y muestra únicamente la cobertura configurada para esa subruta.
+
+**Resultado:** la cobertura se consulta desde el contexto de la subruta sin agregar un selector operativo duplicado ni introducir edición de cobertura dentro del editor de identidad y horarios.
+
+### 2026-08-14 - Preferencia UI: editor de subruta organizado por pestañas
+
+**No repetir:** presentar las secciones del editor como una lista de filas colapsables de altura y estilo distintos.
+
+**Motivo:** la relación entre identidad y horarios se percibe fragmentada y ocupa espacio sin una navegación clara.
+
+**Preferir:** dos pestañas compactas, `Datos` y `Horarios`, con iconos, estado activo visible y un solo panel abierto a la vez. La pestaña `Horarios` muestra el número de horarios configurados.
+
+### 2026-08-14 - Preferencia UI: comparador de coberturas con rutas seleccionables
+
+**No repetir:** mostrar todas las coberturas de rutas distintas en un único mapa sin una forma visible de cambiar la vista ni de volver a la dirección del cliente.
+
+**Motivo:** el operador necesita distinguir qué zonas pertenecen a cada ruta y regresar rápidamente al punto del cliente después de explorar una cobertura.
+
+**Preferir:** controles compactos para `Todas las rutas` y cada ruta, con la ruta activa claramente marcada, más la acción `Ir a dirección del cliente`. Esta última se deshabilita y explica la causa cuando no existe una coordenada verificada.
+
+### 2026-08-14 - Preferencia UI: la ruta sugerida es la vista inicial
+
+**No repetir:** abrir el comparador en `Todas las rutas` cuando Ventas ya recibió una ruta sugerida por coincidencia de cobertura.
+
+**Motivo:** el operador debe comprobar primero la cobertura que originó la sugerencia; las demás rutas son alternativas para comparar, no el contexto inicial.
+
+**Preferir:** seleccionar y mostrar primero la ruta sugerida. `Todas las rutas` permanece disponible como acción explícita y la vista se reinicia a la sugerencia cada vez que se vuelve a abrir el comparador.
+
+### 2026-08-14 - Preferencia UI: mostrar ubicación aproximada si falta entrada exacta
+
+**Contexto:** Una dirección del cliente puede estar guardada sin un pin de entrada exacta confirmado.
+
+**Decisión:** El comparador debe mostrar la ubicación geocodificada de la dirección como respaldo y no ocultar el pin solo porque falta la entrada exacta.
+
+**Preferir:** usar un marcador visualmente diferenciado y el aviso `Se muestra la ubicación aproximada de la dirección del cliente. El pin no representa una entrada exacta confirmada.`; reservar el aviso de error para cuando tampoco se pueda obtener una ubicación de la dirección.
+
+### 2026-08-14 - Mapa de coberturas enfocado en el cliente
+
+**Preferir:** al abrir “Ver dirección y coberturas”, centrar el mapa en la dirección del cliente con un zoom de zona; no encuadrar todas las coberturas si eso produce una vista mundial.
+
+### 2026-08-14 - Cancelación visible de Venta rápida
+
+**Preferir:** mostrar una X identificada como `Cancelar venta rápida` en la barra superior mientras el checkout aún no está confirmado.
+
+### 2026-08-14 - Acción compacta para omitir el abono inicial
+
+**Preferir:** reemplazar el checkbox de “Sin abono inicial” por una X junto al botón de restaurar del abono; la X pone el abono en cero sin ocultar la fila `Abono`, y restaurar devuelve el depósito calculado.
+
+### 2026-08-14 - Desglose de cajas bajo demanda
+
+**Preferir:** mantener ocultas las medidas de las cajas en la barra de pasos y mostrarlas únicamente al hacer clic en la cantidad de productos.
+
+### 2026-08-14 - Restaurar depósito calculado
+
+**Preferir:** junto al abono editable de la factura, mostrar un icono de restaurar que devuelva el depósito calculado originalmente por el sistema.
+
+### 2026-08-14 - Productos antes del desglose de cajas
+
+**Preferir:** en el paso `Caja`, mostrar primero el país de precios, luego la cantidad de productos y debajo el desglose de medidas de las cajas.
+
+### 2026-08-14 - Venta rápida sincroniza cambios antes del invoice
+
+**No repetir:** mostrar el invoice con una selección de cajas distinta a la que está actualmente seleccionada.
+
+**Motivo:** el invoice podía mostrar la selección anterior aunque el vendedor hubiera agregado o quitado cajas.
+
+**Preferir:** llamar `Siguiente` al botón del paso `Caja`; si el vendedor entra directamente a `Final` con cambios pendientes, ejecutar automáticamente la misma actualización antes de mostrar el invoice.
+
+### 2026-08-14 - Numeración propia para Venta rápida
+
+**No repetir:** mostrar en Venta rápida el número interno del paso equivalente de la venta normal, como `5 Final`.
+
+**Motivo:** Venta rápida solo tiene tres pasos visibles y la numeración debe comunicar ese flujo real.
+
+**Preferir:** numerar Venta rápida como `1 Remitente`, `2 Caja` y `3 Final`; conservar la numeración completa únicamente en ventas normales.
+
+### 2026-08-14 - Fecha de entrega visible en el plazo de recolección
+
+**No repetir:** mostrar en la factura el plazo de recolección solo como "desde la entrega" sin indicar cuándo ocurrió.
+
+**Motivo:** el cliente necesita saber desde qué fecha corre el plazo incluido.
+
+**Preferir:** mostrar la fecha real de `empty_box_delivered_at`; si aún no existe, indicar que está pendiente de registro sin inventar una fecha.
+
+### 2026-08-14 - Preferencia UI: referencia de invoice sin guiones
+
+**No repetir:** mostrar la referencia base de un invoice con separadores, por ejemplo `COL2-001-001-0004`.
+
+**Motivo:** la referencia se lee mejor como una cadena continua y los guiones agregan cortes visuales innecesarios.
+
+**Preferir:** mostrar referencias como `COL20010010004`. Los sufijos de caja física permanecen reservados para identificar cada caja.
+
+### 2026-08-14 - Preferencia UI: resumen de cajas sin texto redundante
+
+**No repetir:** mostrar `Carrito mixto` en la barra de pasos de `Caja` cuando hay varios tipos de caja seleccionados.
+
+**Motivo:** el texto ocupa el espacio del país y del plazo, pero no ayuda a identificar los precios ni agrega información operativa necesaria.
+
+**Preferir:** conservar la bandera y `Precios: [país]`; mostrar el plazo solo cuando corresponde a una única caja. El desglose completo permanece en el carrito y en el invoice.
+
+### 2026-08-14 - País de precios visible en Caja
+
+**Contexto:** La barra de pasos mostraba únicamente la medida, plazo y cantidad en `Caja`. En Venta rápida el país se selecciona antes de abrir el paso, y en la venta normal proviene del destinatario; en ambos casos el vendedor podía perder de vista qué catálogo estaba usando.
+
+**Decisión:** En el paso `Caja`, tanto de Venta rápida como de venta normal, mostrar la bandera y el texto `Precios: [país]` junto al plazo del producto. En Venta rápida el país se toma de la selección inicial; en venta normal se toma del destinatario seleccionado. Nunca se reemplaza por el país del remitente.
+
+**Resultado:** El origen de los precios queda visible durante la selección de cajas en ambos flujos y se conserva el plazo sin alterar la selección del catálogo.
+
+### 2026-08-14 - Carga sin superficie interna en Seguimiento
+
+**Contexto:** El estado de carga de Seguimiento mostraba un rectángulo con otro tono, borde y esquinas redondeadas dentro de la superficie principal. Al terminar la consulta, ese bloque desaparecía y el fondo cambiaba visualmente.
+
+**Decisión:** En el listado de envíos, la carga usa el mismo fondo del contenedor padre y solo conserva un indicador sutil. No debe crear una superficie interna con color o borde propios cuando el estado final ocupa esa misma área.
+
+**Resultado:** La transición entre carga y contenido mantiene un fondo uniforme y no produce un cambio de superficie perceptible.
+
+### 2026-08-14 - Preferencia UI: acciones compactas del checkout rápido
+
+**Contexto:** Los botones `Cancelar` y `Crear invoice` del cierre de la venta rápida ocupaban una franja demasiado alta y dominaban visualmente la pantalla.
+
+**Decisión:** Mantener ambas acciones en dos columnas, pero usar altura compacta de 40 px y texto de tamaño pequeño. La acción principal conserva su color y el flujo de confirmación no cambia.
+
+**Resultado:** El invoice mantiene más espacio visible y las acciones siguen siendo claras sin competir con el documento.
+
+### 2026-08-14 - Referencia de invoice inicia con país y cantidad
+
+**Contexto:** La cantidad de cajas aparecía unida al código del vendedor (`COL-0012`), lo que hacía menos inmediata la lectura del destino y el tamaño del envío.
+
+**Decisión:** La referencia visible agrupa primero el país y la cantidad, por ejemplo `COL2`, y concatena los bloques de vendedor, empresa y correlativo: `COL20010010001`. El invoice base no lleva sufijo; `-A`, `-B` y siguientes se reservan para identificar las cajas físicas.
+
+**Resultado:** El inicio del código comunica de una mirada “Colombia, dos cajas” y evita interpretar la cantidad como parte del vendedor.
+
+### 2026-08-13 - Factura de venta rápida: estado por caja
+
+**Preferir:** no repetir arriba el estado de una venta rápida de caja vacía. El bloque inferior conserva la explicación completa de entrega, recolección, rastreo y plazo; cada línea muestra únicamente su código, presentación real e importe.
+
+**Resultado:** la factura evita duplicar el mismo mensaje y mantiene la información operativa completa en un solo lugar.
+
+### 2026-08-13 - Preferencia UI: factura identifica cada tamaño de caja
+
+**No repetir:** mostrar una línea genérica `Caja` en la factura cuando la venta conserva la medida o presentación seleccionada.
+
+**Motivo:** el cliente y el operador no pueden comprobar qué caja corresponde a cada código e importe.
+
+**Preferir:** cada línea del invoice debe mostrar `Caja [tamaño]`, conservar su código hijo e importe y repetir una línea por cada unidad física seleccionada. Si existen tamaños distintos, cada línea mantiene su propia medida.
+
+### 2026-08-13 - Preferencia UI: factura de venta rápida explica el estado real
+
+**No repetir:** usar `Servicio de entrega` o mostrar una entrega estimada en la factura de una venta rápida cuando la caja vacía ya se entregó en oficina.
+
+**Motivo:** esas etiquetas contradicen el resultado físico de la venta y no informan al cliente cuál es el siguiente hito.
+
+**Preferir:** mostrar `Caja entregada · Recolección pendiente` (o su plural), ocultar la entrega estimada y explicar al pie que la caja vacía fue entregada en oficina y que la recolección de la caja llena queda pendiente de coordinar.
+
+### 2026-08-13 - Venta rápida: factura y etiquetas en el mismo Final
+
+**No repetir:** mostrar encima de la factura un encabezado con número/tipo de venta, una tarjeta duplicada del remitente o un panel lateral separado para el QR.
+
+**Motivo:** esos datos ya forman parte de la factura y crean una composición más larga y fragmentada.
+
+**Preferir:** conservar las pestañas compartidas `Factura` y `Etiquetas` dentro del paso `Final`. La pestaña `Factura` mantiene su QR dentro del documento; fuera de los documentos solo deben quedar las acciones necesarias para pagar o iniciar otra venta.
+
+### 2026-08-13 - Venta rápida: una sola superficie de scroll en Final
+
+**No repetir:** anidar un scroll propio del checkout rápido dentro del scroll del paso `Final`; la barra de documentos termina quedando desfasada respecto de la factura.
+
+**Preferir:** usar el scroll del contenedor del paso `Final` para mover juntos la barra `Factura/Etiquetas`, la factura y las etiquetas.
+
+### 2026-08-13 - Preferencia UI: cancelar venta rápida fuera de la barra de pasos
+
+**No repetir:** colocar un botón textual de `Cancelar venta rápida` dentro de la barra, encima del catálogo o debajo de la acción principal.
+
+**Motivo:** reduce el espacio de la navegación y distrae/estorba el paso activo.
+
+**Preferir:** usar la navegación contextual estándar del encabezado de Boxario para regresar de la venta rápida al flujo completo, sin agregar controles dentro del contenido.
+
+### 2026-08-13 - Preferencia UI: venta rápida compacta
+
+**Contexto:** El segundo modal de venta rápida (`Venta de caja vacía`) repetía la selección de cajas y ocupaba espacio con información de destinatario/logística que no se usa en una venta rápida.
+
+**Decisión:** Mantener únicamente el modal inicial de país. Después, mostrar el selector normal de cajas en el paso 3 y una barra compacta con los pasos 1, 3 y 5. El cierre debe ofrecer un botón visible `Cancelar venta rápida`, separado de la navegación, para volver al flujo completo.
+
+**Resultado:** La venta rápida ocupa una sola superficie de trabajo, conserva el diseño compartido del selector de cajas y deja claro cómo regresar a una venta completa.
+
+### 2026-08-13 - Preferencia UI: transición visible al invoice de venta rápida
+
+**Decisión:** En el paso `Caja` de una venta rápida, la acción principal debe permanecer visible al fondo de la lista y llamarse `Ver invoice completo`. Mientras se prepara el invoice, debe indicar `Abriendo invoice...` y bloquear dobles clics.
+
+**Resultado:** El cliente entiende que la selección de la caja lleva al invoice final sin tener que buscar un botón fuera de la pantalla.
+
+### 2026-08-13 - Preferencia UI: invoice rápido integrado en el paso 5
+
+**Contexto:** El checkout rápido aparecía como un modal independiente y ocultaba la barra de pasos, aunque la venta rápida debe terminar en el paso `Final`.
+
+**Decisión:** Después de seleccionar la caja, el invoice completo se muestra dentro de la superficie principal del paso 5. Solo la confirmación de cobro puede abrir un diálogo secundario; el invoice, el QR y sus acciones permanecen en la página.
+
+**Resultado:** El usuario ve la transición `Caja → Final` sin que la pantalla parezca cambiar a otra página o a una ventana telefónica.
+
+### 2026-08-13 - Preferencia UI: checkout final no se colapsa en escritorio
+
+**Contexto:** La factura final de una venta rápida compartía el ancho del modal con el QR y terminaba usando una columna estrecha, con apariencia de vista telefónica aunque la pantalla fuera de escritorio.
+
+**Decisión:** El checkout final debe conservar un contenedor amplio en escritorio. La factura mantiene su ancho de papel legible y el QR ocupa una columna lateral independiente; en pantallas menores ambas áreas se apilan de forma natural.
+
+**Resultado:** Llegar al paso final no cambia la página a una composición móvil ni comprime la factura junto al QR.
+
+### 2026-08-13 - Campos de dirección consistentes en verificación de ubicación
+
+**Contexto:** La ventana para confirmar la entrada exacta no reflejaba todos los campos de dirección de los formularios de remitente y destinatario.
+
+**Decisión:** Los tres flujos muestran la misma dirección postal: Calle, Número de unidad, Colonia, Ciudad, Estado, Código postal, País y Referencias. La nota para el conductor permanece separada porque es una instrucción operativa para la entrega.
+
+**Resultado:** Remitentes y destinatarios tienen una experiencia consistente y las referencias del domicilio no se pierden al seleccionar una dirección en el mapa.
+
+### 2026-08-13 - Preferencia UI: zoom visible en el mapa de entrada
+
+**Contexto:** El mapa dependía de Ctrl + scroll o de gestos que algunos clientes no conocen.
+
+**Decisión:** La ventana de ubicación exacta debe mostrar controles grandes y visibles de acercar y alejar sobre el mapa, utilizables con clic, teclado y pantalla táctil. El arrastre del pin y el zoom permanecen como acciones independientes.
+
+**Resultado:** El cliente puede ajustar el encuadre sin conocer atajos del navegador ni gestos especiales.
+
+### 2026-08-13 - Preferencia UI: ventana del mapa sin scroll de página
+
+**Contexto:** La ventana de ubicación exacta obligaba a desplazar la página para ver el mapa o las acciones finales.
+
+**Decisión:** La ventana usa toda la altura visible, oculta el scroll de página y adapta la altura del mapa al viewport para mantener campos, mapa, nota y acciones dentro de la misma pantalla.
+
+**Resultado:** El cliente puede completar la ubicación sin desplazarse por la ventana.
+
+### 2026-08-13 - Preferencia UI: sugerencias no cubren campos de dirección
+
+**Contexto:** La lista de sugerencias de Google se superponía a la primera fila y bloqueaba el acceso a Calle y Número de unidad.
+
+**Decisión:** Las sugerencias deben ocupar espacio normal dentro del formulario y empujar los campos hacia abajo; nunca deben quedar flotando encima de un campo editable.
+
+**Resultado:** El cliente puede seleccionar una sugerencia y después editar directamente el número de unidad y el resto de la dirección.
+
+### 2026-08-13 - Preferencia UI: campos vacíos visibles en el mapa de entrada
+
+**Contexto:** En la ventana de ubicación exacta no era evidente qué datos de dirección faltaban.
+
+**Decisión:** Todo campo de dirección vacío se muestra con etiqueta, borde y fondo en rojo tenue; al escribir un valor recupera el estilo normal. Esta señal es visual y no convierte por sí sola los campos opcionales en obligatorios.
+
+**Resultado:** El cliente identifica inmediatamente qué información falta, incluido el número de unidad y las referencias.
+
+### 2026-08-13 - Preferencia UI: referencias y nota en pestañas
+
+**Contexto:** Referencias del domicilio y nota para el conductor ocupaban dos espacios y parecían duplicadas.
+
+**Decisión:** En la ventana de ubicación exacta comparten una sola sección inferior con pestañas `Referencias` y `Nota para el conductor`. Cada pestaña conserva su campo persistente independiente.
+
+**Resultado:** La interfaz ocupa menos espacio sin mezclar la información permanente del domicilio con la instrucción operativa.
+
 ### 2026-08-13 - Preferencia UI: mapa comparativo desde el selector de ruta
 
 **No repetir:** obligar al vendedor a decidir una excepción de cobertura únicamente con etiquetas textuales como `Compatible` o `Verificar cobertura`.
@@ -101,6 +633,8 @@
 **No repetir:** mantener permanentemente visibles el buscador, las zonas y el acceso al mapa dentro de cada subruta abierta.
 
 **Motivo:** la cobertura ocupa espacio incluso cuando el operador solo necesita cambiar nombre, modo u horario.
+
+**Vigencia:** esta preferencia quedó reemplazada el 2026-08-14 por la decisión de no mostrar cobertura por ciudad/zona dentro del editor de subrutas.
 
 **Preferir:** mostrar una cabecera compacta `Cobertura` con su explicación breve; al pulsarla se despliegan el buscador, las zonas y las vistas `Zonas`/`Mapa`. Al elegir `Por ciudad / zona` desde el selector, abrir automáticamente esta sección.
 
@@ -478,7 +1012,9 @@
 
 **Motivo:** el operador elige Santa Clarita y, si quiere ser más preciso, desglosa zonas internas. ZIP queda solo como legado.
 
-**Preferir:** buscador de ciudad/zona, chips jerárquicos con desglose, checkboxes de zonas hijas y mapa con pin + nombre (contorno suave solo de referencia). Subrutas nuevas default a `Por ciudad / zona`; ZIP aparece como `Por ZIP Code (legado)`.
+**Vigencia:** la cobertura por ciudad/zona continúa disponible para el día maestro, pero quedó retirada del editor de subrutas el 2026-08-14. Las subrutas nuevas usan `Por día y aprobación`.
+
+**Preferir:** para el día maestro, buscador de ciudad/zona, chips jerárquicos con desglose, checkboxes de zonas hijas y mapa con pin + nombre (contorno suave solo de referencia). ZIP aparece como `Por ZIP Code (legado)`.
 
 ### 2026-08-10 - Preferencia UI: mapa ZIP con mi ubicación
 
@@ -2832,3 +3368,64 @@ En `Paradas`, cada fila o tarjeta identifica claramente entrega o recolección, 
 **Motivo:** el contorno reapareció en Logística y en la navegación porque una utilidad de color de borde no estaba resolviendo su variable y caía en `currentColor` (blanco); los bordes exteriores no son parte de la jerarquía visual aprobada.
 
 **Preferir:** mantener las superficies principales sin borde exterior; conservar únicamente divisores internos y estados de foco/selección necesarios para orientar la interacción.
+
+### 2026-08-13 - Preferencia UI: perfil como identidad, no como mosaico de tarjetas
+
+**No repetir:** dividir Mi perfil en varias tarjetas independientes con encabezados y cajas anidadas para cada dato de acceso.
+
+**Motivo:** la pantalla se percibe fragmentada, desaprovecha el espacio disponible y no da suficiente jerarquía a la identidad ni al código con el que la persona realiza ventas.
+
+**Preferir:** una sola superficie continua con una cabecera visual de identidad, el código de vendedor inmediatamente debajo del nombre y secciones de información personal, acceso, permisos y seguridad separadas mediante divisores. En móvil, conservar primero foto, nombre, código y rol.
+
+### 2026-08-13 - Preferencia UI: secciones de perfil seleccionables
+
+**Contexto:** el perfil necesita separar con claridad la edición del nombre, el cambio de contraseña y la consulta del acceso de la empresa.
+
+**Decisión:** la cabecera conserva la identidad y el código de vendedor, y debajo ofrece las secciones `Información personal`, `Seguridad` y `Acceso y permisos`. Solo se muestra el contenido de la sección activa, con un estado seleccionado visible y controles accesibles.
+
+**Resultado:** cambiar la contraseña ocurre dentro de `Seguridad`, los datos editables quedan agrupados en `Información personal` y los permisos no compiten visualmente con el formulario.
+
+### 2026-08-13 - Preferencia UI: campos de perfil con el mismo fondo
+
+**No repetir:** mostrar el nombre en un campo azul oscuro y el correo en una superficie verde distinta dentro del mismo formulario.
+
+**Motivo:** parece que los campos tienen estados diferentes aunque el correo solo sea de lectura.
+
+**Preferir:** mantener nombre y correo con el mismo fondo, borde, altura y radio; diferenciar el correo únicamente con texto atenuado y la nota de administración.
+
+### 2026-08-14 - Preferencia UI: variantes de factura en pestañas
+
+**Contexto:** la galería de propuestas mostraba cinco facturas completas una debajo de otra, lo que dificultaba compararlas y obligaba a recorrer una página demasiado larga.
+
+**Decisión:** mostrar una sola variante de factura a la vez dentro de pestañas horizontales con nombre corto, estado seleccionado visible y desplazamiento horizontal en pantallas estrechas.
+
+**Resultado:** el usuario puede cambiar rápidamente entre las cinco propuestas sin perder el contexto de la galería ni confundirlas con la factura productiva.
+### 2026-08-14 - Preferencia UI: direccion accionable en tarjetas
+
+**Contexto:** el operador necesita saber que la direccion de una tarjeta puede abrirse en el mapa para ubicar la entrada real.
+
+**Decision:** la direccion de remitentes y destinatarios se presenta como accion de mapa con icono de pin, cursor de precision, subrayado discreto en tablas y foco visible. Usa la misma ventana de entrada exacta del alta.
+
+**Resultado:** la accion se distingue del clic general de seleccion sin agregar una caja permanente ni duplicar el mapa.
+### 2026-08-14 - Preferencia UI: cada ruta reencuadra su cobertura
+
+**Contexto:** cambiar de Ruta norte a Ruta sur modificaba el chip activo, pero no siempre llevaba la camara a la cobertura elegida.
+
+**Decision:** al pulsar cualquier chip de ruta, la vista activa debe reencuadrar su propia cobertura; `Todas las rutas` reencuadra el conjunto visible. El estado visual del chip y la camara deben cambiar juntos.
+
+**Resultado:** la persona puede comparar rutas sin tener que arrastrar o buscar manualmente la zona de cada una.
+### 2026-08-14 - Preferencia UI: pin editable en cobertura
+
+**Contexto:** la bolita del cliente no comunicaba que la ubicacion podia precisarse.
+
+**Decision:** mostrar un pin nativo rojo y arrastrable para el cliente. Cuando la ubicacion es aproximada, el aviso debe explicar que el pin se puede mover y que `Confirmar pin exacto` lo guarda.
+
+**Resultado:** la vista conserva las coberturas comparables y hace visible la accion de precisar la entrada sin agregar cajas permanentes.
+
+### 2026-08-14 - Preferencia UI: dos acciones en la dirección de recolección
+
+**Contexto:** el botón del mapa de dirección no debe mezclar la confirmación del cliente con la consulta interna de rutas.
+
+**No repetir:** usar una sola acción ambigua para abrir el mapa del cliente y revisar coberturas operativas.
+
+**Preferir:** mostrar dos acciones compactas junto a `Dónde recoger`: `Cliente verifica mapa` para confirmar la entrada exacta y `Ver rutas y coberturas` para abrir el comparador interno. El comparador identifica cada ruta por color y muestra explícitamente el día semanal de recolección.

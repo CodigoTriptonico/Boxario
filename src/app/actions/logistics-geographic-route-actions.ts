@@ -4,6 +4,7 @@ import { createHash } from "node:crypto";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { recordActivityHistory } from "@/lib/activity-history";
 import { actionErrorMessage, fail, ok, type ActionResult } from "@/lib/actions/errors";
+import { requireScopedActionContext } from "@/lib/actions/context";
 import { requireAppSession } from "@/lib/auth/session";
 import { sessionHasPermission } from "@/lib/auth/permissions";
 import {
@@ -21,12 +22,15 @@ import {
   searchCoveragePlaces,
   type CoveragePlaceSuggestion,
 } from "@/lib/coverage-places-google";
+import { geocodeAddressForDisplay } from "@/lib/google-address-geocoding";
+import { listLogisticsRouteCatalogAction } from "@/app/actions/logistics-route-catalog-read";
 import {
   normalizeCoveragePlaceColor,
   normalizeCoveragePlaceKind,
   normalizeCoveragePlaceSelectionRole,
   normalizeUsPostalCode,
   normalizedAddressFingerprintSource,
+  normalizeGeoPoint,
   parseCoveragePlaceBounds,
   routeCandidateCoverageMatches,
   routeCandidateIsSelectable,
@@ -34,6 +38,7 @@ import {
   type RouteCoverageMode,
   type RouteCoveragePlace,
 } from "@/lib/logistics-route-coverage";
+import { logisticsWeekdayKeys, type LogisticsWeekdayKey } from "@/lib/logistics-route-catalog";
 import { getLogisticsWeekdayIndex } from "@/lib/logistics-route-week";
 import { scheduledAtToLocalDateInput } from "@/lib/schedule-date";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
@@ -78,6 +83,105 @@ export type CompatibleGeographicRoute = {
   coverageMatches: boolean;
   explanation: string;
 };
+
+export type CustomerMapLocation = {
+  lat: number;
+  lng: number;
+  label: string;
+  source: "exact_entrance" | "address";
+};
+
+export async function resolveAddressGeographicRoutesAction(input: {
+  address: RouteCoverageAddress;
+  exactEntrance?: { lat: number; lng: number } | null;
+}): Promise<ActionResult<{
+  routes: CompatibleGeographicRoute[];
+  customerLocation: CustomerMapLocation | null;
+  enabledDays: LogisticsWeekdayKey[];
+}>> {
+  try {
+    const catalogResult = await listLogisticsRouteCatalogAction();
+    if (!catalogResult.ok) return fail(catalogResult.error);
+
+    const address = input.address || {};
+    const exactEntrance = normalizeGeoPoint(input.exactEntrance?.lat, input.exactEntrance?.lng);
+    const addressLocation = normalizeGeoPoint(address.lat, address.lng);
+    const addressLabel = String(
+      address.formattedAddress ||
+      [address.houseNumber, address.street, address.neighborhood, address.city, address.state, address.postalCode, address.country]
+        .filter(Boolean)
+        .join(", ") ||
+      "Dirección del cliente",
+    );
+    let customerLocation: CustomerMapLocation | null = exactEntrance
+      ? { ...exactEntrance, label: addressLabel, source: "exact_entrance" }
+      : addressLocation
+        ? { ...addressLocation, label: addressLabel, source: "address" }
+        : null;
+
+    if (!customerLocation) {
+      const fallback = await geocodeAddressForDisplay({
+        street: address.street,
+        houseNumber: address.houseNumber,
+        neighborhood: address.neighborhood,
+        city: address.city,
+        state: address.state,
+        postalCode: address.postalCode,
+        country: address.country,
+        formattedAddress: address.formattedAddress,
+      });
+      if (fallback) {
+        customerLocation = { lat: fallback.lat, lng: fallback.lng, label: fallback.label, source: "address" };
+      }
+    }
+
+    const namedWeekdays = new Set(
+      catalogResult.data.routeDefinitions
+        .filter((definition) => !definition.isSystemGeneral && definition.status === "active")
+        .flatMap((definition) => definition.schedules.filter((schedule) => schedule.isActive).map((schedule) => schedule.weekday)),
+    );
+    const routes = catalogResult.data.routeDefinitions
+      .filter((definition) => definition.status === "active")
+      .flatMap((definition) => definition.schedules
+        .filter((schedule) => schedule.isActive)
+        .filter((schedule) => !(definition.isSystemGeneral && namedWeekdays.has(schedule.weekday)))
+        .map((schedule) => {
+          const places = definition.places.map((place) => ({ ...place }));
+          const candidate = {
+            routeDefinitionId: definition.id,
+            routeScheduleId: schedule.id,
+            name: definition.isSystemGeneral ? `Ruta del ${logisticsWeekdayKeys[schedule.weekday] || "día"}` : definition.name,
+            weekday: schedule.weekday,
+            startTime: schedule.startTime,
+            estimatedEndTime: schedule.estimatedEndTime,
+            coverageMode: definition.coverageMode,
+            postalCodes: definition.postalCodes,
+            places,
+            maxStops: schedule.maxStops,
+            maxBoxes: schedule.maxBoxes,
+            reservedStops: schedule.reservedStops,
+            reservedBoxes: schedule.reservedBoxes,
+            isActive: schedule.isActive,
+            routeStatus: definition.status,
+          };
+          const coverageMatches = routeCandidateCoverageMatches({ candidate, address });
+          return {
+            ...candidate,
+            zoneName: definition.zoneName,
+            color: definition.color,
+            needsApproval: !coverageMatches && definition.coverageMode === "places",
+            coverageMatches,
+            explanation: coverageMatches
+              ? "La dirección cae en la cobertura de ciudad o zona de esta ruta"
+              : "La dirección no coincide con la cobertura configurada de esta ruta",
+          };
+        }));
+
+    return ok({ routes, customerLocation, enabledDays: catalogResult.data.enabledDays });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
 
 function untyped(supabase: unknown) {
   return supabase as SupabaseClient;
@@ -634,6 +738,87 @@ function addressFingerprint(address: RouteCoverageAddress) {
   return createHash("sha256").update(normalizedAddressFingerprintSource(address)).digest("hex");
 }
 
+function formatMapCoordinate(point: { lat: number; lng: number } | null) {
+  return point ? `${point.lat.toFixed(6)}, ${point.lng.toFixed(6)}` : "sin coordenadas";
+}
+
+export async function updateCustomerExactEntranceLocationAction(input: {
+  customerId: string;
+  lat: number;
+  lng: number;
+  source?: "sales_contact_form" | "logistics_coverage_map" | "exact_entrance_map";
+}): Promise<ActionResult<CustomerMapLocation>> {
+  try {
+    const { session, supabase } = await requireScopedActionContext([
+      "sales.manage",
+      "customers.manage",
+      "routes.update_status",
+    ]);
+    const latitude = Number(input.lat);
+    const longitude = Number(input.lng);
+    if (!input.customerId || !Number.isFinite(latitude) || latitude < -90 || latitude > 90) {
+      return fail("La latitud del pin no es válida");
+    }
+    if (!Number.isFinite(longitude) || longitude < -180 || longitude > 180) {
+      return fail("La longitud del pin no es válida");
+    }
+
+    const database = untyped(supabase);
+    const { data: previous, error: previousError } = await database
+      .from("customers")
+      .select("id, first_name, last_name, formatted_address, lat, lng, exact_entrance_lat, exact_entrance_lng")
+      .eq("id", input.customerId)
+      .eq("organization_id", session.organizationId)
+      .maybeSingle();
+    if (previousError || !previous) {
+      return fail(previousError?.message || "No se encontró el cliente");
+    }
+
+    const previousExact = normalizeGeoPoint(previous.exact_entrance_lat, previous.exact_entrance_lng);
+    const previousAddress = normalizeGeoPoint(previous.lat, previous.lng);
+    const nextPoint = { lat: latitude, lng: longitude };
+    const changed = !previousExact || previousExact.lat !== latitude || previousExact.lng !== longitude;
+
+    if (changed) {
+      const { error: updateError } = await database
+        .from("customers")
+        .update({
+          exact_entrance_lat: latitude,
+          exact_entrance_lng: longitude,
+          exact_entrance_confirmed_at: new Date().toISOString(),
+          exact_entrance_confirmed_by: session.userId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", input.customerId)
+        .eq("organization_id", session.organizationId);
+      if (updateError) return fail(updateError.message);
+
+      await recordActivityHistory(supabase, session, {
+        action: "customer.exact_entrance.updated",
+        entityType: "customer",
+        entityId: String(previous.id),
+        title: `Entrada exacta actualizada: ${String(previous.first_name || "")} ${String(previous.last_name || "")}`.trim(),
+        description: `Pin anterior: ${formatMapCoordinate(previousExact || previousAddress)} · pin nuevo: ${formatMapCoordinate(nextPoint)}`,
+        metadata: {
+          source: input.source || "logistics_coverage_map",
+          previous: previousExact || previousAddress,
+          previousSource: previousExact ? "exact_entrance" : previousAddress ? "address" : null,
+          next: nextPoint,
+          nextSource: "exact_entrance",
+        },
+      });
+    }
+
+    return ok({
+      ...nextPoint,
+      label: String(previous.formatted_address || "Entrada exacta del cliente"),
+      source: "exact_entrance",
+    });
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
 export async function resolveCompatibleGeographicRoutesAction(input: {
   customerId: string;
   scheduledAt: string;
@@ -642,7 +827,7 @@ export async function resolveCompatibleGeographicRoutesAction(input: {
   routes: CompatibleGeographicRoute[];
   postalCode: string;
   addressFingerprint: string;
-  customerLocation: { lat: number; lng: number; label: string } | null;
+  customerLocation: CustomerMapLocation | null;
 }>> {
   try {
     const session = await requireAppSession();
@@ -657,7 +842,7 @@ export async function resolveCompatibleGeographicRoutesAction(input: {
     const parsedDate = new Date(input.scheduledAt);
     const time = `${String(parsedDate.getHours()).padStart(2, "0")}:${String(parsedDate.getMinutes()).padStart(2, "0")}`;
     const { data: customer, error: customerError } = await database.from("customers")
-      .select("street, house_number, neighborhood, city, state, postal_code, country, formatted_address, place_id, lat, lng")
+      .select("street, house_number, neighborhood, city, state, postal_code, country, formatted_address, place_id, lat, lng, exact_entrance_lat, exact_entrance_lng")
       .eq("id", input.customerId).eq("organization_id", session.organizationId).maybeSingle();
     if (customerError || !customer) return fail(customerError?.message || "Remitente no encontrado");
     const postalCode = normalizeUsPostalCode(customer.postal_code) || "";
@@ -737,20 +922,50 @@ export async function resolveCompatibleGeographicRoutesAction(input: {
         explanation,
       });
     }
-    const customerLat = Number(customer.lat);
-    const customerLng = Number(customer.lng);
+    const exactEntranceLocation = normalizeGeoPoint(customer.exact_entrance_lat, customer.exact_entrance_lng);
+    const addressLocation = normalizeGeoPoint(customer.lat, customer.lng);
+    const addressLabel = String(
+      customer.formatted_address ||
+      [customer.house_number, customer.street, customer.neighborhood, customer.city, customer.state, customer.postal_code, customer.country]
+        .filter(Boolean)
+        .join(", ") ||
+      "Dirección del cliente",
+    );
+    let customerLocation: CustomerMapLocation | null = exactEntranceLocation
+      ? {
+          ...exactEntranceLocation,
+          label: String(customer.formatted_address || "Entrada exacta del cliente"),
+          source: "exact_entrance",
+        }
+      : addressLocation
+        ? { ...addressLocation, label: addressLabel, source: "address" }
+        : null;
+
+    if (!customerLocation) {
+      const fallback = await geocodeAddressForDisplay({
+        street: customer.street,
+        houseNumber: customer.house_number,
+        neighborhood: customer.neighborhood,
+        city: customer.city,
+        state: customer.state,
+        postalCode: customer.postal_code,
+        country: customer.country,
+        formattedAddress: customer.formatted_address,
+      });
+      if (fallback) {
+        customerLocation = {
+          lat: fallback.lat,
+          lng: fallback.lng,
+          label: fallback.label,
+          source: "address",
+        };
+      }
+    }
     return ok({
       routes,
       postalCode,
       addressFingerprint: fingerprint,
-      customerLocation:
-        Number.isFinite(customerLat) && Number.isFinite(customerLng)
-          ? {
-              lat: customerLat,
-              lng: customerLng,
-              label: String(customer.formatted_address || "Dirección del cliente"),
-            }
-          : null,
+      customerLocation,
     });
   } catch (error) {
     return fail(actionErrorMessage(error));

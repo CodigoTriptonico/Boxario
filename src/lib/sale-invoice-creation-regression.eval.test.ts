@@ -16,7 +16,46 @@ describe("sale invoice creation regressions", () => {
     assert.match(bootstrap, /last_number/);
     assert.match(bootstrap, /nextInvoiceSequence/);
     assert.match(core, /initialData\?\.nextInvoiceSequence \?\? 1/);
-    assert.match(invoices, /allocateInvoiceNumberAction\(\)/);
+    assert.match(invoices, /reserveInvoiceNumberAction/);
+    assert.doesNotMatch(invoices, /allocateInvoiceNumberAction/);
+    assert.match(core, /formatInvoiceReference\(/);
+  });
+
+  it("does not reserve a number while opening or closing an unconfirmed quick sale", () => {
+    const invoices = read("src/components/sale/venta/use-venta-invoices.ts");
+    const flow = read("src/components/sale/venta/use-venta-flow.ts");
+
+    const quickPreparation = invoices.slice(
+      invoices.indexOf("async function proceedQuickEmptyBox"),
+      invoices.indexOf("async function proceedQuickSaleFromSelectedBox"),
+    );
+    const quickCheckoutClose = flow.slice(
+      flow.indexOf("async function finishQuickCheckoutNewSale"),
+      flow.indexOf("const patchSenderRecipients"),
+    );
+
+    assert.doesNotMatch(quickPreparation, /allocateInvoiceNumberAction/);
+    assert.doesNotMatch(quickCheckoutClose, /allocateInvoiceNumberAction/);
+  });
+
+  it("reserves the visible number and commits it with the shipment", () => {
+    const data = read("src/components/sale/venta/use-venta-data.ts");
+    const invoices = read("src/components/sale/venta/use-venta-invoices.ts");
+    const delivery = read("src/components/sale/venta/venta-delivery-step.tsx");
+    const finish = read("src/components/sale/venta/venta-finish-step.tsx");
+    const navigation = read("src/components/sale/venta/use-venta-navigation.ts");
+    const reservationMigration = read("supabase/migrations/214_invoice_number_reservations.sql");
+
+    assert.match(data, /reserveInvoiceNumberAction/);
+    assert.match(data, /releaseInvoiceNumberAction/);
+    assert.match(invoices, /setQuickInvoiceNumber\(reservation\.invoiceNumber\)/);
+    assert.match(invoices, /if \(!shipmentResult\.ok\)[\s\S]*?releaseInvoiceReservation\(\)/);
+    assert.match(delivery, />\s*Siguiente\s*</);
+    assert.match(finish, /:\s*"Crear invoice"\}/);
+    assert.match(navigation, /logisticsPlanReady\s*\n\s*\? "Crear invoice"/);
+    assert.match(reservationMigration, /commit_invoice_number_reservation/);
+    assert.match(reservationMigration, /status = 'released'/);
+    assert.match(reservationMigration, /INVOICE_RESERVATION_ALREADY_COMMITTED/);
   });
 
   it("creates a pending route request with a valid non-null review note", () => {

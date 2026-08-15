@@ -20,5 +20,6 @@ describe("sale step contact readability", () => {
       /hidden min-h-\[1\.25rem\].*overflow-hidden px-1 text-center leading-tight.*lg:flex/,
     );
     assert.match(source, /line-clamp-2 max-w-full break-words/);
+    assert.match(source, /step\.id === "box"[\s\S]*?`Precios: \$\{step\.country\}`/);
   });
 });

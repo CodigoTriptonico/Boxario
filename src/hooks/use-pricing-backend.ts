@@ -34,6 +34,7 @@ const emptyRouteConfig: PricingRouteConfig = {
   emptyBoxDeliveryFee: defaultInvoiceBillingConfig.emptyBoxDeliveryFee,
   fullBoxPickupFee: defaultInvoiceBillingConfig.fullBoxPickupFee,
   minimumDeposit: defaultInvoiceBillingConfig.minimumDeposit,
+  pickupIncludedEnabled: true,
   pickupIncludedDays: defaultInvoiceBillingConfig.pickupIncludedDays || 30,
   latePickupFee: defaultInvoiceBillingConfig.latePickupFee || "$0",
   logisticsFeeMode: defaultInvoiceBillingConfig.logisticsFeeMode,

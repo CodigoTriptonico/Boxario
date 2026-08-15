@@ -18,6 +18,7 @@ type LogisticsFeeMode = "per_trip" | "per_box";
 
 export type InvoiceBillingConfig = LogisticsFeeConfig & Partial<PaymentMethodSettings> & {
   minimumDeposit: string;
+  pickupIncludedEnabled?: boolean;
   logisticsFeeMode: LogisticsFeeMode;
   pickupIncludedDays?: number;
   latePickupFee?: string;
@@ -76,6 +77,7 @@ export const defaultInvoiceBillingConfig: InvoiceBillingConfig = {
   minimumDeposit: DEFAULT_MINIMUM_DEPOSIT,
   logisticsFeeMode: "per_trip",
   pickupIncludedDays: 30,
+  pickupIncludedEnabled: true,
   latePickupFee: "$0",
 };
 
@@ -199,7 +201,9 @@ export function computeInvoiceBilling(input: {
     emptyBoxDelivery: formatMoneyValue(emptyBoxDelivery),
     fullBoxPickup: formatMoneyValue(fullBoxPickup),
     latePickupFee: "$0",
-    pickupIncludedDays: Math.max(Math.floor(input.fees.pickupIncludedDays || 30), 1),
+    pickupIncludedDays: input.fees.pickupIncludedEnabled === false
+      ? 0
+      : Math.max(Math.floor(input.fees.pickupIncludedDays || 30), 1),
     latePickupFeeConfigured: formatMoneyValue(
       Math.max(parseMoneyValue(input.fees.latePickupFee || "$0"), 0),
     ),

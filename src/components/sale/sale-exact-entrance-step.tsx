@@ -8,10 +8,10 @@ import {
   Keyboard,
   Map,
   MapPin,
-  PersonStanding,
   Satellite,
   Search,
-  X,
+  ZoomIn,
+  ZoomOut,
 } from "lucide-react";
 import type { AddressSuggestion } from "@/components/sale/venta-parts";
 
@@ -36,14 +36,18 @@ export type MapResolvedAddress = {
   placeId: string;
   lat: number;
   lng: number;
+  addressReference?: string;
 };
 
-export type MapAddressFields = Pick<MapResolvedAddress, "street" | "houseNumber" | "neighborhood" | "city" | "state" | "postalCode" | "country">;
+export type MapAddressFields = Pick<MapResolvedAddress, "street" | "houseNumber" | "neighborhood" | "city" | "state" | "postalCode" | "country"> & {
+  addressReference: string;
+};
 
 type LatLngValue = { lat: () => number; lng: () => number };
 type MapInstance = {
   setMapTypeId: (type: string) => void;
   panTo: (position: { lat: number; lng: number }) => void;
+  getZoom: () => number;
   setZoom: (zoom: number) => void;
 };
 type MarkerInstance = {
@@ -51,22 +55,9 @@ type MarkerInstance = {
   getPosition: () => LatLngValue | null;
   addListener: (event: string, listener: () => void) => unknown;
 };
-type StreetViewInstance = {
-  getPano: () => string;
-  getPov: () => { heading: number; pitch: number };
-  addListener: (event: string, listener: () => void) => unknown;
-};
 type MapsRuntime = {
   Map: new (element: HTMLElement, options: Record<string, unknown>) => MapInstance;
   Marker: new (options: Record<string, unknown>) => MarkerInstance;
-  StreetViewPanorama: new (element: HTMLElement, options: Record<string, unknown>) => StreetViewInstance;
-  StreetViewStatus: { OK: string };
-  StreetViewService: new () => {
-    getPanorama: (
-      request: Record<string, unknown>,
-      callback: (data: { location?: { pano?: string; latLng?: LatLngValue } } | null, status: string) => void,
-    ) => void;
-  };
 };
 
 const DEFAULT_CENTER = { lat: 39.5, lng: -98.35 };
@@ -123,6 +114,8 @@ export function openExactEntranceBrowserWindow() {
     popupDocument.body.className = document.body.className;
     popupDocument.body.style.margin = "0";
     popupDocument.body.style.background = "#111a17";
+    popupDocument.body.style.height = "100vh";
+    popupDocument.body.style.overflow = "hidden";
     document.head.querySelectorAll('link[rel="stylesheet"], style').forEach((node) => {
       popupDocument.head.appendChild(node.cloneNode(true));
     });
@@ -140,7 +133,9 @@ export function SaleExactEntranceWindow({
   hostWindow,
   onClose,
   onAddressResolved,
+  onAddressReferenceChange,
   onConfirm,
+  showOperationalNotes = true,
 }: {
   open: boolean;
   personLabel: string;
@@ -151,27 +146,30 @@ export function SaleExactEntranceWindow({
   hostWindow: Window;
   onClose: () => void;
   onAddressResolved: (address: MapResolvedAddress) => void;
-  onConfirm: (draft: ExactEntranceDraft) => void;
+  onAddressReferenceChange?: (value: string) => void;
+  onConfirm: (draft: ExactEntranceDraft) => void | Promise<void>;
+  showOperationalNotes?: boolean;
 }) {
   const mapElementRef = useRef<HTMLDivElement | null>(null);
-  const streetElementRef = useRef<HTMLDivElement | null>(null);
   const mapRef = useRef<MapInstance | null>(null);
   const entranceMarkerRef = useRef<MarkerInstance | null>(null);
   const runtimeRef = useRef<MapsRuntime | null>(null);
   const onCloseRef = useRef(onClose);
+  const onAddressResolvedRef = useRef(onAddressResolved);
   const hostWindowRef = useRef(hostWindow);
   const apiKey = process.env.NEXT_PUBLIC_GOOGLE_MAPS_API_KEY || "";
   const initialPoint = initialEntrance || (addressLocation ? { ...addressLocation, note: "" } : null);
-  const [mode, setMode] = useState<"map" | "satellite" | "street">("satellite");
+  const [mode, setMode] = useState<"map" | "satellite">("satellite");
   const [addressDraft, setAddressDraft] = useState<MapAddressFields>(addressFields);
   const [activeField, setActiveField] = useState<keyof MapAddressFields>("street");
   const [suggestions, setSuggestions] = useState<AddressSuggestion[]>([]);
   const [searching, setSearching] = useState(false);
   const [resolving, setResolving] = useState(false);
   const [keyboardOpen, setKeyboardOpen] = useState(false);
+  const [bottomTab, setBottomTab] = useState<"references" | "driverNote">("references");
   const [status, setStatus] = useState(apiKey ? `Búsqueda limitada a ${country}.` : "Falta configurar Google Maps.");
-  const [streetAvailable, setStreetAvailable] = useState(true);
   const [draft, setDraft] = useState<ExactEntranceDraft | null>(initialPoint);
+  const [confirming, setConfirming] = useState(false);
   const query = [
     addressDraft.street,
     addressDraft.houseNumber,
@@ -184,6 +182,10 @@ export function SaleExactEntranceWindow({
   useEffect(() => {
     onCloseRef.current = onClose;
   }, [onClose]);
+
+  useEffect(() => {
+    onAddressResolvedRef.current = onAddressResolved;
+  }, [onAddressResolved]);
 
   useEffect(() => {
     const popup = hostWindowRef.current;
@@ -261,7 +263,95 @@ export function SaleExactEntranceWindow({
           clickableIcons: false,
         });
         mapRef.current = map;
+        const showCountryCenter = () => {
+          void fetch("/api/validate-address", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ mode: "country-center", country }),
+          })
+            .then((response) => response.json())
+            .then((data: { ok?: boolean; center?: { lat: number; lng: number } }) => {
+              if (!data.ok || !data.center || mapRef.current !== map) return;
+              map.panTo(data.center);
+              map.setZoom(5);
+              setStatus(`Busca una dirección dentro de ${country}.`);
+            })
+            .catch(() => setStatus(`Busca una dirección dentro de ${country}.`));
+        };
         if (!draft && !addressLocation) {
+          const addressQuery = [
+            addressFields.street,
+            addressFields.houseNumber,
+            addressFields.neighborhood,
+            addressFields.city,
+            addressFields.state,
+            addressFields.postalCode,
+          ].filter(Boolean).join(", ");
+          if (addressQuery.trim()) {
+            void fetch("/api/validate-address", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                street: addressFields.street,
+                houseNumber: addressFields.houseNumber,
+                neighborhood: addressFields.neighborhood,
+                city: addressFields.city,
+                state: addressFields.state,
+                postalCode: addressFields.postalCode,
+                country,
+              }),
+            })
+              .then((response) => response.json())
+              .then((data: {
+                ok?: boolean;
+                address?: Omit<MapResolvedAddress, "lat" | "lng"> & {
+                  lat?: number | null;
+                  lng?: number | null;
+                };
+              }) => {
+                if (
+                  !data.address ||
+                  data.address.lat == null ||
+                  data.address.lng == null ||
+                  mapRef.current !== map
+                ) {
+                  return;
+                }
+                const resolved: MapResolvedAddress = {
+                  street: data.address.street || addressFields.street,
+                  houseNumber: data.address.houseNumber || addressFields.houseNumber,
+                  neighborhood: data.address.neighborhood || addressFields.neighborhood,
+                  city: data.address.city || addressFields.city,
+                  state: data.address.state || addressFields.state,
+                  postalCode: data.address.postalCode || addressFields.postalCode,
+                  country: data.address.country || country,
+                  formattedAddress: data.address.formattedAddress || addressQuery,
+                  placeId: data.address.placeId || "",
+                  lat: data.address.lat,
+                  lng: data.address.lng,
+                  addressReference: addressFields.addressReference,
+                };
+                setAddressDraft({
+                  street: resolved.street,
+                  houseNumber: resolved.houseNumber,
+                  neighborhood: resolved.neighborhood,
+                  city: resolved.city,
+                  state: resolved.state,
+                  postalCode: resolved.postalCode,
+                  country: resolved.country,
+                  addressReference: addressFields.addressReference,
+                });
+                onAddressResolvedRef.current(resolved);
+                const nextDraft = { lat: resolved.lat, lng: resolved.lng, note: "" };
+                setDraft(nextDraft);
+                createEntranceMarker(maps, map, nextDraft);
+                map.panTo(nextDraft);
+                map.setZoom(20);
+                setStatus("Dirección encontrada. Arrastra el pin rojo hasta la entrada exacta.");
+              })
+              .catch(() => showCountryCenter());
+            return;
+          }
           void fetch("/api/validate-address", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
@@ -285,43 +375,6 @@ export function SaleExactEntranceWindow({
     // Map instance owns its markers until this floating window closes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [apiKey, country, open]);
-
-  useEffect(() => {
-    if (!open || mode !== "street" || !draft || !runtimeRef.current || !streetElementRef.current) return;
-    const maps = runtimeRef.current;
-    new maps.StreetViewService().getPanorama(
-      { location: { lat: draft.lat, lng: draft.lng }, radius: 80, preference: "nearest" },
-      (data, resultStatus) => {
-        if (resultStatus !== maps.StreetViewStatus.OK || !data?.location?.latLng) {
-          setStreetAvailable(false);
-          return;
-        }
-        setStreetAvailable(true);
-        const panorama = new maps.StreetViewPanorama(streetElementRef.current!, {
-          position: data.location.latLng,
-          pano: draft.panoId || data.location.pano,
-          pov: { heading: draft.heading ?? 0, pitch: draft.pitch ?? 0 },
-          zoom: 1,
-          addressControl: false,
-          fullscreenControl: true,
-        });
-        const syncView = () => {
-          const pov = panorama.getPov();
-          setDraft((current) => current ? {
-            ...current,
-            panoId: panorama.getPano(),
-            heading: pov.heading,
-            pitch: pov.pitch,
-          } : current);
-        };
-        panorama.addListener("pano_changed", syncView);
-        panorama.addListener("pov_changed", syncView);
-        syncView();
-      },
-    );
-    // Street View publishes camera changes through listeners.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [draft?.lat, draft?.lng, mode, open]);
 
   async function selectSuggestion(suggestion: AddressSuggestion) {
     setResolving(true);
@@ -358,6 +411,7 @@ export function SaleExactEntranceWindow({
         state: resolved.state,
         postalCode: resolved.postalCode,
         country: resolved.country,
+        addressReference: addressDraft.addressReference,
       });
       onAddressResolved(resolved);
       const nextDraft = { lat: resolved.lat, lng: resolved.lng, note: draft?.note || "" };
@@ -375,9 +429,15 @@ export function SaleExactEntranceWindow({
     }
   }
 
-  function changeMode(next: "map" | "satellite" | "street") {
+  function changeMode(next: "map" | "satellite") {
     setMode(next);
-    if (next !== "street") mapRef.current?.setMapTypeId(next === "map" ? "roadmap" : "satellite");
+    mapRef.current?.setMapTypeId(next === "map" ? "roadmap" : "satellite");
+  }
+
+  function zoomMap(delta: number) {
+    if (!mapRef.current) return;
+    const currentZoom = mapRef.current.getZoom();
+    mapRef.current.setZoom(Math.max(3, Math.min(21, currentZoom + delta)));
   }
 
   function addKey(key: string) {
@@ -392,29 +452,27 @@ export function SaleExactEntranceWindow({
     if (!hostWindowRef.current.closed) hostWindowRef.current.close();
   }
 
-  function confirmEntrance() {
-    if (!draft) return;
-    onConfirm(draft);
-    if (!hostWindowRef.current.closed) hostWindowRef.current.close();
+  async function confirmEntrance() {
+    if (!draft || confirming) return;
+    setConfirming(true);
+    try {
+      await onConfirm(draft);
+      if (!hostWindowRef.current.closed) hostWindowRef.current.close();
+    } catch (error) {
+      setStatus(error instanceof Error ? error.message : "No se pudo guardar la entrada exacta.");
+    } finally {
+      setConfirming(false);
+    }
   }
 
   if (!open || typeof document === "undefined" || hostWindow.closed) return null;
 
   return createPortal(
     <main
-      className="flex min-h-screen flex-col bg-[#111a17] text-slate-100"
+      className="flex h-dvh max-h-dvh flex-col overflow-hidden bg-[#111a17] text-slate-100"
       aria-label={`Mapa de entrada de ${personLabel}`}
     >
-      <div className="flex items-center gap-3 border-b border-white/10 bg-[#1d2a26] px-3 py-2.5">
-        <span className="grid h-8 w-8 place-items-center rounded-md bg-emerald-400 text-slate-950"><MapPin className="h-4 w-4" /></span>
-        <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-black text-slate-50">Cliente verifica su ubicación</p>
-          <p className="text-[11px] font-bold text-slate-400">Confirma la dirección y marca la entrada exacta · solo {country}</p>
-        </div>
-        <button type="button" onClick={closeWindow} aria-label="Cerrar mapa" className="grid h-9 w-9 place-items-center rounded-md border border-slate-600 text-slate-200"><X className="h-4 w-4" /></button>
-      </div>
-
-      <div className="min-h-0 overflow-y-auto p-3">
+      <div className="flex min-h-0 flex-1 flex-col overflow-hidden p-3">
         <div className="relative">
           <div className="flex gap-2">
             <div className="flex min-w-0 flex-1 items-center gap-2 rounded-lg border border-sky-400/45 bg-surface-inset px-3 py-2 text-xs font-bold text-slate-300">
@@ -427,7 +485,7 @@ export function SaleExactEntranceWindow({
           </div>
           {searching || resolving ? <p className="mt-1 text-xs font-bold text-sky-200">{resolving ? "Ubicando dirección…" : "Buscando…"}</p> : null}
           {suggestions.length ? (
-            <div className="absolute left-0 right-0 top-[calc(100%+4px)] z-20 overflow-hidden rounded-lg border border-sky-400/40 bg-[#111a20] shadow-2xl">
+            <div className="mt-1 overflow-hidden rounded-lg border border-sky-400/40 bg-[#111a20] shadow-2xl">
               {suggestions.map((suggestion) => (
                 <button key={suggestion.placeId} type="button" onClick={() => void selectSuggestion(suggestion)} className="block w-full border-b border-white/10 px-3 py-2 text-left last:border-0 hover:bg-surface-card-header">
                   <span className="block text-sm font-black text-slate-50">{suggestion.mainText}</span>
@@ -440,23 +498,37 @@ export function SaleExactEntranceWindow({
         <div className="mt-2 grid gap-2 sm:grid-cols-2" aria-label="Dirección para buscar">
           {([
             ["street", "Calle", "Calle y número"],
-            ["houseNumber", "Unidad", "Apto / suite"],
+            ["houseNumber", "Número de unidad", "Apto / suite"],
             ["neighborhood", "Colonia", "Barrio / colonia"],
             ["city", "Ciudad", "Ciudad"],
             ["state", "Estado", "Estado"],
             ["postalCode", "Código postal", "Código postal"],
-          ] as const).map(([field, label, placeholder]) => (
+          ] as const).map(([field, label, placeholder]) => {
+            const missing = !addressDraft[field].trim();
+            return (
             <label key={field} className="grid gap-1">
-              <span className="text-[10px] font-black uppercase text-slate-300">{label}</span>
+              <span className={`text-[10px] font-black uppercase ${missing ? "text-rose-300" : "text-slate-300"}`}>{label}</span>
               <input
                 value={addressDraft[field]}
                 onFocus={() => setActiveField(field)}
                 onChange={(event) => setAddressDraft((current) => ({ ...current, [field]: event.target.value }))}
                 placeholder={placeholder}
-                className="h-9 rounded-md border border-slate-600 bg-surface-inset px-2.5 text-xs font-bold text-slate-50 outline-none focus:border-emerald-300"
+                className={`h-9 rounded-md border px-2.5 text-xs font-bold text-slate-50 outline-none ${missing ? "border-rose-400/80 bg-rose-950/25 placeholder:text-rose-200/70 focus:border-rose-300" : "border-slate-600 bg-surface-inset placeholder:text-slate-500 focus:border-emerald-300"}`}
               />
             </label>
-          ))}
+            );
+          })}
+          <label className="hidden grid gap-1 sm:col-span-2">
+            <span className={`text-[10px] font-black uppercase ${addressDraft.addressReference.trim() ? "text-slate-300" : "text-rose-300"}`}>Referencias</span>
+            <textarea
+              value={addressDraft.addressReference}
+              onChange={(event) => setAddressDraft((current) => ({ ...current, addressReference: event.target.value }))}
+              placeholder="Ej. segundo piso, casa roja, portón negro..."
+              maxLength={500}
+              className={`min-h-16 rounded-md border px-2.5 py-2 text-xs font-bold text-slate-50 outline-none ${addressDraft.addressReference.trim() ? "border-slate-600 bg-surface-inset placeholder:text-slate-500 focus:border-emerald-300" : "border-rose-400/80 bg-rose-950/25 placeholder:text-rose-200/70 focus:border-rose-300"}`}
+            />
+            <span className="text-[11px] font-bold leading-snug text-slate-500">Indicaciones extra para encontrar el domicilio. No afectan la verificación en Google.</span>
+          </label>
           <div className="grid gap-1">
             <span className="text-[10px] font-black uppercase text-slate-300">País</span>
             <div className="flex h-9 items-center rounded-md border border-slate-700 bg-slate-900/50 px-2.5 text-xs font-black text-slate-300">{country}</div>
@@ -479,17 +551,35 @@ export function SaleExactEntranceWindow({
         ) : null}
 
         <div className="mt-3 flex flex-wrap gap-2" role="tablist" aria-label="Vista del lugar">
-          {([[
-            "map", "Mapa", Map,
-          ], ["satellite", "Satélite", Satellite], ["street", "A nivel de calle", PersonStanding]] as const).map(([value, label, Icon]) => (
+          {([["map", "Mapa", Map], ["satellite", "Satélite", Satellite]] as const).map(([value, label, Icon]) => (
             <button key={value} type="button" onClick={() => changeMode(value)} className={`inline-flex h-9 items-center gap-2 rounded-md border px-3 text-xs font-black ${mode === value ? "border-emerald-300 bg-emerald-400 text-slate-950" : "border-slate-600 bg-surface-inset text-slate-100"}`}><Icon className="h-4 w-4" /> {label}</button>
           ))}
         </div>
 
-        <div className="relative mt-2 min-h-[300px] overflow-hidden rounded-lg border border-black bg-[#0b100e]">
-          <div ref={mapElementRef} className={mode === "street" ? "hidden" : "h-[300px] w-full"} />
-          <div ref={streetElementRef} className={mode === "street" ? "h-[300px] w-full" : "hidden"} />
-          {mode === "street" && !streetAvailable ? <div className="absolute inset-0 grid place-items-center p-8 text-center text-sm font-bold text-amber-200">No hay vista a nivel de calle cerca de este punto.</div> : null}
+        <div className="relative mt-2 min-h-[240px] min-w-0 flex-1 basis-0 overflow-hidden rounded-lg border border-black bg-[#0b100e]">
+          <div ref={mapElementRef} className="h-full w-full" />
+          <div className="absolute left-3 top-3 z-10 flex flex-col overflow-hidden rounded-lg border border-slate-500/80 bg-slate-950/90 shadow-xl">
+              <button
+                type="button"
+                onClick={() => zoomMap(1)}
+                disabled={!draft}
+                aria-label="Acercar mapa"
+                title="Acercar mapa"
+                className="grid h-11 w-11 place-items-center border-b border-slate-600 text-slate-50 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ZoomIn className="h-5 w-5" />
+              </button>
+              <button
+                type="button"
+                onClick={() => zoomMap(-1)}
+                disabled={!draft}
+                aria-label="Alejar mapa"
+                title="Alejar mapa"
+                className="grid h-11 w-11 place-items-center text-slate-50 hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-emerald-300 disabled:cursor-not-allowed disabled:opacity-40"
+              >
+                <ZoomOut className="h-5 w-5" />
+              </button>
+            </div>
           {!draft ? <div className="pointer-events-none absolute inset-0 grid place-items-center bg-black/35 p-8 text-center text-sm font-black text-slate-100">Busca y selecciona una dirección para colocar el pin.</div> : null}
         </div>
 
@@ -497,15 +587,42 @@ export function SaleExactEntranceWindow({
           <span className="inline-flex items-center gap-2"><Crosshair className="h-4 w-4 text-emerald-300" /> {draft ? "Arrastra el pin rojo directamente sobre la entrada. " : ""}{status}</span>
         </div>
 
-        <label className="mt-3 grid gap-1.5">
-          <span className="text-xs font-black uppercase text-slate-300">Nota para el conductor (opcional)</span>
-          <textarea value={draft?.note || ""} disabled={!draft} maxLength={500} onChange={(event) => setDraft((current) => current ? { ...current, note: event.target.value } : current)} className="min-h-16 rounded-lg border border-slate-600 bg-surface-inset px-3 py-2 text-sm text-slate-50 outline-none focus:border-emerald-300 disabled:opacity-40" placeholder="Portón negro, entrada por el callejón, llamar al llegar…" />
-        </label>
+        {showOperationalNotes ? (
+        <section className="mt-3 grid gap-2" aria-label="Referencias e instrucciones">
+          <div className="flex gap-1 border-b border-white/10" role="tablist" aria-label="Tipo de nota">
+            <button type="button" role="tab" aria-selected={bottomTab === "references"} onClick={() => setBottomTab("references")} className={`h-9 rounded-t-md border border-b-0 px-3 text-xs font-black ${bottomTab === "references" ? "border-emerald-300 bg-emerald-400 text-slate-950" : "border-slate-600 bg-surface-inset text-slate-200"}`}>Referencias</button>
+            <button type="button" role="tab" aria-selected={bottomTab === "driverNote"} onClick={() => setBottomTab("driverNote")} className={`h-9 rounded-t-md border border-b-0 px-3 text-xs font-black ${bottomTab === "driverNote" ? "border-emerald-300 bg-emerald-400 text-slate-950" : "border-slate-600 bg-surface-inset text-slate-200"}`}>Nota para el conductor</button>
+          </div>
+          {bottomTab === "references" ? (
+            <>
+              <textarea
+                role="tabpanel"
+                aria-label="Referencias del domicilio"
+                value={addressDraft.addressReference}
+                onChange={(event) => {
+                  const value = event.target.value;
+                  setAddressDraft((current) => ({ ...current, addressReference: value }));
+                  onAddressReferenceChange?.(value);
+                }}
+                maxLength={500}
+                className={`min-h-16 rounded-lg border px-3 py-2 text-sm font-bold text-slate-50 outline-none ${addressDraft.addressReference.trim() ? "border-slate-600 bg-surface-inset placeholder:text-slate-500 focus:border-emerald-300" : "border-rose-400/80 bg-rose-950/25 placeholder:text-rose-200/70 focus:border-rose-300"}`}
+                placeholder="Ej. segundo piso, casa roja, portón negro..."
+              />
+              <span className="text-[11px] font-bold leading-snug text-slate-500">Indicaciones permanentes para encontrar el domicilio.</span>
+            </>
+          ) : (
+            <>
+              <textarea role="tabpanel" aria-label="Nota para el conductor" value={draft?.note || ""} disabled={!draft} maxLength={500} onChange={(event) => setDraft((current) => current ? { ...current, note: event.target.value } : current)} className="min-h-16 rounded-lg border border-slate-600 bg-surface-inset px-3 py-2 text-sm text-slate-50 outline-none focus:border-emerald-300 disabled:opacity-40" placeholder="Portón negro, entrada por el callejón, llamar al llegar…" />
+              <span className="text-[11px] font-bold leading-snug text-slate-500">Instrucciones específicas para la entrada confirmada.</span>
+            </>
+          )}
+        </section>
+        ) : null}
 
       </div>
       <div className="flex shrink-0 justify-end gap-2 border-t border-white/10 bg-[#111a17] px-3 py-3">
         <button type="button" onClick={closeWindow} className="h-10 rounded-md border border-slate-600 px-4 text-sm font-black text-slate-100">Cancelar</button>
-        <button type="button" disabled={!draft} onClick={confirmEntrance} className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-400 px-5 text-sm font-black text-slate-950 disabled:opacity-40"><MapPin className="h-4 w-4" /> Confirmar ubicación</button>
+        <button type="button" disabled={!draft || confirming} onClick={() => void confirmEntrance()} className="inline-flex h-10 items-center gap-2 rounded-md bg-emerald-400 px-5 text-sm font-black text-slate-950 disabled:opacity-40"><MapPin className="h-4 w-4" /> {confirming ? "Guardando..." : "Confirmar ubicación"}</button>
       </div>
     </main>,
     hostWindow.document.body,

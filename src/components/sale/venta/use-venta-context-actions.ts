@@ -2,7 +2,7 @@
 
 import { useMemo } from "react";
 import { deactivateCustomerAction, deleteRecipientAction } from "@/app/actions/customers";
-import { listQuickSaleCountries, resolveQuickSaleBoxCatalog } from "@/lib/sale-quick-box-catalog";
+import { listQuickSaleCountries } from "@/lib/sale-quick-box-catalog";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
 import { personFullName, recipientIdentityKey, type Recipient, salePersonAddressSummary, type Sender, senderPhoneKey } from "@/components/sale/venta-parts";
 import type { VentaCore } from "@/components/sale/venta/use-venta-core";
@@ -21,6 +21,7 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
     activeSender,
     activeStep,
     contextMenu,
+    closeQuickCheckout,
     countryBoxes,
     createdInvoice,
     deleteConfirm,
@@ -29,9 +30,10 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
     editingRecipientId,
     notify,
     patchSenderRecipients,
-    quickSaleCountry,
+    quickSaleSender,
     reloadCustomers,
     reloadHistory,
+    releaseInvoiceReservation,
     resetNewClientForm,
     resetNewRecipientForm,
     resetSaleLogistics,
@@ -96,14 +98,6 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
     [countryBoxes],
   );
 
-  const quickSaleBoxCatalog = useMemo(
-    () =>
-      quickSaleCountry
-        ? resolveQuickSaleBoxCatalog(countryBoxes, quickSaleCountry)
-        : null,
-    [countryBoxes, quickSaleCountry],
-  );
-
   function closeQuickSaleCountryFlow() {
     setQuickSaleSender(null);
     setQuickSaleCountry(null);
@@ -112,6 +106,43 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
     if (routePlannerLeg === "quickEmptyBox") {
       setRoutePlannerLeg(null);
     }
+  }
+
+  function enterQuickSaleCountry(country: string) {
+    if (!quickSaleSender) {
+      return;
+    }
+
+    setQuickSaleCountry(country);
+    setQuickSaleCountryPickerOpen(false);
+    setSelectedSender(quickSaleSender);
+    setSelectedRecipient(null);
+    setSelectedBoxLines([]);
+    resetSaleLogistics();
+    setMode("sale");
+    setActiveStep("box");
+    setActiveCopyGroup(null);
+  }
+
+  function cancelQuickSale() {
+    const sender = quickSaleSender || selectedSender;
+    void releaseInvoiceReservation();
+    closeQuickCheckout();
+    setQuickSaleSender(null);
+    setQuickSaleCountry(null);
+    setQuickSaleCountryPickerOpen(false);
+    setQuickEmptyBoxRouteDecision(null);
+    if (routePlannerLeg === "quickEmptyBox") {
+      setRoutePlannerLeg(null);
+    }
+    setSelectedRecipient(null);
+    setSelectedBoxLines([]);
+    resetSaleLogistics();
+    setMode("sale");
+    setSelectedSender(sender || null);
+    setActiveStep(sender ? "recipient" : "client");
+    setContextMenu(null);
+    setActiveCopyGroup(null);
   }
 
   function startQuickEmptyBox(sender: Sender) {
@@ -494,8 +525,9 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
 
   return {
     quickSaleCountries,
-    quickSaleBoxCatalog,
     closeQuickSaleCountryFlow,
+    enterQuickSaleCountry,
+    cancelQuickSale,
     startQuickEmptyBox,
     resolveContextSender,
     requestDeleteFromContextMenu,

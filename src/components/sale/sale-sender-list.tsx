@@ -46,6 +46,7 @@ type SaleSenderListProps = {
   onQueryChange: (value: string) => void;
   onNewClient: () => void;
   onChoose: (sender: Sender) => void;
+  onAddressClick?: (sender: Sender) => void;
   onQuickEmptyBox: (sender: Sender) => void;
   getCardClass: (sender: Sender) => string;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, sender: Sender) => void;
@@ -82,6 +83,7 @@ export function SaleSenderList({
   onQueryChange,
   onNewClient,
   onChoose,
+  onAddressClick,
   onQuickEmptyBox,
   getCardClass,
   onOpenContextMenu,
@@ -181,7 +183,25 @@ export function SaleSenderList({
             {
               label: "Dirección",
               className: "min-w-[20rem]",
-              render: (sender) => <span className="inline-flex items-start gap-1.5 font-bold text-slate-300"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden /><span>{[sender.street, sender.houseNumber, sender.neighborhood, sender.city, sender.state, sender.postalCode].filter(Boolean).join(", ") || "Sin dirección"}</span></span>,
+              render: (sender) => {
+                const label = [sender.street, sender.houseNumber, sender.neighborhood, sender.city, sender.state, sender.postalCode].filter(Boolean).join(", ") || "Sin dirección";
+                return onAddressClick && label !== "Sin dirección" ? (
+                  <button
+                    type="button"
+                    className="inline-flex items-start gap-1.5 text-left font-bold text-sky-200 underline decoration-dotted underline-offset-2 hover:text-sky-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-sky-300"
+                    title="Mostrar dirección en el mapa"
+                    onClick={(event) => {
+                      event.stopPropagation();
+                      onAddressClick(sender);
+                    }}
+                  >
+                    <MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+                    <span>{label}</span>
+                  </button>
+                ) : (
+                  <span className="inline-flex items-start gap-1.5 font-bold text-slate-300"><MapPin className="mt-0.5 h-3.5 w-3.5 shrink-0 text-slate-400" aria-hidden /><span>{label}</span></span>
+                );
+              },
             },
             {
               label: "Destinatarios",
@@ -205,12 +225,12 @@ export function SaleSenderList({
               ) : null}
               <button
                 type="button"
-                className="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-500/70 bg-emerald-400 px-2 text-[11px] font-black text-slate-950 hover:brightness-110"
+                className="inline-flex h-8 w-max min-w-max shrink-0 flex-nowrap items-center gap-0.5 whitespace-nowrap rounded-md border border-emerald-500/70 bg-emerald-400 px-1.5 text-[10px] font-black text-slate-950 hover:brightness-110"
                 title={`Venta rápida: ${personFullName(sender)}`}
                 aria-label={`Venta rápida: ${personFullName(sender)}`}
                 onClick={() => onQuickEmptyBox(sender)}
               >
-                <Package className="h-3.5 w-3.5" aria-hidden />
+                <Package className="h-3 w-3" aria-hidden />
                 Rápido
               </button>
             </>
@@ -241,6 +261,7 @@ export function SaleSenderList({
                       className={getCardClass(sender)}
                       contextProps={senderContextProps(sender)}
                       onClick={() => onChoose(sender)}
+                      onAddressClick={onAddressClick ? () => onAddressClick(sender) : undefined}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
@@ -291,6 +312,7 @@ export function SaleSenderList({
                     className={getCardClass(sender)}
                     contextProps={senderContextProps(sender)}
                     onClick={() => onChoose(sender)}
+                    onAddressClick={onAddressClick ? () => onAddressClick(sender) : undefined}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();

@@ -10,6 +10,7 @@ import { defaultSalePaymentSelection, SALE_PAYMENT_UNSET } from "@/lib/sale-paym
 import { SaleBoxLabel, SaleInvoicePaper } from "@/components/sale/venta-parts";
 import { SaleFinishDocToolbar, salePrintTargetId } from "@/components/sale/venta/shared";
 import type { VentaController } from "@/components/sale/venta/use-venta-controller";
+import { VentaQuickCheckoutStep } from "@/components/sale/venta/venta-quick-checkout-step";
 
 export function VentaFinishStep({ controller }: { controller: VentaController; }) {
   const {
@@ -34,6 +35,8 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
     selectedPromotionId,
     selectedRecipient,
     selectedSender,
+    quickSaleDraft,
+    showQuickCheckout,
     setFinishDocTab,
     setInvoiceConfirmOpen,
     setInvoicePaymentMethod,
@@ -45,6 +48,17 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
     startNewSale,
     stepShellClass,
   } = controller;
+
+  if (activeStep === "finish" && showQuickCheckout && quickSaleDraft) {
+    return (
+      <div
+        ref={finishRef}
+        className={`${flowPersonListShellClass} ${stepShellClass("finish")} !overflow-y-auto`}
+      >
+        <VentaQuickCheckoutStep controller={controller} />
+      </div>
+    );
+  }
 
   return (
     selectedSender && selectedRecipient && selectedBox && activeStep === "finish" ? (
@@ -132,6 +146,7 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
                     branding={organizationBranding}
                     invoiceNumber={createdInvoice.invoiceNumber}
                     trackingToken={createdInvoice.trackingToken}
+                    emptyBoxDeliveredAt={createdInvoice.emptyBoxDeliveredAt}
                     sender={createdInvoice.sender}
                     recipient={createdInvoice.recipient}
                     box={createdInvoice.box}
@@ -297,9 +312,7 @@ export function VentaFinishStep({ controller }: { controller: VentaController; }
                     ? saleFinishActionLabel(invoiceBillingForPayment, { creating: true })
                     : invoiceBilling?.promotionSelectionRequired
                       ? "Elige promocion"
-                      : invoiceBilling && parseMoneyValue(invoiceBilling.payNow) === 0
-                        ? "Crear invoice"
-                        : saleFinishActionLabel(invoiceBillingForPayment, { phase: "setup" })}
+                      : "Crear invoice"}
                 </button>
               </div>
             </div>
