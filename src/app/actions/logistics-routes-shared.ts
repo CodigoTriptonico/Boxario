@@ -3,10 +3,9 @@ export { canManageRoutes };
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { routeAddressForLogisticsTask, type LogisticsCustomerAddressRow } from "@/lib/logistics-address";
 import { statusAfterRouteUnassign, type LogisticsRouteRow, type LogisticsRouteStatus, type LogisticsRouteStopAddress, type LogisticsRouteStopRow, type LogisticsRouteTaskInput } from "@/lib/logistics-routing";
-import { listShipmentsAction } from "@/app/actions/shipments";
+import { listAllShipmentsForRouteBoardAction } from "@/app/actions/shipments";
 import { activeLogisticsRouteTaskIds } from "@/lib/logistics-view";
 import type { ShipmentLogisticsTaskRow, ShipmentRow } from "@/lib/shipment-types";
-import { SHIPMENTS_BOARD_LIMIT } from "@/lib/shipments-pagination";
 import { type LogisticsWeekdayKey } from "@/lib/logistics-route-catalog";
 import {
   genericLogisticsRouteName,
@@ -369,7 +368,7 @@ export function mapRoute(row: LogisticsRouteDbRow): LogisticsRouteRow {
 }
 
 async function loadShipments() {
-  const result = await listShipmentsAction({ limit: SHIPMENTS_BOARD_LIMIT, offset: 0 });
+  const result = await listAllShipmentsForRouteBoardAction();
   if (!result.ok) {
     throw new Error(result.error);
   }

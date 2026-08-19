@@ -125,7 +125,16 @@ export function GeographicRoutePlacesEditor({
         childrenForRoot(places, root.placeId).some((child) => child.placeId === highlightedPlaceId),
       );
     if (!targetRoot) return;
-    cardRefs.current[targetRoot.placeId]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
+    const node = cardRefs.current[targetRoot.placeId];
+    if (!node) return;
+    const scrollParent = node.closest(".overflow-y-auto");
+    if (scrollParent) {
+      const parentRect = scrollParent.getBoundingClientRect();
+      const nodeRect = node.getBoundingClientRect();
+      if (nodeRect.top < parentRect.top || nodeRect.bottom > parentRect.bottom) {
+        scrollParent.scrollTop += (nodeRect.top - parentRect.top) - 10;
+      }
+    }
   }, [highlightedPlaceId, places, roots]);
 
   useEffect(() => {

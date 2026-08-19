@@ -53,7 +53,7 @@ export const itemsGridClass =
 
 /** Vista filas: columnas cómodas para editar nombres sin estirar a todo el panel. */
 export const itemsRowsClass =
-  "grid grid-cols-[repeat(auto-fill,minmax(20rem,22rem))] justify-start gap-2";
+  "grid grid-cols-[minmax(0,1fr)] justify-start gap-2 sm:grid-cols-[repeat(auto-fill,minmax(20rem,22rem))]";
 
 export const addBtnClass =
   "flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950 transition hover:brightness-110";
@@ -120,6 +120,7 @@ export function stockItemForTreeItem(
     kind: item.name,
     subcategory: subcategoryName,
     stock: 0,
+    stockKnown: false,
     reserved: 0,
     assigned: 0,
     unavailable: 0,

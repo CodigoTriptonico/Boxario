@@ -43,6 +43,7 @@ function stockItem(
     subcategory: overrides.subcategory,
     size: overrides.size,
     stock: overrides.stock ?? 10,
+    stockKnown: overrides.stockKnown,
     reserved: overrides.reserved ?? 0,
     assigned: overrides.assigned ?? 0,
     unavailable: overrides.unavailable ?? 0,
@@ -53,6 +54,7 @@ function stockItem(
 describe("inventory-stock", () => {
   it("classifies stock levels", () => {
     assert.equal(stockLevelForItem({ stock: 0, minStock: 2 }), "empty");
+    assert.equal(stockLevelForItem({ stock: 0, minStock: 2, stockKnown: false }), "neutral");
     assert.equal(stockLevelForItem({ stock: 2, minStock: 2 }), "low");
     assert.equal(stockLevelForItem({ stock: 5, minStock: 2 }), "ok");
   });
@@ -109,7 +111,17 @@ describe("inventory-stock", () => {
     assert.equal(virtual.length, 2);
     assert.match(virtual[0]?.id || "", /^virtual-cajas-/);
     assert.equal(virtual[0]?.stock, 0);
+    assert.equal(virtual[0]?.stockKnown, false);
     assert.equal(virtual[0]?.kind, "12x12x12");
+  });
+
+  it("does not turn an unloaded structural leaf into zero stock", () => {
+    const metrics = leafStockMetrics([
+      stockItem({ kind: "12x12x12", stock: 0, stockKnown: false }),
+    ]);
+
+    assert.equal(metrics.known, false);
+    assert.equal(metrics.level, "neutral");
   });
 
   it("returns virtual subcategory items when no stock rows match", () => {

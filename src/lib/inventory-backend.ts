@@ -361,6 +361,7 @@ export function stockRowsToItems(rows: DbStockRow[]): InventoryStockItem[] {
       location: item.location || undefined,
       unit: item.unit || undefined,
       stock: Number(row.stock),
+      stockKnown: true,
       reserved: Number(row.reserved),
       assigned: Number(row.assigned ?? 0),
       unavailable: Number(row.unavailable ?? 0),

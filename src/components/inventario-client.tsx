@@ -344,6 +344,8 @@ export function InventarioClient({
     );
   }
 
+  const inventoryLoadError = initialInventoryError || error;
+
   if (showWarehouseSettings) {
     return (
       <div className="flex min-h-0 flex-1 flex-col">
@@ -474,6 +476,14 @@ export function InventarioClient({
 
   return (
     <div className="flex h-full min-h-0 flex-1 flex-col">
+      {inventoryLoadError ? (
+        <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-800/70 bg-rose-950/35 px-3 py-2 text-sm font-bold text-rose-100">
+          <span>No se pudo cargar el stock: {inventoryLoadError}</span>
+          <button type="button" className={`${secondaryButtonClass} h-8 border-rose-700/70 px-2.5 text-xs text-rose-100`} onClick={() => void refreshInventoryData()}>
+            Reintentar
+          </button>
+        </div>
+      ) : null}
       <InventoryStructureEditor
         embedded
         pricingReturnHref={returnTo}

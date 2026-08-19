@@ -26,7 +26,7 @@ import type { CategoryConfig } from "@/lib/inventory-tree";
 
 type InventoryStructureEditorProps = {
   categoryConfigs: CategoryConfig[];
-  onCategoryConfigsChange: (next: CategoryConfig[]) => void;
+  onCategoryConfigsChange: (next: CategoryConfig[]) => void | Promise<void>;
   inventoryItems?: InventoryStockItem[];
   onInventoryItemsChange?: (next: InventoryStockItem[]) => void;
   warehouseId?: string;

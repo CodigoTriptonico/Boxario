@@ -4,7 +4,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useSearchParams } from "next/navigation";
 import { createOperationalRouteFromBookingsAction } from "@/app/actions/logistics-routes";
-import { PageLoading } from "@/components/page-loading";
+import { PageContentPlaceholder } from "@/components/page-loading";
 import { SupabaseRequiredBanner } from "@/components/supabase-required-banner";
 import { Panel, secondaryButtonClass } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
@@ -51,6 +51,7 @@ export function LogisticaClient({
   initialPendingBookings,
   initialTaskAddresses,
   initialRouteCatalog,
+  initialReadError = "",
   canManageRoutes = false,
   canManageLogisticsSettings = false,
   agencyModuleEnabled = false,
@@ -80,6 +81,8 @@ export function LogisticaClient({
     page,
     hasMore,
     routesLoading,
+    refreshing,
+    loadError,
     appliedRoutesFiltersKey,
     reloadAll,
     reloadRoutes,
@@ -96,6 +99,9 @@ export function LogisticaClient({
     initialRouteCatalog,
     supabaseReady,
     notify,
+    // La única superficie activa de /logistica es el workspace de rutas.
+    // No hidratar el universo de envíos/tareas que pertenece al tablero legado.
+    includeTaskBoardData: !isRoutesView,
   });
 
   const {
@@ -464,18 +470,7 @@ export function LogisticaClient({
     ) : null;
 
   if (!loaded) {
-    return (
-      <Panel
-        title="Logistica"
-        hideHeader
-        clipContent={false}
-        className="!border-0 flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
-        contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
-      >
-        <div className="mb-3 h-12 shrink-0 rounded-xl border border-black bg-surface-card-header" />
-        <PageLoading inline />
-      </Panel>
-    );
+    return <PageContentPlaceholder variant="logistics-routes" />;
   }
 
   return (
@@ -484,16 +479,26 @@ export function LogisticaClient({
       hideHeader
       clipContent={false}
       className="!border-0 flex min-h-0 w-full flex-col lg:flex-1 lg:overflow-hidden"
-      contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-3 sm:p-4"
+      contentClassName="flex min-h-0 w-full min-w-0 flex-1 flex-col p-2 sm:py-3 sm:pl-3 sm:pr-0"
     >
       {!supabaseReady ? (
         <SupabaseRequiredBanner detail="La logistica se lee desde shipments, shipment_logistics_tasks y logistics_routes en Supabase." />
       ) : null}
 
+      {initialReadError || loadError ? (
+        <div role="alert" className="mx-3 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-800/70 bg-rose-950/35 px-3 py-2 text-sm font-bold text-rose-100 sm:mx-4">
+          <span>No se pudo actualizar Logística: {initialReadError || loadError}</span>
+          <button type="button" className={`${secondaryButtonClass} h-8 border-rose-700/70 px-2.5 text-xs text-rose-100`} onClick={() => void reloadAll()}>
+            Reintentar
+          </button>
+        </div>
+      ) : null}
+      {refreshing ? <p className="mx-3 mt-2 text-xs font-bold text-slate-400 sm:mx-4">Actualizando datos sin ocultar la información actual…</p> : null}
+
       {supabaseReady ? (
         isRoutesView ? (
           <div className="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-            <div className="flex min-h-0 flex-1 pr-1">
+            <div className="flex min-h-0 flex-1">
               <LogisticsRoutesWorkspace
                 key={`logistics-workspace-${searchParams.get("panel") || "operations"}-${searchParams.get("tab") || "confirmations"}`}
                 initialRoutes={routes}

@@ -12,6 +12,7 @@ import {
   Pencil,
   Save,
   Trash2,
+  User,
   X,
 } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -24,6 +25,7 @@ import {
   updateShipmentJournalEntryAction,
   updateShipmentJournalReminderAction,
 } from "@/app/actions/shipment-journal";
+import { CustomerJournalDialog } from "@/components/customer-journal-dialog";
 import { DateTimeInput } from "@/components/date-time-input";
 import { formatDateTimeInputValue } from "@/lib/date-picker";
 import { primaryButtonClass, secondaryButtonClass } from "@/components/ui-blocks";
@@ -43,6 +45,7 @@ type ShipmentIdentity = {
   id: string;
   code: string;
   customer_name: string;
+  customer_id?: string;
 };
 
 function evidenceUrl(details: Record<string, unknown>) {
@@ -80,9 +83,12 @@ export function ShipmentJournalDialog({
   const [deleteReason, setDeleteReason] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [reminderSavingId, setReminderSavingId] = useState<string | null>(null);
+  const [showFullCustomerJournal, setShowFullCustomerJournal] = useState(false);
 
   const hasReminder = Boolean(followUpAt);
-  const submitDisabled = saving || (!body.trim() && !hasReminder);
+  const mutating = saving || Boolean(reminderSavingId);
+  const submitDisabled = mutating || (!body.trim() && !hasReminder);
 
   async function reload() {
     setLoading(true);
@@ -184,12 +190,18 @@ export function ShipmentJournalDialog({
   }
 
   async function setReminder(entry: ShipmentJournalEntry, status: "completed" | "cancelled") {
-    const result = await updateShipmentJournalReminderAction({ entryId: entry.id, status });
-    if (!result.ok) {
-      onError(result.error);
-      return;
+    if (reminderSavingId) return;
+    setReminderSavingId(entry.id);
+    try {
+      const result = await updateShipmentJournalReminderAction({ entryId: entry.id, status });
+      if (!result.ok) {
+        onError(result.error);
+        return;
+      }
+      await reload();
+    } finally {
+      setReminderSavingId(null);
     }
-    await reload();
   }
 
   const timeline = useMemo(() => items, [items]);
@@ -197,8 +209,10 @@ export function ShipmentJournalDialog({
   if (!open || !mounted) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-[240] flex items-end justify-center bg-slate-950/75 sm:items-center sm:p-4" role="dialog" aria-modal="true" aria-label={`Bitácora de ${shipment.code}`} onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-      <div className="flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-t-2xl border border-black bg-surface-panel shadow-2xl sm:max-h-[min(90dvh,48rem)] sm:rounded-2xl">
+    <>
+      {!showFullCustomerJournal ? (
+        <div className="fixed inset-0 z-[240] flex items-center justify-center overflow-y-auto bg-slate-950/75 p-3 sm:p-4" role="dialog" aria-modal="true" aria-label={`Bitácora de ${shipment.code}`} onMouseDown={(event) => event.target === event.currentTarget && !mutating && onClose()}>
+      <div className="flex max-h-[94dvh] w-full max-w-6xl flex-col overflow-hidden rounded-2xl border border-black bg-surface-panel shadow-2xl sm:max-h-[min(90dvh,48rem)]">
         <header className="flex shrink-0 items-center justify-between gap-3 border-b border-black bg-surface-card-header px-4 py-3">
           <div className="flex min-w-0 items-center gap-3">
             <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-emerald-800/60 bg-emerald-950/30 text-emerald-300">
@@ -212,9 +226,20 @@ export function ShipmentJournalDialog({
               <p className="truncate text-xs font-semibold text-slate-400">{shipment.customer_name}</p>
             </div>
           </div>
-          <button type="button" onClick={onClose} className="flex h-9 w-9 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300" aria-label="Cerrar">
-            <X className="h-4 w-4" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFullCustomerJournal(true)}
+              className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-500/40 bg-emerald-950/40 px-2.5 py-1 text-xs font-bold text-emerald-300 hover:bg-emerald-900/50 transition-colors shadow-sm active:scale-95"
+              title="Ver bitácora completa del cliente con todos sus envíos y direcciones"
+            >
+              <User className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Bitácora del cliente</span>
+            </button>
+            <button type="button" onClick={onClose} disabled={mutating} className="flex h-9 w-9 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300 hover:text-white disabled:cursor-not-allowed disabled:opacity-50" aria-label="Cerrar">
+              <X className="h-4 w-4" />
+            </button>
+          </div>
         </header>
 
         <div className="grid min-h-0 overflow-y-auto md:grid-cols-[minmax(19rem,22rem)_minmax(0,1fr)] md:overflow-hidden">
@@ -326,7 +351,7 @@ export function ShipmentJournalDialog({
 
             <div className="flex gap-2">
               {editing ? (
-                <button type="button" className={`${secondaryButtonClass} flex-1`} onClick={resetComposer}>Cancelar edición</button>
+                <button type="button" className={`${secondaryButtonClass} flex-1`} disabled={saving} onClick={resetComposer}>Cancelar edición</button>
               ) : null}
               <button type="button" className={`${primaryButtonClass} flex-1 gap-2`} disabled={submitDisabled} onClick={() => void submit()}>
                 {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
@@ -403,8 +428,8 @@ export function ShipmentJournalDialog({
                           {entry.assignedToName ? <span>· {entry.assignedToName}</span> : null}
                           {entry.canUpdateReminder && entry.reminderStatus === "pending" ? (
                             <span className="ml-auto flex gap-1">
-                              <button type="button" onClick={() => void setReminder(entry, "completed")} className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-400 px-2 font-black text-slate-950"><Check className="h-3.5 w-3.5" /> Completar</button>
-                              <button type="button" onClick={() => void setReminder(entry, "cancelled")} className="inline-flex h-7 items-center rounded-md border border-black px-2 font-black text-slate-300">Cancelar</button>
+                              <button type="button" onClick={() => void setReminder(entry, "completed")} disabled={reminderSavingId === entry.id} aria-busy={reminderSavingId === entry.id} className="inline-flex h-7 items-center gap-1 rounded-md bg-emerald-400 px-2 font-black text-slate-950 disabled:cursor-wait disabled:opacity-50"><Check className="h-3.5 w-3.5" /> {reminderSavingId === entry.id ? "Guardando..." : "Completar"}</button>
+                              <button type="button" onClick={() => void setReminder(entry, "cancelled")} disabled={reminderSavingId === entry.id} className="inline-flex h-7 items-center rounded-md border border-black px-2 font-black text-slate-300 disabled:cursor-wait disabled:opacity-50">Cancelar</button>
                             </span>
                           ) : null}
                         </div>
@@ -435,13 +460,25 @@ export function ShipmentJournalDialog({
             <p className="mt-1 text-sm font-semibold text-slate-400">La entrada seguirá en la Bitácora como eliminada. Escribe la razón.</p>
             <textarea value={deleteReason} onChange={(event) => setDeleteReason(event.target.value)} rows={3} className="mt-3 w-full rounded-lg border border-black bg-surface-inset p-3 text-sm font-semibold text-white outline-none" autoFocus />
             <div className="mt-3 flex justify-end gap-2">
-              <button type="button" className={secondaryButtonClass} onClick={() => { setDeleteTarget(null); setDeleteReason(""); }}>Cancelar</button>
+              <button type="button" className={secondaryButtonClass} disabled={saving} onClick={() => { setDeleteTarget(null); setDeleteReason(""); }}>Cancelar</button>
               <button type="button" className="inline-flex h-10 items-center justify-center rounded-lg bg-rose-500 px-4 font-black text-white disabled:opacity-40" disabled={!deleteReason.trim() || saving} onClick={() => void remove()}>Eliminar</button>
             </div>
           </div>
         </div>
       ) : null}
-    </div>,
+
+        </div>
+      ) : null}
+      {showFullCustomerJournal ? (
+        <CustomerJournalDialog
+          open
+          customerId={shipment.customer_id || undefined}
+          initialShipmentId={shipment.id}
+          customerName={shipment.customer_name}
+          onClose={() => setShowFullCustomerJournal(false)}
+        />
+      ) : null}
+    </>,
     document.body,
   );
 }

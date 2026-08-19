@@ -24,6 +24,7 @@ type SaleAddressGooglePanelProps = {
   unverifiedAccepted: boolean;
   hasRequiredAddress: boolean;
   fullAddress: string;
+  unitNumber?: string;
   listboxId: string;
   unverifiedButtonLabel?: string;
   showUnverifiedOption?: boolean;
@@ -90,6 +91,7 @@ export function SaleAddressGooglePanel({
   unverifiedAccepted,
   hasRequiredAddress,
   fullAddress,
+  unitNumber = "",
   listboxId,
   unverifiedButtonLabel = "Usar sin verificar",
   showUnverifiedOption = true,
@@ -166,7 +168,7 @@ export function SaleAddressGooglePanel({
                   className="grid w-full gap-0.5 border-b border-black px-4 py-3 text-left transition last:border-b-0 hover:bg-emerald-400/10 focus-visible:bg-emerald-400/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-emerald-300/70"
                 >
                   <span className="truncate text-sm font-black text-[#f8fafc]">
-                    {suggestion.mainText}
+                    {suggestion.mainText}{unitNumber.trim() ? ` · Apto ${unitNumber.trim()}` : ""}
                   </span>
                   <span className="truncate text-xs font-bold text-slate-300">
                     {[suggestion.secondaryText, suggestion.postalCode].filter(Boolean).join(" · CP ")}

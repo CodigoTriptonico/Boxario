@@ -7600,17 +7600,17 @@ export type Database = {
         }
         Relationships: [
           {
-            foreignKeyName: "organization_invoice_reservations_organization_id_fkey"
-            columns: ["organization_id"]
-            isOneToOne: false
-            referencedRelation: "organizations"
-            referencedColumns: ["id"]
-          },
-          {
             foreignKeyName: "organization_invoice_reservations_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organization_invoice_reservations_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
             referencedColumns: ["id"]
           },
         ]
@@ -7702,11 +7702,11 @@ export type Database = {
           logistics_fee_mode: string
           minimum_deposit: string
           organization_id: string
-          pickup_included_enabled: boolean
           payment_reference_required_methods: string[]
           pending_allowed: boolean
           pickup_days: string[]
           pickup_included_days: number
+          pickup_included_enabled: boolean
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -7725,11 +7725,11 @@ export type Database = {
           logistics_fee_mode?: string
           minimum_deposit?: string
           organization_id: string
-          pickup_included_enabled?: boolean
           payment_reference_required_methods?: string[]
           pending_allowed?: boolean
           pickup_days?: string[]
           pickup_included_days?: number
+          pickup_included_enabled?: boolean
           pickup_ranges?: string[]
           route_lead_time?: string
           schedule_suggestions?: Json
@@ -7748,11 +7748,11 @@ export type Database = {
           logistics_fee_mode?: string
           minimum_deposit?: string
           organization_id?: string
-          pickup_included_enabled?: boolean
           payment_reference_required_methods?: string[]
           pending_allowed?: boolean
           pickup_days?: string[]
           pickup_included_days?: number
+          pickup_included_enabled?: boolean
           pickup_ranges?: string[]
           route_lead_time?: string
           schedule_suggestions?: Json
@@ -8880,6 +8880,7 @@ export type Database = {
           category: string
           created_at: string
           created_by: string | null
+          customer_id: string | null
           delete_reason: string
           deleted_at: string | null
           deleted_by: string | null
@@ -8889,7 +8890,7 @@ export type Database = {
           organization_id: string
           reminder_status: string
           revision_count: number
-          shipment_id: string
+          shipment_id: string | null
           source: string
           source_id: string | null
           updated_at: string
@@ -8901,6 +8902,7 @@ export type Database = {
           category: string
           created_at?: string
           created_by?: string | null
+          customer_id?: string | null
           delete_reason?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -8910,7 +8912,7 @@ export type Database = {
           organization_id: string
           reminder_status?: string
           revision_count?: number
-          shipment_id: string
+          shipment_id?: string | null
           source?: string
           source_id?: string | null
           updated_at?: string
@@ -8922,6 +8924,7 @@ export type Database = {
           category?: string
           created_at?: string
           created_by?: string | null
+          customer_id?: string | null
           delete_reason?: string
           deleted_at?: string | null
           deleted_by?: string | null
@@ -8931,7 +8934,7 @@ export type Database = {
           organization_id?: string
           reminder_status?: string
           revision_count?: number
-          shipment_id?: string
+          shipment_id?: string | null
           source?: string
           source_id?: string | null
           updated_at?: string
@@ -8950,6 +8953,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "shipment_journal_entries_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
             referencedColumns: ["id"]
           },
           {
@@ -11840,6 +11850,30 @@ export type Database = {
         Returns: string
       }
       is_platform_admin: { Args: never; Returns: boolean }
+      list_conductor_operational_task_page: {
+        Args: {
+          p_cursor_id?: string
+          p_cursor_sort_at?: string
+          p_driver_id: string
+          p_limit?: number
+          p_scope_date: string
+          p_visibility?: string
+        }
+        Returns: {
+          assigned_to: string
+          route_date: string
+          route_id: string
+          route_name: string
+          scheduled_at: string
+          shipment_id: string
+          sort_at: string
+          stop_order: number
+          task_id: string
+          task_status: string
+          task_type: string
+          vehicle_id: string
+        }[]
+      }
       list_inventory_movements_missing_shipment_refs: {
         Args: { p_limit?: number }
         Returns: {
@@ -11861,6 +11895,62 @@ export type Database = {
       list_logistics_route_weekdays: {
         Args: { target_org_id: string }
         Returns: string[]
+      }
+      list_logistics_route_workspace_page: {
+        Args: {
+          cursor_created_at?: string
+          cursor_id?: string
+          cursor_route_date?: string
+          target_assigned_to?: string
+          target_from?: string
+          target_limit?: number
+          target_route_template_id?: string
+          target_scope?: string
+          target_search?: string
+          target_to?: string
+          target_zone_key?: string
+        }
+        Returns: {
+          assigned_to: string
+          created_at: string
+          delivery_stop_count: number
+          id: string
+          name: string
+          pickup_stop_count: number
+          route_date: string
+          route_template_id: string
+          status: string
+          stop_count: number
+          vehicle_id: string
+          warehouse_id: string
+          zone_key: string
+        }[]
+      }
+      list_logistics_task_board_page: {
+        Args: {
+          p_assigned_to?: string
+          p_cursor_created_at?: string
+          p_cursor_id?: string
+          p_limit?: number
+          p_route_date?: string
+          p_search?: string
+          p_task_type?: string
+          p_zone_key?: string
+        }
+        Returns: {
+          assigned_to: string
+          created_at: string
+          customer_name: string
+          route_date: string
+          route_id: string
+          scheduled_at: string
+          shipment_code: string
+          shipment_id: string
+          task_id: string
+          task_status: string
+          task_type: string
+          zone_key: string
+        }[]
       }
       list_logistics_weekday_schedules: {
         Args: { target_org_id: string }
@@ -11918,21 +12008,6 @@ export type Database = {
       next_organization_invoice_number: {
         Args: { target_org_id: string }
         Returns: number
-      }
-      release_organization_invoice_number: {
-        Args: { target_org_id: string; target_reservation_token: string }
-        Returns: boolean
-      }
-      reserve_organization_invoice_number: {
-        Args: {
-          target_box_count: number
-          target_company_code: number
-          target_country_code: string
-          target_org_id: string
-          target_reservation_token: string
-          target_seller_code: number
-        }
-        Returns: Json
       }
       normalize_inventory_match_text: {
         Args: { value: string }
@@ -12114,6 +12189,10 @@ export type Database = {
         Args: { p_shipment_id: string; target_org_id: string }
         Returns: Json
       }
+      release_organization_invoice_number: {
+        Args: { target_org_id: string; target_reservation_token: string }
+        Returns: boolean
+      }
       reopen_warehouse_intake: {
         Args: {
           operation_key: string
@@ -12158,6 +12237,18 @@ export type Database = {
           p_shipment_id: string
           p_warehouse_id: string
           target_org_id: string
+        }
+        Returns: Json
+      }
+      reserve_organization_invoice_number: {
+        Args: {
+          target_box_count: number
+          target_city_code: string
+          target_company_code: number
+          target_country_code: string
+          target_org_id: string
+          target_reservation_token: string
+          target_seller_code: number
         }
         Returns: Json
       }
@@ -12285,6 +12376,7 @@ export type Database = {
           pending_allowed: boolean
           pickup_days: string[]
           pickup_included_days: number
+          pickup_included_enabled: boolean
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -12323,6 +12415,7 @@ export type Database = {
           pending_allowed: boolean
           pickup_days: string[]
           pickup_included_days: number
+          pickup_included_enabled: boolean
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -12358,6 +12451,7 @@ export type Database = {
           pending_allowed: boolean
           pickup_days: string[]
           pickup_included_days: number
+          pickup_included_enabled: boolean
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -12393,6 +12487,7 @@ export type Database = {
           pending_allowed: boolean
           pickup_days: string[]
           pickup_included_days: number
+          pickup_included_enabled: boolean
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -12432,6 +12527,7 @@ export type Database = {
           pending_allowed: boolean
           pickup_days: string[]
           pickup_included_days: number
+          pickup_included_enabled: boolean
           pickup_ranges: string[]
           route_lead_time: string
           schedule_suggestions: Json
@@ -12444,48 +12540,92 @@ export type Database = {
           isSetofReturn: false
         }
       }
-      save_sales_axis_settings_v3: {
-        Args: {
-          p_accepted_payment_methods: string[]
-          p_default_payment_method: string
-          p_driver_payment_methods: string[]
-          p_late_pickup_fee: string
-          p_minimum_deposit: string
-          p_pending_allowed: boolean
-          p_pickup_included_enabled: boolean
-          p_pickup_included_days: number
-          p_reference_required_methods: string[]
-          p_schedule_suggestions: Json
-        }
-        Returns: {
-          accepted_payment_methods: string[]
-          default_payment_method: string
-          delivery_days: string[]
-          delivery_ranges: string[]
-          driver_payment_methods: string[]
-          empty_box_delivery_fee: string
-          full_box_pickup_fee: string
-          late_pickup_fee: string
-          linked_route_schedules: boolean
-          logistics_fee_mode: string
-          minimum_deposit: string
-          organization_id: string
-          payment_reference_required_methods: string[]
-          pending_allowed: boolean
-          pickup_days: string[]
-          pickup_included_days: number
-          pickup_ranges: string[]
-          route_lead_time: string
-          schedule_suggestions: Json
-          updated_at: string
-        }
-        SetofOptions: {
-          from: "*"
-          to: "organization_route_settings"
-          isOneToOne: true
-          isSetofReturn: false
-        }
-      }
+      save_sales_axis_settings_v3:
+        | {
+            Args: {
+              p_accepted_payment_methods: string[]
+              p_default_payment_method: string
+              p_driver_payment_methods: string[]
+              p_late_pickup_fee: string
+              p_minimum_deposit: string
+              p_pending_allowed: boolean
+              p_pickup_included_days: number
+              p_reference_required_methods: string[]
+              p_schedule_suggestions: Json
+            }
+            Returns: {
+              accepted_payment_methods: string[]
+              default_payment_method: string
+              delivery_days: string[]
+              delivery_ranges: string[]
+              driver_payment_methods: string[]
+              empty_box_delivery_fee: string
+              full_box_pickup_fee: string
+              late_pickup_fee: string
+              linked_route_schedules: boolean
+              logistics_fee_mode: string
+              minimum_deposit: string
+              organization_id: string
+              payment_reference_required_methods: string[]
+              pending_allowed: boolean
+              pickup_days: string[]
+              pickup_included_days: number
+              pickup_included_enabled: boolean
+              pickup_ranges: string[]
+              route_lead_time: string
+              schedule_suggestions: Json
+              updated_at: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "organization_route_settings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
+        | {
+            Args: {
+              p_accepted_payment_methods: string[]
+              p_default_payment_method: string
+              p_driver_payment_methods: string[]
+              p_late_pickup_fee: string
+              p_minimum_deposit: string
+              p_pending_allowed: boolean
+              p_pickup_included_days: number
+              p_pickup_included_enabled: boolean
+              p_reference_required_methods: string[]
+              p_schedule_suggestions: Json
+            }
+            Returns: {
+              accepted_payment_methods: string[]
+              default_payment_method: string
+              delivery_days: string[]
+              delivery_ranges: string[]
+              driver_payment_methods: string[]
+              empty_box_delivery_fee: string
+              full_box_pickup_fee: string
+              late_pickup_fee: string
+              linked_route_schedules: boolean
+              logistics_fee_mode: string
+              minimum_deposit: string
+              organization_id: string
+              payment_reference_required_methods: string[]
+              pending_allowed: boolean
+              pickup_days: string[]
+              pickup_included_days: number
+              pickup_included_enabled: boolean
+              pickup_ranges: string[]
+              route_lead_time: string
+              schedule_suggestions: Json
+              updated_at: string
+            }
+            SetofOptions: {
+              from: "*"
+              to: "organization_route_settings"
+              isOneToOne: true
+              isSetofReturn: false
+            }
+          }
       scan_found_warehouse_intake_package: {
         Args: {
           evidence_path_value: string
@@ -12742,3 +12882,4 @@ export const Constants = {
     Enums: {},
   },
 } as const
+

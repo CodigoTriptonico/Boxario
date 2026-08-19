@@ -1,5 +1,141 @@
 # Guía de interacción y acciones críticas — Boxario
 
+### 2026-08-18 — Una sola ventana para el mapa de dirección del cliente
+
+**Contexto:** abrir el mapa de un segundo cliente mientras el mapa del primero seguía abierto podía dejar una ventana adicional en negro o sin contenido montado.
+
+**Decisión:** el mapa de dirección utiliza una única ventana emergente con nombre estable. Al abrir otro cliente, Boxario cierra la ventana anterior antes de crear y montar el nuevo mapa.
+
+**Resultado:** cambiar directamente de un cliente a otro siempre muestra el mapa correspondiente y no deja ventanas de mapa duplicadas o vacías.
+
+### 2026-08-18 — Buscar una dirección en el mapa de cobertura sin modificar la cobertura
+
+**Contexto:** al configurar la cobertura de una ruta, el operador necesita localizar una dirección o ciudad concreta sin que esa consulta se convierta en una zona seleccionada.
+
+**Decisión:** el mapa de cobertura muestra un buscador independiente. Buscar y elegir una sugerencia centra el mapa y muestra una cruz blanca en la ubicación encontrada; no agrega, quita ni cambia zonas, vistas previas o el borrador de cobertura. Las sugerencias se consultan mientras se escribe con una espera breve para evitar resultados incompletos o solicitudes duplicadas.
+
+**Resultado:** el operador puede orientarse en el mapa y luego seleccionar zonas deliberadamente mediante los controles existentes.
+
+### 2026-08-18 — Conmutador de nombres sobre la imagen satelital
+
+**Contexto:** la vista satelital puede ocultar los nombres de calles, ciudades y referencias geográficas, aunque sean útiles para confirmar la dirección.
+
+**Decisión:** el popup inicia la vista satelital con nombres visibles y ofrece el botón `Nombres` para alternar entre satélite con etiquetas (`hybrid`) y satélite sin etiquetas. La vista `Mapa` de calles conserva sus nombres propios independientemente del conmutador.
+
+**Resultado:** el operador puede consultar la imagen limpia o la imagen contextualizada sin cambiar de ventana ni perder los pines.
+
+### 2026-08-18 — Deshacer el último movimiento de un pin
+
+**Contexto:** mover un pin de acceso puede requerir volver inmediatamente a la posición anterior antes de confirmar la ubicación.
+
+**Decisión:** al soltar un pin arrastrado, mostrar una acción contextual `Deshacer` junto al estado del mapa. La acción restaura las coordenadas y datos del último movimiento de ese pin, solo está disponible mientras ese movimiento siga vigente y no persiste nada por sí misma.
+
+**Resultado:** el operador puede corregir un arrastre accidental con un clic y continuar revisando el borrador antes de guardar.
+
+### 2026-08-17 — Street View se activa al soltar el monigote
+
+**Contexto:** pulsar el icono abría una panorámica cercana que podía no coincidir con el pin o con el lugar que el operador estaba revisando.
+
+**Decisión:** el clic solo informa que el monigote debe arrastrarse. Al soltarlo sobre el mapa, Boxario convierte el punto visual en coordenadas, consulta cobertura con un radio corto y abre Street View únicamente si Google devuelve una panorámica válida. Sin cobertura, conserva el mapa y no modifica el pin.
+
+**Resultado:** Street View respeta el punto elegido y las zonas sin cobertura se rechazan de forma segura.
+
+### 2026-08-17 — Street View desde la barra de vistas *(reemplazada)*
+
+**Contexto:** el control nativo quedaba dentro del mapa y no respondía de forma consistente al clic o al arrastre.
+
+**Decisión:** el botón compacto del monigote junto a `Mapa` y `Satélite` consulta la panorámica cercana y abre un visor dedicado sobre el mapa. Al pulsarlo de nuevo, cierra la vista sin modificar el pin ni guardar cambios.
+
+**Resultado:** Street View tiene un único punto de entrada visible, clicable y agrupado con las demás vistas.
+
+### 2026-08-17 — Street View sin control duplicado *(reemplazada)*
+
+**Contexto:** el botón textual de respaldo se mostraba encima del monigote nativo y bloqueaba su interacción.
+
+**Decisión:** retirar el botón `Primera persona` y conservar solo el control nativo de Google Maps. El control se ubica en la parte superior izquierda y su capa se refuerza para recibir clic y arrastre dentro de la ventana flotante; el zoom personalizado queda debajo para no encimarlo.
+
+**Resultado:** el operador usa un único monigote visible para entrar a Street View, sin un elemento superpuesto que intercepte el gesto.
+
+### 2026-08-17 — Street View con visor dedicado *(reemplazada)*
+
+**Contexto:** la acción `Primera persona` podía ejecutarse sin que el mapa base mostrara una diferencia visible.
+
+**Decisión:** después de encontrar una panorámica válida, crear un `StreetViewPanorama` dedicado sobre el mapa y conservar el pin sin modificarlo. `Cerrar vista` desmonta ese visor; la consulta no persiste datos.
+
+**Resultado:** la acción tiene una respuesta visual inequívoca y el mapa vuelve a estar disponible al cerrar la panorámica.
+
+### 2026-08-17 — Respaldo clicable para Street View *(reemplazada)*
+
+**Contexto:** el control nativo del monigote podía renderizarse dentro del mapa sin conservar una zona de arrastre fiable en la ventana flotante.
+
+**Decisión:** mantener Street View nativo y ofrecer `Primera persona` como respaldo. Al pulsarlo, Boxario busca la panorámica exterior más cercana al pin y la abre; `Cerrar vista` la oculta sin modificar el pin ni guardar cambios. Si no existe cobertura cercana, se informa y se conserva el mapa.
+
+**Resultado:** la consulta en primera persona siempre tiene una acción directa disponible y continúa siendo una operación de borrador hasta `Confirmar ubicación`.
+
+### 2026-08-17 — Mantener el pin exacto al elegir una dirección
+
+**Contexto:** la dirección detectada por Google tiene una coordenada postal aproximada que no necesariamente coincide con la entrada que el operador marcó.
+
+**Decisión:** si ya existe un pin de entrada exacta, elegir una sugerencia actualiza los campos de dirección, pero no mueve el pin ni re-centra el mapa. Si aún no existe pin, la primera dirección seleccionada sí puede colocar el marcador inicial.
+
+**Resultado:** la dirección postal y la ubicación precisa del acceso se pueden revisar por separado sin deshacer la colocación manual.
+
+### 2026-08-17 — Geocodificación inversa al mover la entrada
+
+**Contexto:** mover el pin cambiaba únicamente la coordenada de entrada y dejaba la dirección postal sin respuesta visible.
+
+**Decisión:** al soltar el pin, mostrar carga y consultar la dirección del nuevo punto. Si existe una dirección válida, actualizar los campos del formulario en el borrador y conservar la unidad escrita; si falla, mantener el pin y mostrar un mensaje recuperable. La persistencia continúa dependiendo de `Confirmar ubicación`.
+
+**Resultado:** la persona puede corregir ubicación y dirección desde el mismo mapa, revisar el resultado y cancelar sin guardar.
+
+### 2026-08-17 — Interacción directa del mapa de entrada exacta
+
+**Contexto:** el mapa exigía Ctrl para usar la rueda, parecía bloqueado al arrastrar y los botones `Mapa`/`Satélite` no siempre cambiaban la vista.
+
+**Decisión:** permitir zoom con rueda directamente, mantener el arrastre habilitado y aplicar el tipo de mapa tanto por el método específico como por las opciones del mapa. El control no debe capturar ni bloquear el gesto de navegación.
+
+**Resultado:** la persona puede acercar, alejar, desplazar y cambiar entre mapa y satélite desde controles directos, sin instrucciones especiales de teclado.
+
+### 2026-08-17 — Conservar apartamento al elegir coincidencia
+
+**Contexto:** la sugerencia de Google representa la dirección base y no necesariamente incluye el apartamento escrito manualmente.
+
+**Decisión:** al elegir una coincidencia, conservar el número de unidad capturado por la persona y mostrarlo en la sugerencia y la vista previa; los datos de Google solo completan lo que no fue escrito manualmente.
+
+**Resultado:** seleccionar una coincidencia no borra ni sustituye silenciosamente el apartamento o suite.
+
+### 2026-08-17 — Edición de hora y modalidad sin hora final
+
+**Contexto:** el clic debía funcionar sobre todo el control visual de la hora y el operador necesitaba alternar entre una hora final estimada y el cierre abierto de la ruta.
+
+**Decisión:** el control completo de salida y fin estimado abre el selector de hora. La casilla `Sin hora de fin · hasta terminar` limpia y deshabilita el fin estimado; al desmarcarla, vuelve a habilitar el selector para elegir una hora. El cambio permanece como borrador hasta guardar la ruta.
+
+**Resultado:** la interacción tiene un hitbox claro, la modalidad abierta es reversible y no se persisten cambios parciales por accidente.
+
+### 2026-08-17 — Consulta de horario desde tarjeta de día
+
+**Contexto:** el resumen de horarios de una ruta debía poder consultarse sin mostrar todos los detalles permanentemente.
+
+**Decisión:** cada tarjeta de día muestra el detalle del horario al pasar el cursor o recibir foco; al pulsarla, el detalle queda fijado y la misma pulsación lo cierra. La interacción no modifica datos ni sustituye el guardado del editor.
+
+**Resultado:** consultar horarios es reversible, accesible con teclado y no activa accidentalmente la selección de la ruta.
+
+### 2026-08-16 — Foto de vehículo como cambio pendiente del formulario
+
+**Contexto:** seleccionar una foto debe permitir revisar el resultado antes de modificar el registro y también debe funcionar al crear un vehículo que todavía no tiene identificador.
+
+**Decisión:** `Agregar foto` y `Cambiar foto` generan una vista previa local; `Quitar foto` solo cambia el borrador. El archivo y la eliminación de la referencia anterior se persisten al pulsar `Guardar`. Si se crea el vehículo pero falla la subida, conservar el formulario y el archivo seleccionado para reintentar sin perder los datos ya capturados.
+
+**Resultado:** cerrar o cancelar no altera la foto persistida; guardar es el único punto de confirmación del cambio visual.
+
+### 2026-08-16 — Resumen de cambios al descartar una ruta
+
+**Contexto:** La confirmación de salida ya protegía el borrador, pero su lista plana no permitía identificar rápidamente qué se iba a perder.
+
+**Decisión:** El diálogo conserva `Seguir editando` y `Descartar cambios`, y muestra únicamente las categorías modificadas (`Nombre`, `Zona`, `Horarios y días`, `Cobertura` o `Color`) en bloques breves con formato anterior → nuevo. Si hay cambios de días, el resumen distingue los horarios activos y los días que quedaron inactivos.
+
+**Resultado:** La persona puede revisar el alcance real del descarte antes de cambiar de ruta sin leer una lista extensa ni perder el contexto.
+
 ### 2026-08-15 — Confirmación dentro de la página para descartar subrutas
 
 **No repetir:** usar `window.confirm` del navegador para cerrar, cambiar o reemplazar una subruta con cambios sin guardar.
@@ -1230,3 +1366,20 @@ Cuando el usuario defina un comportamiento durable de confirmación, deshacer, r
 **Decisión:** Los campos monetarios conservan un borrador de texto independiente mientras el usuario escribe. La normalización a formato persistible ocurre en el estado de configuración y al guardar, pero no reemplaza el texto parcial visible durante cada tecla. Esto permite editar `20` como `30`, borrar el campo o introducir un valor desde cero sin perder el foco ni el cursor.
 
 **Resultado:** La edición de depósito y cargos monetarios admite borrado parcial y reemplazo directo; un valor vacío o cero continúa representando un importe desactivado únicamente al guardar.
+
+### 2026-08-17 — Desplegable para seleccionar puntos de acceso
+
+**Contexto:** la lista de tags y acciones del mapa reducía demasiado el área útil del mapa en pantallas pequeñas.
+
+**Decisión:** el panel inicia contraído y deja visible el punto activo. Pulsar la barra `Puntos` expande o contrae la lista; cambiar de tag, editar notas, quitar un pin y colocar un pin conservan el mismo comportamiento y no guardan nada por sí solos.
+
+**Resultado:** la selección sigue siendo reversible y explícita, con más espacio para el mapa y sin alterar el guardado final de los pines.
+# Decisiones recientes
+
+### 2026-08-16 — Activar o desactivar días de una ruta desde el horario
+
+**Contexto:** El operador necesitaba reutilizar una ruta en otro día sin perder el día original y dejarla inactiva sin borrarla.
+
+**Decisión:** El selector de `Día` ofrece activar otro día (duplica el horario actual) o desactivar el día seleccionado. El cambio es un borrador hasta pulsar `Guardar`; desactivar un horario con reservas futuras conserva la confirmación existente que advierte que esas reservas volverán a Tareas. La definición y el historial de la ruta se conservan aunque no tenga días activos.
+
+**Resultado:** La interacción es reversible antes de guardar, evita doble envío y mantiene la recuperación operativa de las reservas afectadas.

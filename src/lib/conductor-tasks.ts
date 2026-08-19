@@ -189,6 +189,18 @@ function scheduleMatchesScopeDate(scheduledAt: string | null, scopeDate: string)
   return scheduledAtScopeDate(scheduledAt) === scopeDate;
 }
 
+/** Direct driver tasks that must be read before the UI applies scope filters. */
+export function conductorDirectTaskMatchesScope(
+  task: { status: string; scheduledAt: string | null },
+  scopeDate: string,
+) {
+  return (
+    task.status === "loaded_to_truck" ||
+    !task.scheduledAt ||
+    scheduleMatchesScopeDate(task.scheduledAt, scopeDate)
+  );
+}
+
 export function isConductorTaskInScope(
   task: {
     status: string;

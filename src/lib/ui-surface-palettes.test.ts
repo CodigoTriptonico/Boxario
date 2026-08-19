@@ -27,7 +27,7 @@ describe("ui surface palettes", () => {
 
   it("resolves the default person card palette", () => {
     const palette = resolveUiSurfacePalette(DEFAULT_PERSON_CARD_PALETTE_ID);
-    assert.equal(palette.personCardId, "amber-warm");
+    assert.equal(palette.personCardId, "emerald-classic");
   });
 
   it("writes list row css variables on a root element", () => {

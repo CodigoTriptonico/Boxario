@@ -97,9 +97,9 @@ export function ShipmentCollectDialog({
   const canConfirmPartial = partialAmountValue > 0 && partialAmountValue <= balanceDue;
 
   return (
-    <div className="fixed inset-0 z-[140] flex items-center justify-center bg-black/70 p-4">
+    <div className="app-modal-overlay fixed inset-0 z-[140] flex items-center justify-center overflow-y-auto bg-black/70 p-3 sm:p-4">
       <div
-        className="w-full max-w-md rounded-xl border border-black bg-surface-panel p-5 shadow-2xl"
+        className="app-modal-content my-auto max-h-[calc(100dvh-1.5rem)] w-full max-w-md overflow-y-auto rounded-xl border border-black bg-surface-panel p-5 shadow-2xl sm:max-h-[min(90dvh,48rem)]"
         role="dialog"
         aria-modal="true"
         aria-labelledby="shipment-collect-title"

@@ -56,7 +56,7 @@ export function SaleContextMenu({
           ...(menu.type === "remitente" && onViewHistory
             ? [
                 {
-                  label: "Historial del cliente",
+                  label: "Bitácora e historial",
                   icon: <History className="h-5 w-5" />,
                   onClick: onViewHistory,
                 },
@@ -74,7 +74,7 @@ export function SaleContextMenu({
           ...(menu.type === "destinatario" && onViewHistory
             ? [
                 {
-                  label: "Historial del destinatario",
+                  label: "Bitácora e historial",
                   icon: <History className="h-5 w-5" />,
                   onClick: onViewHistory,
                 },

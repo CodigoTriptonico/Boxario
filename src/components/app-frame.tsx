@@ -34,10 +34,33 @@ type ShellConfig = {
 
 type ShellConfigPatch = (patch: ShellConfig) => void;
 
+type ShellConfigState = {
+  pathname: string;
+  values: ShellConfig;
+};
+
 const ShellConfigContext = createContext<ShellConfigPatch | null>(null);
 
 function activeFromPath(pathname: string, session: AppSession | null) {
   return resolveAppNavActiveLabel(pathname, session?.roleSlug);
+}
+
+function routeOwnsEdgeToEdgeContent(pathname: string) {
+  return (
+    pathname.startsWith("/logistica") ||
+    pathname === "/venta" ||
+    pathname === "/ingreso-bodega" ||
+    /^\/seguimiento\/[^/]+\/expediente$/.test(pathname)
+  );
+}
+
+function loadingVariantForPath(pathname: string) {
+  if (pathname === "/logistica") return "logistics-routes" as const;
+  if (pathname.startsWith("/logistica/conductores") || pathname.startsWith("/logistica/vehiculos")) return "logistics-fleet" as const;
+  if (pathname.startsWith("/seguimiento")) return "shipments" as const;
+  if (pathname.startsWith("/inventario")) return "inventory" as const;
+  if (pathname.startsWith("/conductor/tareas")) return "driver-route" as const;
+  return undefined;
 }
 
 export function AppFrame({
@@ -50,10 +73,21 @@ export function AppFrame({
   const pathname = usePathname();
   const router = useRouter();
   const isHydrated = useHydrated();
-  const [config, setConfig] = useState<ShellConfig>({});
+  const [configState, setConfigState] = useState<ShellConfigState>({
+    pathname: "",
+    values: {},
+  });
+  const config = configState.pathname === pathname ? configState.values : {};
   const mergeShellConfig = useCallback((patch: ShellConfig) => {
-    setConfig((current) => ({ ...current, ...patch }));
-  }, []);
+    setConfigState((current) => {
+      if (current.pathname !== pathname) {
+        const patchHasValue = Object.values(patch).some((value) => value !== undefined);
+        return patchHasValue ? { pathname, values: patch } : current;
+      }
+
+      return { pathname, values: { ...current.values, ...patch } };
+    });
+  }, [pathname]);
   const active = useMemo(() => activeFromPath(pathname, session), [pathname, session]);
 
   const defaultContextNav = useMemo(() => {
@@ -80,6 +114,10 @@ export function AppFrame({
     config.surfaceContextId !== undefined
       ? config.surfaceContextId
       : resolveSurfaceContextFromPathname(pathname);
+  // Logística usa el shell a borde completo. Resolverlo también desde la ruta
+  // evita un frame intermedio con el padding del shell al navegar sin recargar.
+  const contentEdgeToEdge =
+    config.contentEdgeToEdge ?? routeOwnsEdgeToEdgeContent(pathname);
 
   if (pathname.startsWith("/login") || pathname.startsWith("/rastrear")) {
     return (
@@ -114,10 +152,10 @@ export function AppFrame({
             contextNavTarget={config.contextNavTarget}
             contextNavKeepBrand={config.contextNavKeepBrand}
             reserveContextNav={reserveDefaultContextNav}
-            contentEdgeToEdge={config.contentEdgeToEdge}
+            contentEdgeToEdge={contentEdgeToEdge}
             surfaceContextId={surfaceContextId}
           >
-            <Suspense fallback={<PageContentPlaceholder />}>
+            <Suspense fallback={<PageContentPlaceholder variant={loadingVariantForPath(pathname)} />}>
               {children}
             </Suspense>
           </AppShell>

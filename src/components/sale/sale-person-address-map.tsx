@@ -31,7 +31,8 @@ type SalePersonAddressMapProps = {
 
 function hasCoordinates(lat: number | null | undefined, lng: number | null | undefined) {
   return typeof lat === "number" && Number.isFinite(lat) &&
-    typeof lng === "number" && Number.isFinite(lng);
+    typeof lng === "number" && Number.isFinite(lng) &&
+    !(lat === 0 && lng === 0);
 }
 
 function entranceFromPerson(person: Sender | Recipient): ExactEntranceDraft | null {

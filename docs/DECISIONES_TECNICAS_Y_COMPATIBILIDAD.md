@@ -1,5 +1,61 @@
 # Decisiones técnicas y compatibilidad
 
+### 2026-08-19 — P1 2B: proyecciones operativas paginadas en servidor
+
+**Contexto:** las listas operativas habían sustituido límites silenciosos por recorridos completos con `OFFSET`, acumulados en una action y enviados al cliente.
+
+**Decisión:** cada dominio conserva su propia proyección de lectura: tarea logística, tablero del conductor y lista de rutas. Las consultas aplican tenant, permisos, reglas de elegibilidad y filtros en base de datos; ordenan de forma estable y exponen cursor/`hasMore`. Las consultas usan el JWT de la sesión y no aceptan organización o actor como autoridad del cliente. Los detalles pesados se cargan por id solo al abrirlos.
+
+**Compatibilidad:** las acciones de detalle y los contratos ricos existentes permanecen para expediente, edición y mutaciones; no se usa service role para ampliar lecturas operativas.
+
+### 2026-08-19 - Shell de Logística estable al navegar sin recarga
+
+**Contexto:** al entrar a Calendario y rutas mediante navegación interna, el shell podía mostrar durante un frame el padding y borde de la superficie anterior; al recargar la ruta el aspecto era correcto.
+
+**Decisión:** `contentEdgeToEdge` de Logística se resuelve de forma síncrona desde el pathname como respaldo, y la limpieza del efecto devuelve la propiedad a `undefined` para no dejar un valor explícito obsoleto en el shell compartido.
+
+**Resultado:** la pantalla conserva el mismo contorno desde la primera renderización tanto al navegar internamente como al recargar.
+
+### 2026-08-19 - Geometría del shell derivada de rutas con superficies completas
+
+**Contexto:** Venta, Entrada a bodega y Expediente aplicaban `contentEdgeToEdge` desde un efecto del cliente; al navegar internamente podían mostrar un frame con el padding del shell anterior. Además, la configuración temporal de una ruta podía sobrevivir al primer render de la siguiente ruta.
+
+**Decisión:** `AppFrame` deriva síncronamente las rutas que usan contenido a borde completo y asocia los overrides del shell al pathname actual. Las limpiezas de una ruta anterior no pueden reinstalar configuración en la ruta nueva.
+
+**Resultado:** la geometría inicial y la configuración ambiental del shell son deterministas tanto en hard reload como en navegación interna, sin cambiar permisos ni contratos de datos.
+
+### 2026-08-17 - Viewport móvil en ventana del mapa de entrada
+
+**Contexto:** la ventana del mapa abierta desde el icono de localizar se mostraba diminuta en celular porque no declaraba el viewport del documento nuevo; el navegador aplicaba un viewport virtual de escritorio.
+
+**Decisión:** inicializar la ventana del mapa con `width=device-width`, escala inicial 1 y `viewport-fit=cover` antes de renderizar la interfaz.
+
+**Resultado:** las media queries móviles se calculan contra el ancho real del teléfono y los controles táctiles del mapa se muestran con la escala esperada.
+
+### 2026-08-16 - Reinicio transaccional de la organización demo Scgs
+
+**Contexto:** Se necesitaba limpiar los datos locales de prueba para iniciar los envíos desde cero sin eliminar la identidad operativa de la organización.
+
+**Decisión:** Se ejecutó el reset de datos demo dentro de una transacción, ampliado para incluir las tablas transaccionales, de facturación, historial y auditoría que dependen de envíos y clientes. También se limpiaron los objetos de fotos de vehículos administrados por la organización y se conservaron solo cuatro registros de flota; las tres primeras fotos se cargaron en `logistics-vehicle-photos` y el cuarto vehículo quedó con `photo_url` vacío. No se tocaron perfiles/auth, roles, permisos ni la bodega.
+
+**Compatibilidad:** Al quedar eliminado el registro del contador de invoices, el siguiente consecutivo se crea desde `1`; el formateo compartido actual conserva su ancho mínimo de cuatro dígitos. La limpieza se verificó contra la base local de Scgs y no cambia el contrato de datos para organizaciones que no sean la demo.
+
+### 2026-08-16 - Fotos de vehículos con almacenamiento validado y asociación persistente
+
+**Contexto:** `logistics_vehicles.photo_url` y el bucket `logistics-vehicle-photos` ya existían, pero la acción de subida usaba una ruta genérica y podía dejar archivos sin una relación verificable con el vehículo.
+
+**Decisión:** el servidor valida tipo y tamaño, decodifica y sanitiza la imagen, genera una ruta única dentro de la organización, la asocia a `logistics_vehicles.photo_url` y devuelve una URL firmada para la vista previa. Al reemplazar o quitar, la base de datos se actualiza primero y el objeto anterior, si pertenece a la organización, se retira de Storage. La UI nunca persiste una URL externa ni confía en una ruta de otra organización.
+
+**Compatibilidad:** se conserva la columna y el bucket existentes; los registros sin foto continúan mostrando el estado vacío. Las fotos antiguas almacenadas bajo la organización siguen siendo legibles si su ruta está en `photo_url`.
+
+### 2026-08-15 - Corrección de `mapGeoNumber` y validación de coordenadas en ventana de entrada exacta
+
+**Contexto:** `mapGeoNumber(null)` en `src/lib/customers/load.ts` evaluaba `Number(null)` resultando en `0` numérico válido, asignando coordenadas `lat: 0, lng: 0` a clientes sin georreferenciar y provocando que el mapa de Google se centrara en Null Island (Golfo de Guinea) sin ejecutar el geocodificado de la dirección.
+
+**Decisión:** `mapGeoNumber` valida explícitamente valores nulos/vacíos devolviendo `null`. `SaleExactEntranceWindow` y `useSalePersonAddressMap` verifican `isValidGeoPoint` descartando `(0, 0)` y ejecutando automáticamente la geocodificación de la dirección del cliente cuando no existen coordenadas guardadas, posicionando el mapa satelital con zoom 20 sobre la dirección real.
+
+**Resultado:** Al pulsar *"Mostrar dirección en el mapa"*, las direcciones sin coordenadas previas se geocodifican inmediatamente y el pin se ubica sobre la dirección real del cliente.
+
 ### 2026-08-14 - Coordenadas ausentes no representan `0,0`
 
 **Contexto:** El mapa de dirección y coberturas convertía `NULL` a `0` al preparar el pin del cliente. Eso centraba Google Maps en el Golfo de Guinea aunque la cobertura sugerida correspondiera a Santa Clarita.

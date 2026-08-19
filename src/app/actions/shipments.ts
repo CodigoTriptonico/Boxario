@@ -1,5 +1,7 @@
 export {
   listRouteMembersAction,
+  listAllShipmentsForRouteBoardAction,
+  listEnviosShipmentsPageAction,
   listSalesOwnersAction,
   listShipmentsAction,
   listShipmentsForRouteBoardAction,

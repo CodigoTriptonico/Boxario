@@ -99,7 +99,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-emerald-900/35", bg: "bg-[#2a332f]/90" },
-    icon: { border: "border-emerald-600/70", bg: "bg-emerald-400/95" },
+    icon: { border: "border-emerald-500/40", bg: "bg-emerald-950/70 text-emerald-300" },
     badge: {
       border: "border-emerald-950/50",
       bg: "bg-[#1f2c28]",
@@ -111,8 +111,8 @@ const PALETTES: Palette[] = [
     hint: "text-emerald-200",
     hintHighlighted: "text-emerald-300",
     quickSale: {
-      border: "border-emerald-800/45",
-      bg: "bg-emerald-400/95",
+      border: "border-emerald-500/70",
+      bg: "bg-emerald-400 text-slate-950",
       hover: "hover:bg-emerald-300",
     },
   },
@@ -133,7 +133,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-slate-600/35", bg: "bg-[#222830]/90" },
-    icon: { border: "border-sky-600/70", bg: "bg-sky-400/90" },
+    icon: { border: "border-sky-500/40", bg: "bg-sky-950/70 text-sky-300" },
     badge: {
       border: "border-slate-700/70",
       bg: "bg-[#1e2530]",
@@ -145,8 +145,8 @@ const PALETTES: Palette[] = [
     hint: "text-slate-500",
     hintHighlighted: "text-sky-300",
     quickSale: {
-      border: "border-sky-800/45",
-      bg: "bg-sky-400/95",
+      border: "border-sky-500/70",
+      bg: "bg-sky-400 text-slate-950",
       hover: "hover:bg-sky-300",
     },
   },
@@ -167,7 +167,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-amber-900/35", bg: "bg-[#282218]/90" },
-    icon: { border: "border-amber-600/70", bg: "bg-amber-400/95" },
+    icon: { border: "border-amber-500/40", bg: "bg-amber-950/70 text-amber-300" },
     badge: {
       border: "border-amber-950/50",
       bg: "bg-[#221c14]",
@@ -179,8 +179,8 @@ const PALETTES: Palette[] = [
     hint: "text-amber-200",
     hintHighlighted: "text-amber-300",
     quickSale: {
-      border: "border-amber-800/45",
-      bg: "bg-amber-400/95",
+      border: "border-amber-500/70",
+      bg: "bg-amber-400 text-slate-950",
       hover: "hover:bg-amber-300",
     },
   },
@@ -201,7 +201,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-emerald-900/35", bg: "bg-[#182018]/90" },
-    icon: { border: "border-emerald-500/65", bg: "bg-emerald-500/95" },
+    icon: { border: "border-emerald-500/40", bg: "bg-emerald-950/80 text-emerald-300" },
     badge: {
       border: "border-emerald-950/55",
       bg: "bg-[#141c18]",
@@ -213,9 +213,9 @@ const PALETTES: Palette[] = [
     hint: "text-emerald-200",
     hintHighlighted: "text-emerald-300",
     quickSale: {
-      border: "border-emerald-800/50",
-      bg: "bg-emerald-500/95",
-      hover: "hover:bg-emerald-400",
+      border: "border-emerald-500/70",
+      bg: "bg-emerald-400 text-slate-950",
+      hover: "hover:bg-emerald-300",
     },
   },
   {
@@ -235,7 +235,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-teal-800/35", bg: "bg-[#162428]/90" },
-    icon: { border: "border-teal-400/60", bg: "bg-teal-300/95" },
+    icon: { border: "border-teal-400/40", bg: "bg-teal-950/70 text-teal-300" },
     badge: {
       border: "border-teal-900/50",
       bg: "bg-[#142022]",
@@ -247,9 +247,9 @@ const PALETTES: Palette[] = [
     hint: "text-teal-200",
     hintHighlighted: "text-teal-200",
     quickSale: {
-      border: "border-teal-800/45",
-      bg: "bg-teal-300/95",
-      hover: "hover:bg-teal-200",
+      border: "border-teal-500/70",
+      bg: "bg-teal-400 text-slate-950",
+      hover: "hover:bg-teal-300",
     },
   },
   {
@@ -269,7 +269,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-rose-900/35", bg: "bg-[#261a20]/90" },
-    icon: { border: "border-rose-500/60", bg: "bg-rose-300/95" },
+    icon: { border: "border-rose-400/40", bg: "bg-rose-950/70 text-rose-300" },
     badge: {
       border: "border-rose-950/50",
       bg: "bg-[#221418]",
@@ -281,9 +281,9 @@ const PALETTES: Palette[] = [
     hint: "text-rose-200",
     hintHighlighted: "text-rose-200",
     quickSale: {
-      border: "border-rose-800/45",
-      bg: "bg-rose-300/95",
-      hover: "hover:bg-rose-200",
+      border: "border-rose-500/70",
+      bg: "bg-rose-400 text-slate-950",
+      hover: "hover:bg-rose-300",
     },
   },
   {
@@ -303,7 +303,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-lime-900/30", bg: "bg-[#242c28]/90" },
-    icon: { border: "border-lime-600/65", bg: "bg-lime-400/95" },
+    icon: { border: "border-lime-500/40", bg: "bg-lime-950/70 text-lime-300" },
     badge: {
       border: "border-lime-950/45",
       bg: "bg-[#1f2c28]",
@@ -315,8 +315,8 @@ const PALETTES: Palette[] = [
     hint: "text-lime-200",
     hintHighlighted: "text-lime-300",
     quickSale: {
-      border: "border-lime-800/45",
-      bg: "bg-lime-400/95",
+      border: "border-lime-500/70",
+      bg: "bg-lime-400 text-slate-950",
       hover: "hover:bg-lime-300",
     },
   },
@@ -337,7 +337,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-slate-700/40", bg: "bg-[#272e2c]/90" },
-    icon: { border: "border-slate-500/55", bg: "bg-slate-300/90" },
+    icon: { border: "border-slate-600/50", bg: "bg-slate-800/70 text-slate-300" },
     badge: {
       border: "border-slate-800/65",
       bg: "bg-[#252b29]",
@@ -349,8 +349,8 @@ const PALETTES: Palette[] = [
     hint: "text-slate-500",
     hintHighlighted: "text-slate-200",
     quickSale: {
-      border: "border-slate-600/50",
-      bg: "bg-slate-300/95",
+      border: "border-slate-500/60",
+      bg: "bg-slate-300 text-slate-950",
       hover: "hover:bg-slate-200",
     },
   },
@@ -371,7 +371,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-amber-800/30", bg: "bg-[#0a0a0a]/90" },
-    icon: { border: "border-amber-400", bg: "bg-amber-300" },
+    icon: { border: "border-amber-400/50", bg: "bg-zinc-900 text-amber-300" },
     badge: {
       border: "border-amber-800/50",
       bg: "bg-black",
@@ -383,9 +383,9 @@ const PALETTES: Palette[] = [
     hint: "text-amber-200",
     hintHighlighted: "text-amber-300",
     quickSale: {
-      border: "border-amber-500",
-      bg: "bg-amber-300",
-      hover: "hover:bg-amber-200",
+      border: "border-amber-400",
+      bg: "bg-amber-400 text-slate-950",
+      hover: "hover:bg-amber-300",
     },
   },
   {
@@ -405,7 +405,7 @@ const PALETTES: Palette[] = [
       text: "text-slate-300",
     },
     addressEmpty: { border: "border-violet-900/35", bg: "bg-[#221c2a]/90" },
-    icon: { border: "border-violet-500/60", bg: "bg-violet-300/95" },
+    icon: { border: "border-violet-400/40", bg: "bg-violet-950/70 text-violet-300" },
     badge: {
       border: "border-violet-950/50",
       bg: "bg-[#1e1826]",
@@ -417,14 +417,14 @@ const PALETTES: Palette[] = [
     hint: "text-violet-200",
     hintHighlighted: "text-violet-200",
     quickSale: {
-      border: "border-violet-800/45",
-      bg: "bg-violet-300/95",
-      hover: "hover:bg-violet-200",
+      border: "border-violet-500/70",
+      bg: "bg-violet-400 text-slate-950",
+      hover: "hover:bg-violet-300",
     },
   },
 ];
 
-const DEFAULT_SALE_PERSON_CARD_VARIANT_ID: SalePersonCardVariantId = "amber-warm";
+const DEFAULT_SALE_PERSON_CARD_VARIANT_ID: SalePersonCardVariantId = "emerald-classic";
 
 export const SALE_PERSON_CARD_VARIANTS: SalePersonCardVariant[] =
   PALETTES.map(variantFromPalette);

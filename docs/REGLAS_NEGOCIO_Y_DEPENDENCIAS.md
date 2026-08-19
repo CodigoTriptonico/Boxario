@@ -1,5 +1,133 @@
 # Reglas de negocio y dependencias de Boxario
 
+### 2026-08-19 — P1 2B: lecturas operativas acotadas por el origen
+
+**Contexto:** la primera corrección P1 preservó completitud recorriendo universos paginados completos. Aunque no ocultaba trabajo, esa estrategia no escala ni permite que una superficie paginada comunique cobertura honesta.
+
+**Decisión:** los tableros de logística, conductor y rutas deben determinar elegibilidad, alcance y filtros en PostgreSQL con la sesión y organización actuales; las listas entregan DTOs acotados, orden determinista y cursor/`hasMore`. El detalle enriquecido se obtiene bajo demanda. No se vuelve a derivar un filtro operativo desde una página parcial ni se usa una descarga completa como fuente de verdad.
+
+**Resultado esperado:** una tarea o ruta relevante puede localizarse desde su filtro correcto sin que el navegador reciba el universo histórico, ni que una consulta por página dependa de `N / 200` lecturas secuenciales.
+
+### 2026-08-19 — P1: lecturas operativas completas y estados explícitos
+
+**Contexto:** una página limitada podía ocultar tareas, rutas o envíos que sí cumplían el filtro operativo; además una hoja de inventario aún no incluida en la página de stock se representaba como cero.
+
+**Decisión:** los tableros operativos que determinan trabajo real recorren el universo paginado completo antes de derivar tareas; Seguimiento aplica sus filtros dentro de la action antes de calcular total y página; y el inventario distingue `stockKnown: false` de un stock autoritativo de cero. Un error de lectura sigue siendo error visible y los datos previamente válidos se conservan durante la actualización.
+
+**Resultado:** ningún límite de presentación cambia silenciosamente la completitud operativa ni un dato pendiente de carga se comunica como ausencia de existencias.
+
+### 2026-08-19 — INV-001: crear una categoría continúa con la creación de su primer artículo
+
+**Contexto:** después de crear la primera categoría, el editor cerraba el formulario de artículo y una recarga del filtro podía leer la lista anterior antes de que terminara el guardado, por lo que el estado vacío volvía a pedir una categoría aunque la categoría acababa de ser creada.
+
+**Decisión:** crear una categoría espera a que el guardado termine, selecciona esa categoría y abre inmediatamente el formulario `Nuevo item`. La creación de la categoría y la del artículo siguen siendo pasos guardables independientes, pero el flujo no regresa al paso de categoría ni permite que una recarga intermedia sobrescriba el estado local.
+
+**Resultado:** el usuario puede escribir la categoría una sola vez y continuar directamente con el primer artículo.
+
+### 2026-08-18 — RUTAS-001: guardar una ruta incorpora las zonas pendientes del mapa
+
+**Contexto:** las zonas seleccionadas en el mapa de una ruta podían quedar como vista previa y no entrar en `draft.places` si se pulsaba `Guardar` directamente.
+
+**Decisión:** al guardar una ruta, las zonas pendientes seleccionadas en el mapa se incorporan automáticamente al conjunto que se persiste. El botón de guardado identifica cuántas zonas pendientes incluirá y, después de guardar correctamente, la vista previa se convierte en cobertura guardada.
+
+**Resultado:** `Guardar` deja de ignorar zonas visibles en la plantilla del mapa y comunica explícitamente qué se agregará al guardado.
+
+### 2026-08-18 — GEO-003: la ubicación de la dirección se muestra separada de los pines operativos
+
+**Contexto:** al abrir el mapa de una dirección de cliente, el operador necesita distinguir el punto geográfico de la dirección postal de los pines que marcan preferencias de acceso.
+
+**Decisión:** el mapa muestra la ubicación de la dirección con un marcador blanco independiente. Los pines de colores representan únicamente puntos operativos colocados explícitamente por el operador (Entrada, Garaje, Portón u otro tag) y no se crean automáticamente al geocodificar la dirección.
+
+**Resultado:** el operador puede verificar dónde está la dirección registrada y, por separado, ubicar las preferencias de acceso sin confundir ambos datos.
+
+### 2026-08-17 — BIT-001: Bitácora integral por cliente con historial unificado de envíos, direcciones y seguimiento
+
+**Contexto:** la bitácora operaba de forma fragmentada por cada envío individual (`shipment_journal_entries`), lo que impedía a los operadores comerciales y logísticos tener la visión 360° de un cliente, sus múltiples envíos a lo largo del tiempo, sus cambios de dirección y todas sus llamadas o acuerdos.
+
+**Decisión:**
+1. La bitácora pertenece y se organiza **por cada cliente** (`Customer-Centric Journal`), centralizando en una sola línea de tiempo cronológica toda su historia operativa y comercial.
+2. Cada envío del cliente se registra como un hito enriquecido que expone: código de invoice, fecha, estado logístico, destinatario, país, notas y sus **direcciones completas** (recolección/origen y entrega/destino) con referencias y notas de pines satelitales.
+3. Las entradas manuales de seguimiento (llamadas, WhatsApp, SMS, correos, acuerdos, recordatorios) pueden crearse a nivel general del cliente o vincularse opcionalmente a un envío específico.
+4. La bitácora integra eventos de auditoría (cambios de dirección, actualización de pines exactos, cambios de teléfonos).
+5. Se provee acceso directo a la bitácora desde la ficha/historial del cliente en Ventas y desde la lista de Envíos/Logística (enfocando el envío seleccionado).
+
+**Resultado:** los operadores disponen de un expediente cronológico completo del cliente con todos sus envíos, direcciones de recolección y entrega, cambios auditables y seguimiento comercial en un único lugar.
+
+### 2026-08-17 — GEO-002: la geocodificación de dirección no auto-genera pines y los pines solo persisten si se crea el contacto
+
+**Contexto:** al escribir una dirección en el formulario de remitente o destinatario, Google geocodifica la calle aproximada. Si el operador abría el mapa, el sistema tomaba esa coordenada de calle e insertaba automáticamente un pin verde en "Entrada principal", aun cuando el usuario no había colocado ningún pin ni guardado el contacto.
+
+**Decisión:**
+1. Las coordenadas de geocodificación de dirección (`addressLocation`) se utilizan exclusivamente para centrar la cámara y el zoom del mapa satelital sobre el inmueble.
+2. Nunca se deben generar ni colocar pines iniciales automáticos si el contacto no tiene una entrada guardada explícitamente (`initialEntrance`). El mapa debe abrirse con 0 pines ubicados.
+3. Los pines y notas colocados en el mapa solo se guardan de forma permanente en la base de datos cuando el usuario efectivamente confirma y crea/guarda el remitente o destinatario. Si se recarga la página o se cancela el formulario sin crear el contacto, los borradores temporales se descartan por completo sin dejar pines fantasma.
+
+**Resultado:** el mapa se abre limpio, sin pines inventados por la dirección de Google, y ningún pin persiste si el remitente o destinatario no es creado.
+
+### 2026-08-17 — GEO-001: soporte de pines, notas y nombres personalizados por cada punto de acceso (Garaje, Entrada, Portón, Otro, etc.)
+
+**Contexto:** cada inmueble puede requerir indicar más de un punto de acceso relevante para el chofer (por ejemplo, dónde está la entrada peatonal y dónde queda el garaje para descargar o parquear), junto con instrucciones operativas distintas para cada uno (clave del portón, timbre de la entrada, horario del muelle, etc.) o puntos especiales no predefinidos (caseta de seguridad, bodega lateral, piscina, etc.).
+
+**Decisión:** cada punto de acceso (*Entrada principal*, *Garaje / Cochera*, *Portón*, *Recepción / Lobby*, *Muelle de carga*, *Puerta trasera*, *Otro*) tiene su propio pin independiente sobre el mapa con coordenadas y notas/instrucciones individuales. Para la categoría *Otro*, se permite definir un nombre o descripción personalizada (ej. *Caseta de seguridad*, *Bodega*), la cual se refleja en el botón superior, en el marcador del mapa satelital y en la nota logística estructurada (`[Otro (Caseta de seguridad): lat, lng] tocar intercomunicador`).
+
+**Resultado:** el chofer y la logística visualizan los puntos de acceso específicos con sus respectivas ubicaciones exactas, nombres personalizados y notas particulares sin mezclar ni sobreescribir las ubicaciones ni instrucciones de otros accesos.
+
+### 2026-08-17 — GEO-001: puntos de acceso específicos (tags) y desvinculación total de geocodificación inversa
+
+**Contexto:** la ventana de ubicación de entrada exacta incluía formularios de dirección y ejecutaba geocodificación inversa al mover el pin, lo que podía alterar accidentalmente la dirección postal del contacto cuando se intentaba ubicar un punto operativo secundario (como garaje, portón, etc.).
+
+**Decisión:** la ubicación de entrada exacta es puramente operativa y se categoriza mediante tags de puntos de acceso (*Entrada principal*, *Garaje / Cochera*, *Portón*, *Recepción / Lobby*, *Muelle de carga*, *Puerta trasera*, *Otro*). Mover el pin o hacer clic en el mapa registra con precisión la coordenada (`lat/lng`) y la nota/tag asociada, sin ejecutar geocodificación inversa ni modificar bajo ninguna circunstancia la dirección postal del cliente o destinatario.
+
+**Resultado:** la dirección postal original permanece intacta y los conductores reciben la coordenada y el tipo de punto de acceso específico elegido por el operador.
+
+### 2026-08-17 — GEO-001 actualizado: la dirección postal no reposiciona la entrada exacta
+
+**Contexto:** después de mover el pin, seleccionar la dirección detectada por Google volvía a centrar el mapa en la coordenada aproximada de esa dirección y deshacía la ubicación manual.
+
+**Decisión:** la dirección postal detectada y la entrada exacta son datos independientes. Seleccionar o actualizar la dirección puede cambiar los campos postales y sus coordenadas de referencia, pero nunca puede reemplazar ni reposicionar `exact_entrance_lat/lng` cuando ya existe una entrada colocada manualmente. Solo arrastrar el pin modifica la entrada exacta.
+
+**Resultado:** el operador puede corregir la dirección postal sin perder la ubicación precisa que marcó sobre el mapa.
+
+### 2026-08-17 — GEO-001 actualizado: mover el pin puede actualizar la dirección en borrador
+
+**Contexto:** el operador movía el pin de entrada exacta, pero la dirección postal permanecía igual y no podía corregirla desde el mapa cuando no había coordenadas útiles.
+
+**Decisión:** al soltar el pin, Boxario ejecuta una geocodificación inversa del punto y actualiza en el borrador calle, ciudad, estado y código postal cuando Google devuelve una dirección válida. El número de apartamento o unidad escrito manualmente tiene prioridad y se conserva. El cambio sigue siendo un borrador: solo `Confirmar ubicación` persiste la entrada exacta y el guardado posterior persiste la dirección postal.
+
+**Resultado:** mover el pin puede corregir de forma visible y reversible la dirección postal, sin perder el apartamento capturado ni guardar cambios por accidente. Si el punto no tiene una dirección válida, se conserva el pin y se informa que los campos deben revisarse manualmente.
+
+### 2026-08-16 — Reinicio operativo de datos demo de Scgs
+
+**Contexto:** Se solicitó dejar la organización demo como si todavía no hubiera realizado envíos, conservando únicamente la estructura necesaria para continuar probando la logística.
+
+**Decisión:** El reinicio deja vacíos los envíos, facturas y reservas de consecutivos, remitentes, destinatarios, historial, bitácora, auditorías y demás datos operativos asociados. El consecutivo de invoices queda en cero para que el siguiente invoice sea el primero (`1`; el formato visual vigente puede mostrarlo como `0001`). Se conservan los perfiles, usuarios, roles, permisos y la bodega. La flota queda limitada a cuatro vehículos: los tres primeros con una foto y el cuarto sin foto.
+
+**Resultado:** La organización `Scgs` quedó verificada con cero envíos, clientes, destinatarios, historial, auditoría y reservas de invoice; cuatro vehículos y tres fotos almacenadas. El reinicio también vació el inventario y los precios demo que forman parte del conjunto operativo del script.
+
+### 2026-08-16 — La foto pertenece al vehículo y es reemplazable
+
+**Contexto:** el catálogo de vehículos ya tenía soporte parcial para una columna y un bucket de fotos, pero la subida no quedaba ligada de forma completa al camión y no existía una operación clara para quitar o cambiar la foto.
+
+**Decisión:** cada vehículo activo puede tener cero o una foto vigente. La foto se administra desde el formulario del vehículo: se puede agregar, reemplazar o quitar; quitar la foto no elimina, desactiva ni modifica los datos operativos del vehículo, sus rutas o su conductor asignado. La foto solo se persiste al guardar el formulario.
+
+**Resultado:** el listado muestra la foto vigente como vista previa y el registro del vehículo sigue siendo la fuente de identidad, capacidad y asignaciones.
+
+### 2026-08-16 — La ruta es la entidad principal para activar días
+
+**Contexto:** La pantalla mostraba días maestros arriba y después volvía a mostrar días dentro de cada ruta, duplicando la decisión para el operador.
+
+**Decisión:** La relación operativa principal es `ruta + horario por día`. El catálogo permite crear una ruta y, dentro de su editor, activar, desactivar y configurar los días en que funciona. Los días maestros y sus RPC se conservan como compatibilidad interna para Ventas y para la migración de datos, pero no son una segunda fuente visual de configuración de rutas.
+
+**Resultado:** El operador encuentra todas las rutas en un solo listado y administra la vigencia semanal desde la ruta seleccionada, sin tener que coordinar dos superficies de calendario.
+
+### 2026-08-16 — Una ruta puede activarse en varios días desde su horario
+
+**Contexto:** En el editor maestro-detalle de `Rutas del día`, el selector de día cambiaba el lunes por el martes. Eso obligaba a repetir manualmente la configuración y hacía ambiguo qué ocurría al quitar el último día.
+
+**Decisión:** Cada combinación ruta + día se persiste como un horario independiente. Desde el selector `Día`, activar otro día duplica la configuración del horario actual y conserva el día original. Desactivar un día solo marca ese horario como inactivo; no elimina la definición de la ruta, su cobertura, sus reservas históricas ni su auditoría. Si no quedan días activos, la ruta queda inactiva por calendario y puede reactivarse después.
+
+**Resultado:** Una misma ruta puede aparecer, por ejemplo, lunes y martes con horarios independientes, y quitar todos sus días no destruye la ruta ni sus datos.
+
 ### 2026-08-14 — Activación explícita de la recolección incluida
 
 **Contexto:** La configuración de recolección incluida solo permitía editar los días y no permitía que una organización decidiera no ofrecer ese beneficio.

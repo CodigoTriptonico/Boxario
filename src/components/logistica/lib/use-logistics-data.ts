@@ -12,8 +12,7 @@ import {
   listReviewedCustomerRouteAssignmentRequestsAction,
 } from "@/app/actions/customer-route-assignments";
 import type { CustomerRouteAssignmentRequestRow } from "@/app/actions/customer-route-assignments/types";
-import { listRouteMembersAction, listShipmentsAction } from "@/app/actions/shipments";
-import { SHIPMENTS_BOARD_LIMIT } from "@/lib/shipments-pagination";
+import { listAllShipmentsForRouteBoardAction, listRouteMembersAction } from "@/app/actions/shipments";
 import { listWarehousesAction } from "@/app/actions/warehouses";
 import { listLogisticsVehiclesAction } from "@/app/actions/logistics-fleet";
 import type { RouteMemberRow, ShipmentRow } from "@/lib/shipment-types";
@@ -42,6 +41,7 @@ export function useLogisticsData({
   initialRouteCatalog,
   supabaseReady,
   notify,
+  includeTaskBoardData = true,
 }: {
   initialShipments?: ShipmentRow[];
   initialRouteMembers?: RouteMemberRow[];
@@ -52,6 +52,8 @@ export function useLogisticsData({
   initialRouteCatalog?: LogisticsRouteCatalogData;
   supabaseReady: boolean;
   notify: LogisticsNotify;
+  /** The route workspace must not hydrate the shipment task universe it does not render. */
+  includeTaskBoardData?: boolean;
 }) {
   const [shipments, setShipments] = useState<ShipmentRow[]>(initialShipments || []);
   const [routeMembers, setRouteMembers] = useState<RouteMemberRow[]>(initialRouteMembers || []);
@@ -87,6 +89,8 @@ export function useLogisticsData({
     Boolean(initialRoutes && initialRoutes.length === LOGISTICS_ROUTES_PAGE_SIZE),
   );
   const [routesLoading, setRoutesLoading] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [loadError, setLoadError] = useState("");
   const bootstrapRouteFilters = defaultLogisticsRoutesListFilters();
   const initialAppliedRoutesFiltersKey = initialRoutes
     ? logisticsRoutesListFiltersKey(bootstrapRouteFilters)
@@ -106,8 +110,12 @@ export function useLogisticsData({
   }, []);
 
   const reloadShipmentsAndAddresses = useCallback(async () => {
-    const shipmentsResult = await listShipmentsAction({ limit: SHIPMENTS_BOARD_LIMIT, offset: 0 });
+    if (!includeTaskBoardData) {
+      return null;
+    }
+    const shipmentsResult = await listAllShipmentsForRouteBoardAction();
     if (!shipmentsResult.ok) {
+      setLoadError(shipmentsResult.error);
       notify.error(shipmentsResult.error);
       return null;
     }
@@ -119,10 +127,11 @@ export function useLogisticsData({
     if (addressesResult.ok) {
       setTaskAddresses(addressesResult.data);
     } else {
+      setLoadError(addressesResult.error);
       notify.error(addressesResult.error);
     }
     return shipmentsResult.data;
-  }, [notify]);
+  }, [includeTaskBoardData, notify]);
 
   const reloadShipments = useCallback(async () => {
     await reloadShipmentsAndAddresses();
@@ -151,7 +160,9 @@ export function useLogisticsData({
             pageRef.current = targetPage;
             setPage(targetPage);
           }
+          setLoadError("");
         } else {
+          setLoadError(routesResult.error);
           notify.error(routesResult.error);
         }
 
@@ -212,6 +223,8 @@ export function useLogisticsData({
   }, [notify]);
 
   const reloadAll = useCallback(async () => {
+    setRefreshing(true);
+    try {
     const vehiclesResult = await listLogisticsVehiclesAction();
     if (vehiclesResult.ok) {
       setVehicles(vehiclesResult.data);
@@ -231,8 +244,13 @@ export function useLogisticsData({
       setRoutes(routesResult.data);
       setHasMore(routesResult.data.length === LOGISTICS_ROUTES_PAGE_SIZE);
       markRoutesFiltersApplied(routeFiltersRef.current);
+      setLoadError("");
     } else {
+      setLoadError(routesResult.error);
       notify.error(routesResult.error);
+    }
+    } finally {
+      setRefreshing(false);
     }
   }, [
     markRoutesFiltersApplied,
@@ -263,11 +281,11 @@ export function useLogisticsData({
 
     queueMicrotask(() => {
       void (async () => {
-        const shipmentsResult = await listShipmentsAction({ limit: SHIPMENTS_BOARD_LIMIT, offset: 0 });
-        const shipments = shipmentsResult.ok ? shipmentsResult.data : [];
-        if (shipmentsResult.ok) {
-          setShipments(shipments);
-        } else {
+        const shipmentsResult = includeTaskBoardData
+          ? await listAllShipmentsForRouteBoardAction()
+          : null;
+        const shipments = shipmentsResult?.ok ? shipmentsResult.data : [];
+        if (shipmentsResult && !shipmentsResult.ok) {
           notify.error(shipmentsResult.error);
         }
 
@@ -288,7 +306,9 @@ export function useLogisticsData({
             limit: LOGISTICS_ROUTES_PAGE_SIZE,
             offset: 0,
           }),
-          listLogisticsTaskAddressesAction({ shipments }),
+          includeTaskBoardData
+            ? listLogisticsTaskAddressesAction({ shipments })
+            : Promise.resolve(null),
           listLogisticsVehiclesAction(),
           listLogisticsRouteCatalogAction(),
           listPendingCustomerRouteAssignmentRequestsAction(),
@@ -309,7 +329,7 @@ export function useLogisticsData({
           markRoutesFiltersApplied(routeFiltersRef.current);
         }
 
-        if (addressesResult.ok) {
+        if (addressesResult?.ok) {
           setTaskAddresses(addressesResult.data);
         }
 
@@ -334,6 +354,7 @@ export function useLogisticsData({
       })();
     });
   }, [
+    includeTaskBoardData,
     initialRouteMembers,
     initialRoutes,
     initialShipments,
@@ -411,6 +432,8 @@ export function useLogisticsData({
     page,
     hasMore,
     routesLoading,
+    refreshing,
+    loadError,
     appliedRoutesFiltersKey,
     setPage,
     reloadRoutes,

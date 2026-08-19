@@ -60,6 +60,7 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
     setClientAddressSearch,
     setClientAddressSuggestions,
     setClientAddressValidation,
+    setHistoryDrawer,
     setMode,
     setNewClientAddressReference,
     setNewClientCity,
@@ -208,6 +209,7 @@ export function VentaClientStep({ controller }: { controller: VentaController; }
               }}
               onChoose={chooseSender}
               onAddressClick={addressMap.openSender}
+              onJournalClick={(sender) => setHistoryDrawer({ sender, initialTab: "journal" })}
               onQuickEmptyBox={startQuickEmptyBox}
               onIconClick={(event, sender) => {
                 const rect = event.currentTarget.getBoundingClientRect();

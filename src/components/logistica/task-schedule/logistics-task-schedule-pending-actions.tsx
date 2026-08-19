@@ -27,14 +27,17 @@ export function LogisticsTaskSchedulePendingRouteAction({
   }
 
   return (
-    <button
-      type="button"
-      disabled={saving || !canLeavePendingRoute}
-      onClick={onPendingRoute}
-      className={`${secondaryButtonClass} h-11 w-full text-sm font-black disabled:opacity-40`}
-    >
-      {pendingRouteLabel}
-    </button>
+    <div className="flex items-center justify-center pt-1">
+      <button
+        type="button"
+        disabled={saving || !canLeavePendingRoute}
+        onClick={onPendingRoute}
+        className="inline-flex items-center gap-1.5 text-xs font-bold text-slate-400 transition hover:text-emerald-300 hover:underline disabled:opacity-40"
+      >
+        <span>¿Aún no decides la ruta?</span>
+        <span className="font-black text-emerald-400">{pendingRouteLabel || "Continuar sin ruta"}</span>
+      </button>
+    </div>
   );
 }
 
@@ -52,13 +55,16 @@ export function LogisticsTaskSchedulePendingDayAction({
   }
 
   return (
-    <button
-      type="button"
-      disabled={saving}
-      onClick={onPendingDay}
-      className={`${secondaryButtonClass} h-11 w-full text-sm font-black disabled:opacity-40`}
-    >
-      {pendingDayLabel}
-    </button>
+    <div className="pt-1">
+      <button
+        type="button"
+        disabled={saving}
+        onClick={onPendingDay}
+        className="w-full flex items-center justify-center gap-2 rounded-xl border border-dashed border-slate-700 bg-[#16201b] p-3 text-xs font-black text-slate-300 hover:border-emerald-500/60 hover:bg-[#1c2923] hover:text-white transition disabled:opacity-40 shadow-sm"
+      >
+        {pendingDayLabel || "No sé el día"}
+      </button>
+    </div>
   );
 }
+

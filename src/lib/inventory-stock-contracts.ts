@@ -6,6 +6,8 @@ export type InventoryStockItem = {
   subcategory?: string;
   size?: string;
   stock: number;
+  /** False only when the tree is visible before its stock page has loaded. */
+  stockKnown?: boolean;
   reserved: number;
   assigned: number;
   unavailable: number;

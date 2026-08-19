@@ -4,7 +4,7 @@ import {
   logisticsZoneLabel,
   type LogisticsTaskAddressRow,
 } from "@/lib/logistics-routing";
-import { buildConductorDriverTasks } from "@/lib/conductor-tasks";
+import { buildConductorDriverTasks, conductorDirectTaskMatchesScope } from "@/lib/conductor-tasks";
 import { requireAppSession } from "@/lib/auth/session";
 import { createScopedSupabase } from "@/lib/supabase/scoped";
 import { listLogisticsVehiclesAction } from "@/app/actions/logistics-fleet";
@@ -33,29 +33,57 @@ async function listShipmentsByIds(
     return [];
   }
 
-  const { data, error } = await supabase
-    .from("shipments")
-    .select(SHIPMENT_SELECT)
-    .eq("organization_id", session.organizationId)
-    .in("id", shipmentIds);
+  const rows: ShipmentDbRow[] = [];
+  // PostgREST `in` payloads are bounded in practice; chunk IDs without ever
+  // dropping a driver's eligible task.
+  for (let index = 0; index < shipmentIds.length; index += 200) {
+    const { data, error } = await supabase
+      .from("shipments")
+      .select(SHIPMENT_SELECT)
+      .eq("organization_id", session.organizationId)
+      .in("id", shipmentIds.slice(index, index + 200));
 
-  if (error) {
-    throw new Error(error.message);
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    rows.push(...((data || []) as unknown as ShipmentDbRow[]));
   }
 
   return promoteDueScheduledLegsForListedShipments(
     supabase,
     session,
-    ((data || []) as unknown as ShipmentDbRow[]).map(mapShipment),
+    rows.map(mapShipment),
   );
 }
 
+type PagedRead = PromiseLike<{
+  data: unknown[] | null;
+  error: { message: string } | null;
+}>;
+
+async function readAllPages(readPage: (from: number, to: number) => PagedRead) {
+  const rows: unknown[] = [];
+  const pageSize = 200;
+
+  for (let from = 0; ; from += pageSize) {
+    const { data, error } = await readPage(from, from + pageSize - 1);
+    if (error) {
+      throw new Error(error.message);
+    }
+
+    const page = data || [];
+    rows.push(...page);
+    if (page.length < pageSize) {
+      return rows;
+    }
+  }
+}
+
 /**
- * Carga rutas, envíos y direcciones acotados al conductor.
- * Límites intencionales: 60 rutas + 200 tareas del conductor (BOUNDED).
- * No descarga hasta 500 envíos de toda la organización ni duplica el listado
- * vía listLogisticsTaskAddressesAction. Los envíos se cargan solo por IDs
- * derivados de esas tareas/paradas acotadas.
+ * Carga exclusivamente las rutas y tareas que pueden pertenecer al día del
+ * conductor. La fecha se aplica antes de decidir qué envíos hidratar; nunca
+ * se descartan tareas reales por un límite de una página anterior.
  */
 export async function loadConductorScopedBoard(driverId: string, scopeDate: string) {
   const session = await requireAppSession();
@@ -65,40 +93,43 @@ export async function loadConductorScopedBoard(driverId: string, scopeDate: stri
   }
 
   const [
-    { data: routeRows, error: routesError },
-    { data: taskRows, error: tasksError },
+    routeRows,
+    taskRows,
     vehiclesResult,
   ] = await Promise.all([
-    supabase
-      .from("logistics_routes")
-      .select(ROUTE_SELECT)
-      .eq("organization_id", session.organizationId)
-      .eq("assigned_to", driverId)
-      .neq("status", "draft")
-      .neq("status", "cancelled")
-      .order("route_date", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(60),
-    supabase
-      .from("shipment_logistics_tasks")
-      .select("id, shipment_id, assigned_to, status, scheduled_at")
-      .eq("organization_id", session.organizationId)
-      .eq("assigned_to", driverId)
-      .limit(200),
+    readAllPages((from, to) =>
+      supabase
+        .from("logistics_routes")
+        .select(ROUTE_SELECT)
+        .eq("organization_id", session.organizationId)
+        .eq("assigned_to", driverId)
+        .eq("route_date", scopeDate)
+        .neq("status", "draft")
+        .neq("status", "cancelled")
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to),
+    ),
+    readAllPages((from, to) =>
+      supabase
+        .from("shipment_logistics_tasks")
+        .select("id, shipment_id, assigned_to, status, scheduled_at")
+        .eq("organization_id", session.organizationId)
+        .eq("assigned_to", driverId)
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to),
+    ),
     listLogisticsVehiclesAction(),
   ]);
 
-  if (routesError) {
-    throw new Error(routesError.message);
-  }
-  if (tasksError) {
-    throw new Error(tasksError.message);
-  }
-
-  const routes = ((routeRows || []) as unknown as LogisticsRouteDbRow[]).map(mapRoute);
+  const routes = (routeRows as LogisticsRouteDbRow[]).map(mapRoute);
   const shipmentIds = new Set<string>();
 
-  for (const task of taskRows || []) {
+  for (const task of taskRows as Array<{ shipment_id: string | null; status: string; scheduled_at: string | null }>) {
+    if (!conductorDirectTaskMatchesScope({ status: task.status, scheduledAt: task.scheduled_at }, scopeDate)) {
+      continue;
+    }
     if (task.shipment_id) {
       shipmentIds.add(String(task.shipment_id));
     }

@@ -12,7 +12,7 @@ const mainClassName =
 const mainClassTokens = mainClassName.split(/\s+/);
 
 test("app shell lets mobile use document scroll", () => {
-  assert.equal(mainClassName, "flex min-h-dvh flex-col bg-surface-shell text-[#f8fafc] lg:h-dvh lg:overflow-hidden");
+  assert.equal(mainClassName, "app-shell-root flex min-h-dvh flex-col bg-surface-shell text-[#f8fafc] lg:h-dvh lg:overflow-hidden");
   assert.equal(mainClassTokens.includes("h-dvh"), false);
   assert.equal(mainClassTokens.includes("overflow-hidden"), false);
   assert.equal(mainClassTokens.includes("min-h-dvh"), true);

@@ -424,6 +424,7 @@ export function VentaOverlays({ controller }: { controller: VentaController; }) 
           sender={historyDrawer.sender}
           recipientId={historyDrawer.recipientId}
           recipientName={historyDrawer.recipientName}
+          initialTab={historyDrawer.initialTab}
           onClose={() => setHistoryDrawer(null)}
         />
       ) : null}

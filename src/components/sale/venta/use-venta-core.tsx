@@ -307,6 +307,7 @@ export function useVentaCore(initialData?: VentaBootstrapData) {
     sender: Sender | null;
     recipientId?: string;
     recipientName?: string;
+    initialTab?: "journal" | "shipments";
   } | null>(null);
   const [quickSaleSender, setQuickSaleSender] = useState<Sender | null>(null);
   const [quickSaleCountry, setQuickSaleCountry] = useState<string | null>(null);

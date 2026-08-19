@@ -46,6 +46,9 @@ import {
 } from "@/lib/inventory-structure-utils";
 import { type CategoryConfig, type InventoryTreeItem } from "@/lib/inventory-tree";
 import { ONBOARDING_TARGETS } from "@/lib/onboarding/coach-targets";
+
+const stockPresentation = (known: boolean, quantity: number) => [known ? String(quantity) : "—", known ? formatInventoryAvailableLabel(quantity) : "sin cargar"] as const;
+
 type InventoryItemCardProps = {
   item: InventoryTreeItem;
   selectedCategoryData: CategoryConfig;
@@ -94,14 +97,10 @@ function InventoryItemCard({
     item,
     selectedSubcategory?.name,
   );
-  const metrics = leafStockMetrics(
-    leafItems.length > 0
-      ? leafItems
-      : [stockItem],
-  );
+  const metrics = leafStockMetrics(leafItems.length > 0 ? leafItems : [stockItem]);
   const stockLevel = metrics.level;
   const stockQty = metrics.warehouse;
-  const stockUnitLabel = formatInventoryAvailableLabel(stockQty);
+  const [stockDisplay, stockUnitLabel] = stockPresentation(metrics.known, stockQty);
   const photoUrl = stockItem.photoUrl || leafItems.find((item) => item.photoUrl)?.photoUrl;
   return (
     <article
@@ -146,9 +145,9 @@ function InventoryItemCard({
           <div className="min-w-[5.75rem] rounded-xl border border-black/25 bg-black/15 px-2.5 py-1.5 text-center shadow-inner">
             <p
               className={`text-xl font-black leading-none tabular-nums ${stockValueToneClass[stockLevel]}`}
-              aria-label={`${stockQty} en stock`}
+              aria-label={metrics.known ? `${stockQty} en stock` : "Stock sin cargar"}
             >
-              {stockQty}
+              {stockDisplay}
             </p>
             <p className="mt-0.5 text-[9px] font-black uppercase tracking-[0.13em] text-slate-400">
               {stockUnitLabel}
@@ -248,7 +247,7 @@ function InventoryItemRow({
   const metrics = leafStockMetrics(leafItems.length > 0 ? leafItems : [stockItem]);
   const stockLevel = metrics.level;
   const stockQty = metrics.warehouse;
-  const stockUnitLabel = formatInventoryAvailableLabel(stockQty);
+  const [stockDisplay, stockUnitLabel] = stockPresentation(metrics.known, stockQty);
   return (
     <article
       data-inventory-item-id={item.id}
@@ -264,8 +263,9 @@ function InventoryItemRow({
       <div className="flex min-w-[3.25rem] shrink-0 flex-col items-center rounded-lg border border-black/25 bg-black/15 px-1.5 py-1 text-center">
         <p
           className={`text-base font-black leading-none tabular-nums sm:text-lg ${stockValueToneClass[stockLevel]}`}
+          aria-label={metrics.known ? `${stockQty} en stock` : "Stock sin cargar"}
         >
-          {stockQty}
+          {stockDisplay}
         </p>
         <p className="mt-0.5 text-[8px] font-black uppercase tracking-[0.12em] text-slate-400">
           {stockUnitLabel}

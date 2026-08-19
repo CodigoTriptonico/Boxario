@@ -827,6 +827,7 @@ export function LogisticsTaskScheduleConfirmPanel({
         onCustomerLocationSaved={setCoverageCustomerLocation}
         allowRouteViewSelection
         allowExactEntranceEditing={false}
+        selectedWeekday={pendingDayRouteMode ? null : (weekdayChosen ?? weekday)}
       />
     </>
   );

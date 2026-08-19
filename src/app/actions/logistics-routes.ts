@@ -39,8 +39,18 @@ export {
 } from "@/app/actions/logistics-geographic-route-actions";
 export {
   listLogisticsRoutesAction,
+  getLogisticsRouteDetailAction,
+  listAllLogisticsRoutesAction,
   listLogisticsTaskAddressesAction,
 } from "@/app/actions/logistics-routes-read";
+export {
+  listLogisticsRouteWorkspacePageAction,
+  listLogisticsTaskBoardPageAction,
+  type LogisticsRouteWorkspaceListItem,
+  type LogisticsTaskBoardListItem,
+  type OperationalCursor,
+  type OperationalPage,
+} from "@/app/actions/logistics-operational-read";
 export {
   addLogisticsRouteStopAction,
   assignLogisticsTaskToRouteFromPickerAction,

@@ -19,7 +19,7 @@ test("la dirección de recolección separa verificación del cliente y consulta 
   assert.match(button, /Ver rutas y coberturas/);
   assert.match(button, /addressReference/);
   assert.match(button, /exactEntranceNote/);
-  assert.match(form, /showOperationalNotes=\{false\}/);
+  assert.match(form, /showOperationalNotes=\{true\}/);
   assert.match(exactEntrance, /showOperationalNotes = true/);
   assert.match(dialog, /aria-label="Referencias e instrucciones"/);
   assert.match(dialog, /Nota para el conductor/);

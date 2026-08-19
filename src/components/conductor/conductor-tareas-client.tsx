@@ -20,6 +20,7 @@ import { ConductorTaskResultDialog } from "@/components/conductor/conductor-task
 import { ConductorTareasToolbar } from "@/components/conductor/conductor-tareas-toolbar";
 import { ConductorTruckInventoryClient } from "@/components/conductor/conductor-truck-inventory-client";
 import { useConductorOfflineSync } from "@/components/conductor/use-conductor-offline-sync";
+import { ConductorTaskPageControl, useConductorTaskPages } from "@/components/conductor/use-conductor-task-pages";
 import { InlineSearchPicker } from "@/components/inline-search-picker";
 import {
   cardClass,
@@ -63,8 +64,10 @@ type ConductorTareasClientProps = {
   userId: string;
   initialTasks?: ConductorDriverTask[];
   initialCompletedTasks?: ConductorDriverTask[];
+  initialTasksCursor?: { sortAt: string; id: string } | null; initialCompletedTasksCursor?: { sortAt: string; id: string } | null; scopeDate: string;
   initialTruckView?: ConductorTruckInventoryView | null;
   initialTruckError?: string;
+  initialReadError?: string;
   initialWorkspaceView?: string;
   initialRouteArrival?: ConductorRouteArrivalWorkspace;
   agencyModuleEnabled?: boolean;
@@ -88,8 +91,10 @@ export function ConductorTareasClient({
   userId,
   initialTasks = [],
   initialCompletedTasks = [],
+  initialTasksCursor = null, initialCompletedTasksCursor = null, scopeDate,
   initialTruckView = null,
   initialTruckError = "",
+  initialReadError = "",
   initialWorkspaceView = "",
   initialRouteArrival = { routes: [], warehouses: [] },
   agencyModuleEnabled = false,
@@ -113,7 +118,10 @@ export function ConductorTareasClient({
   const [listMode, setListMode] = useState<TaskListMode>("pending");
   const [operationScope, setOperationScope] = useState<"domicilios" | "agencias">("domicilios");
   const [doneTaskIds, setDoneTaskIds] = useState<string[]>([]);
-  const [completedTasks, setCompletedTasks] = useState<ConductorDriverTask[]>(initialCompletedTasks);
+  const { tasks, completedTasks, setCompletedTasks, cursor: taskCursor, pageLoading, pageError, loadNext } = useConductorTaskPages({
+    driverId: effectiveDriverId, scopeDate, initialTasks, initialCompletedTasks,
+    initialTasksCursor, initialCompletedCursor: initialCompletedTasksCursor,
+  });
   const [dialog, setDialog] = useState<TaskDialogState | null>(null);
   const [saving, setSaving] = useState(false);
   const [failureReason, setFailureReason] = useState<string>(CONDUCTOR_TASK_FAILURE_REASONS[0]);
@@ -150,8 +158,8 @@ export function ConductorTareasClient({
   const selectedRouteId = truckView?.selectedRouteId ?? null;
   const selectedRoute = truckView?.routes.find((route) => route.id === selectedRouteId) || null;
   const routeOpenTasks = useMemo(
-    () => initialTasks.filter((task) => !selectedRouteId || task.routeId === selectedRouteId),
-    [initialTasks, selectedRouteId],
+    () => tasks.filter((task) => !selectedRouteId || task.routeId === selectedRouteId),
+    [tasks, selectedRouteId],
   );
   const routeCompletedTasks = useMemo(
     () => completedTasks.filter((task) => !selectedRouteId || task.routeId === selectedRouteId),
@@ -176,17 +184,7 @@ export function ConductorTareasClient({
     [activeTasks, taskFilter],
   );
 
-  function handleListModeChange(next: TaskListMode) {
-    if (next === listMode) {
-      return;
-    }
 
-    setListMode(next);
-  }
-
-  function handleTaskFilterChange(nextFilter: LogisticsTaskType) {
-    setTaskFilter(nextFilter);
-  }
   const completedCount = completedSummary.deliverCount + completedSummary.pickupCount;
   const pendingCount = pendingSummary.deliverCount + pendingSummary.pickupCount;
   const selectedPendingTasks = useMemo(
@@ -219,7 +217,7 @@ export function ConductorTareasClient({
       const merged = [...localTasks, ...initialCompletedTasks];
       setCompletedTasks(merged.filter((task, index) => merged.findIndex((entry) => entry.id === task.id) === index));
     });
-  }, [initialCompletedTasks, offlineSnapshot.operations]);
+  }, [initialCompletedTasks, offlineSnapshot.operations, setCompletedTasks]);
 
   const paymentExpectedAmount = dialog
     ? conductorExpectedDepositCollection({
@@ -472,6 +470,14 @@ export function ConductorTareasClient({
       className="lg:flex lg:min-h-0 lg:flex-1 lg:flex-col lg:overflow-hidden"
       contentClassName="flex flex-col p-0 lg:min-h-0 lg:flex-1"
     >
+      {initialReadError ? (
+        <div role="alert" className="mx-3 mt-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-800/70 bg-rose-950/35 px-3 py-2 text-sm font-bold text-rose-100 sm:mx-4">
+          <span>No se pudo cargar la jornada: {initialReadError}</span>
+          <button type="button" className={`${secondaryButtonClass} h-8 border-rose-700/70 px-2.5 text-xs text-rose-100`} onClick={() => router.refresh()}>
+            Reintentar
+          </button>
+        </div>
+      ) : null}
         <section className="border-b border-app-border-divider p-4 sm:p-5">
           <div className="grid gap-3 xl:grid-cols-[minmax(28rem,1fr)_auto] xl:items-stretch">
             <div className="grid min-w-0 gap-2 sm:grid-cols-2">
@@ -526,16 +532,16 @@ export function ConductorTareasClient({
             </div>
             </div>
 
-            <div className="grid min-h-12 grid-cols-3 overflow-hidden rounded-lg border border-app-border-control bg-surface-card">
-              <span className="flex min-w-[6.5rem] flex-col justify-center px-3 text-[10px] font-black uppercase tracking-wide text-app-text-secondary">
+            <div className="grid min-h-12 grid-cols-1 overflow-hidden rounded-lg border border-app-border-control bg-surface-card sm:grid-cols-3">
+              <span className="flex min-w-0 flex-col justify-center px-3 py-2 text-[10px] font-black uppercase tracking-wide text-app-text-secondary">
                 <strong className="text-xl leading-none tabular-nums text-app-text-primary">{selectedRoute?.stopCount ?? routeTaskTotal}</strong>
                 paradas
               </span>
-              <span className="flex min-w-[6.5rem] flex-col justify-center border-l border-app-border-divider bg-emerald-950/25 px-3 text-[10px] font-black uppercase tracking-wide text-emerald-200">
+              <span className="flex min-w-0 flex-col justify-center border-t border-app-border-divider bg-emerald-950/25 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-emerald-200 sm:border-l sm:border-t-0">
                 <strong className="text-xl leading-none tabular-nums">{routeDeliveries}</strong>
                 entregas
               </span>
-              <span className="flex min-w-[6.5rem] flex-col justify-center border-l border-app-border-divider bg-amber-950/25 px-3 text-[10px] font-black uppercase tracking-wide text-amber-200">
+              <span className="flex min-w-0 flex-col justify-center border-t border-app-border-divider bg-amber-950/25 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-amber-200 sm:border-l sm:border-t-0">
                 <strong className="text-xl leading-none tabular-nums">{routePickups}</strong>
                 recogidas
               </span>
@@ -663,10 +669,10 @@ export function ConductorTareasClient({
           onOperationScopeChange={setOperationScope}
           agencyModuleEnabled={agencyModuleEnabled}
           taskFilter={taskFilter}
-          onTaskFilterChange={handleTaskFilterChange}
+          onTaskFilterChange={setTaskFilter}
           pendingSummary={pendingSummary}
           listMode={listMode}
-          onListModeChange={handleListModeChange}
+          onListModeChange={setListMode}
           pendingCount={pendingCount}
           completedCount={completedCount}
           offlineSnapshot={offlineSnapshot}
@@ -761,6 +767,7 @@ export function ConductorTareasClient({
             </div>
           </div>
         )}
+        <ConductorTaskPageControl cursor={taskCursor(listMode === "completed" ? "closed" : "open")} loading={pageLoading} error={pageError} onLoad={() => void loadNext(listMode === "completed" ? "closed" : "open")} />
         </> : (
           <ConductorTruckInventoryClient
             canPreview={canPreview}

@@ -1,7 +1,9 @@
 export {
   listConductorClosedDriverTasksAction,
   listConductorDriverTasksAction,
+  listConductorOperationalTaskPageAction,
 } from "@/app/actions/conductor-tasks-read";
+export { listConductorDriverTaskPageAction } from "@/app/actions/conductor-operational-page";
 export {
   completeConductorRouteArrivalAction,
   getConductorRouteArrivalWorkspaceAction,

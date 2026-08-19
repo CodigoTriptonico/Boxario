@@ -1,5 +1,625 @@
 # Guía de estilo e interacción de Boxario
 
+### 2026-08-19 — Separación del borde en superficies de logística
+
+**Contexto:** Conductores y Calendario y rutas mostraban sus líneas y paneles pegados al borde derecho de la ventana.
+
+**Decisión:** Las vistas de logística con contenido a borde completo conservan una separación exterior simétrica (`p-3`, `sm:p-4`) para que los bordes de sus superficies no lleguen al límite de la página.
+
+**Resultado:** Conductores, Calendario y rutas, subrutas y las demás vistas de logística mantienen un margen visible y consistente alrededor de la superficie principal.
+
+### 2026-08-19 — Carga de logística con geometría estable
+
+**Contexto:** Al entrar a Calendario y rutas se mostraba primero una barra y un bloque genéricos; al terminar la carga aparecía la estructura real de navegación y master-detail, provocando un salto visual.
+
+**Decisión:** El estado de carga de las rutas de logística debe conservar la misma geometría principal de la vista final: barra superior, panel maestro y panel de detalle.
+
+**Resultado:** La pantalla mantiene su estructura y proporciones durante la carga, reduciendo el cambio visible entre el primer render y el contenido listo.
+
+**Implementación conservada:** Las rutas de logística usan loaders propios por segmento y el catálogo de rutas usa un placeholder master-detail, evitando volver al cargador genérico de página durante consultas internas.
+
+**Ajuste fino:** El placeholder interno del catálogo no debe repetir el margen superior del contenedor de Configuración; ambos estados deben iniciar el master-detail en la misma coordenada vertical.
+
+### 2026-08-18 — Preferencia UI: formulario vacío de Inventario como un solo control
+
+**No repetir:** mostrar un doble rectángulo de foco dentro del campo `Nueva categoría` cuando está activo.
+
+**Motivo:** el foco del input y el del contenedor se superponían y hacían que el formulario se viera roto o desalineado.
+
+**Preferir:** tratar el shell y el input como una sola superficie, con un único borde de foco y botones de confirmar/cancelar alineados.
+
+### 2026-08-18 — Preferencia UI: botón de Bitácora solo con icono
+
+**No repetir:** mostrar el texto `Bitácora` junto al icono en el botón compacto de acceso.
+
+**Motivo:** el usuario pidió eliminar el texto para reducir el botón y dejar la acción visualmente más limpia.
+
+**Preferir:** mostrar únicamente el icono de libreta, manteniendo `title` y `aria-label` para identificación y accesibilidad.
+
+### 2026-08-18 — Preferencia UI: icono de libreta para Bitácora
+
+**No repetir:** usar un icono de conversación o globo de mensaje en el botón `Bitácora`.
+
+**Motivo:** la Bitácora representa un registro histórico consultable, no una conversación.
+
+**Preferir:** usar el icono de libreta `BookOpen` junto al texto `Bitácora`, conservando la acción y el estilo del botón.
+
+### 2026-08-18 — Preferencia UI: Bloc de notas de accesos limpio con hojas individuales sin botón de bitácora en la cabecera
+
+**No repetir:** incluir un conmutador o botón de pestaña `Bitácora` en la cabecera del bloc de notas ("pero la bitacora no deberia salir ahi no? ese boton de bitacora quitalo").
+
+**Motivo:** la cabecera del bloc de notas debe ser limpia y directa para escribir y leer notas sin botones redundantes de bitácora que saturen el encabezado. La trazabilidad y autoría (`👤 Creado por: {autor} · {fecha} · {hora}`) viven directamente en el pie de cada hojita de nota.
+
+**Preferir:** un **Bloc de notas de accesos** limpio y directo:
+1. **Cabecera despejada:** icono, título `Bloc de notas` y botón cerrar `[ ✕ ]`.
+2. **Hojas de notas por pin:** selector superior de hojas por cada pin colocado (`[🚪 Entrada]` `[🚗 Garaje]` `[🚧 Portón 📄]`).
+3. **Hojita cerrada / modo lectura:** tarjeta con texto de la nota, firma de autoría (`👤 Creado por: {autor} · {fecha} · {hora}`) y última modificación (`✏️ Editado por`), más botones `Editar hoja` y `Borrar nota`.
+4. **Modo edición:** textarea multilínea con teclado virtual y botones `Guardar en hoja` y `Cancelar`.
+
+### 2026-08-18 — Preferencia UI: barra unificada de pines en un solo renglón en mapa de accesos
+
+**No repetir:** fragmentar la información y acciones de pines en 4 renglones apilados, o imprimir el texto completo de una nota dentro de la etiqueta del botón en la barra (lo que provocaría ensanchamiento desproporcionado o cortes truncados con puntos suspensivos cuando la nota es larga).
+
+**Motivo:** el usuario rechazó la dispersión en múltiples renglones y observó que las notas largas o múltiples quedarían mal en la barra ("¿qué pasa acá si tenemos más de una nota o la nota es muy larga? Va a quedar mal en el cartel, ¿no?").
+
+**Preferir:** una sola barra horizontal unificada y compacta (`h-11`) que integra:
+1. **Grupo izquierdo:** botón desplegable `+ Agregar pin` con símbolo más visible ubicado a la izquierda, y pills interactivos para cada pin (activo y colocados, con icono, color, check de guardado y badge `📄` si tiene nota), sin etiquetas redundantes como "PUNTOS".
+2. **Divisor sutil y grupo derecho:** campo inline para personalización (si es tipo Otro), botón de etiqueta estable `Libreta de notas` / `Notas ({count})` (con tooltip de vista previa) que abre el **Bloc de notas de accesos**, y botón `Quitar pin` cuando el pin está ubicado.
+
+### 2026-08-18 — Preferencia UI: selector de puntos compacto en el mapa de entrada
+
+**No repetir:** separar `Puntos` y el punto de acceso activo en extremos opuestos de una barra ancha, dejando espacio vacío innecesario.
+
+**Motivo:** en Nueva venta el selector se percibe sobredimensionado y dificulta leer la relación entre la etiqueta `Puntos` y el estado activo.
+
+**Preferir:** una barra de altura y relleno reducidos, con `Puntos`, el punto activo y el indicador de expansión agrupados al inicio; el mapa conserva el espacio restante.
+
+**Regla adicional:** al desplegar la lista, no repetir como opción el punto que ya aparece como activo en la barra; mostrar únicamente los puntos alternativos.
+
+**Flujo de pines:** el desplegable lista únicamente los pines ya colocados. Los tipos sin pin permanecen ocultos hasta pulsar `Agregar pin nuevo`, que abre las opciones disponibles para seleccionar una antes de colocarla en el mapa.
+
+### 2026-08-18 — Preferencia UI: Tarjetas de bitácora enriquecidas con día, fecha, hora y autor ("Creado por")
+
+**No repetir:** mostrar entradas de bitácora o eventos de actividad reducidos únicamente a una hora aislada (e.g. `05:20 PM`) sin día, fecha ni autoría clara de quién realizó la acción.
+
+**Motivo:** el usuario solicitó una bitácora completa y profesional ("que me diga fechas dias horas quien lo creo. me entiendes una bitacora mela completa con todo") para disponer de trazabilidad operativa y auditoría clara de cada movimiento.
+
+**Preferir:** tarjetas estructuradas donde cada entrada presente:
+1. **Día, fecha y hora:** badge destacado con día de la semana (e.g. `Martes`), fecha formateada (`18 ago 2026`) y hora (`05:20 PM`), además de tooltip o pie con fecha completa.
+2. **Autoría visible:** bloque `👤 Creado por: {actorName}` con icono y diferenciación entre operador y sistema automático.
+3. **Categoría e icono contextual:** iconos y badges temáticos acordes a la acción (`Registro de Cliente`, `Modificación de Datos`, `Ubicación Exacta`, `Envío & Logística`, `Cobro & Factura`, `Llamada`, `WhatsApp`, etc.).
+4. **Contenido estructurado:** datos como teléfonos y direcciones con iconos legibles y chips interactivos.
+
+### 2026-08-18 — Preferencia UI: Bitácora y libreta de envíos en ventana modal centrada (no panel lateral/drawer)
+
+**No repetir:** presentar la bitácora y la libreta de envíos del cliente como un panel lateral / drawer deslizante anclado al borde derecho de la pantalla (`aside` lateral).
+
+**Motivo:** el usuario rechazó el formato de panel lateral ("la bitacoria deberia ser una ventana no esto cambialo pls"), prefiriendo una ventana modal emergente centrada en pantalla con espacio visual amplio.
+
+**Preferir:** mostrar la libreta de envíos y bitácora unificadas con pestañas dentro de una ventana modal centrada (`app-modal-overlay` / `app-modal-content` con `max-w-4xl`), conservando las pestañas directas `💬 Bitácora` (línea de tiempo, notas, llamadas, recordatorios y filtros) y `📦 Libreta de envíos` (listado histórico de envíos, detalle de expedientes y cobros). El botón `Bitácora` de las tarjetas y filas de cliente abre directamente la pestaña de Bitácora, mientras que el acceso de `Último envío` / historial abre la pestaña de Libreta de envíos, permitiendo alternar entre ambas con una sola pestaña sin modales anidados.
+
+### 2026-08-17 — Preferencia UI: controles de mapa legibles en celular
+
+**Contexto:** en la vista móvil del mapa de accesos, los botones, tags y textos se percibían demasiado pequeños y difíciles de tocar.
+
+**Decisión:** usar en móvil botones de al menos 40 px, texto `sm` y mayor separación para tags, controles de vista, notas y acciones del pie; conservar la densidad compacta actual desde `sm` en adelante.
+
+**Resultado:** la interfaz móvil prioriza legibilidad y objetivos táctiles claros sin ampliar innecesariamente la vista de escritorio.
+
+### 2026-08-17 — Bitácora: conservar los datos del cliente cuando no hay envíos
+
+**Contexto:** la Libreta de envíos mostraba únicamente `Sin envíos registrados` cuando un cliente todavía no tenía envíos, ocultando una dirección y un teléfono que sí estaban disponibles.
+
+**Decisión:** la cabecera de la bitácora debe mostrar el teléfono, la dirección completa y la referencia del cliente cuando existan, incluso si la línea de tiempo no contiene envíos.
+
+**Resultado:** el operador puede consultar y verificar los datos del cliente desde la bitácora antes de registrar el primer envío.
+
+### 2026-08-17 — Preferencia UI: Ancho acotado y centrado en listas de personas (evitar filas excesivamente largas con vacíos)
+
+**No repetir:** dejar que las listas y filas de clientes se estiren sin límite a todo el ancho de pantallas panorámicas (1600px–1920px), provocando una brecha vacía gigantesca entre los datos de dirección y los botones de acción en el extremo derecho.
+
+**Motivo:** en pantallas medianas y grandes, el contenido de identidad y dirección ocupa una fracción del ancho disponible, haciendo que la fila se sienta desproporcionadamente larga, desconectada y con espacio sobrante excesivo.
+
+**Preferir:** acotar el contenedor de listas de personas a un ancho máximo profesional y centrado (`max-w-5xl mx-auto`), logrando que la barra de búsqueda, las filas y las tarjetas mantengan una cercanía visual armoniosa, legible y sin vacíos desiertos.
+
+### 2026-08-17 — Preferencia UI: Tarjetas de personas compactas con grilla acotada (sin estiramiento horizontal desproporcionado)
+
+**No repetir:** expandir tarjetas individuales de clientes a todo el ancho de la pantalla (`1fr` / `auto-fit` ilimitado) ni apilar los datos en un solo tótem vertical largo y centrado con enormes vacíos a los lados.
+
+**Motivo:** cuando hay un solo cliente o pocos resultados, la tarjeta se estiraba desproporcionadamente a 1400px+ de ancho, dejando un enorme espacio vacío desperdiciado y elementos desarticulados.
+
+**Preferir:** una grilla con `auto-fill` y ancho máximo acotado (`grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),22rem))] justify-start`), combinada con un diseño de tarjeta compacto (`max-w-sm`), estructurado en cabecera (avatar, identidad y acción rápida), cuerpo (dirección legible con botón de mapa) y pie (bitácora y badges de estado), asegurando que cada tarjeta mantenga proporciones elegantes sin importar el ancho del monitor.
+
+### 2026-08-17 — Preferencia UI: Filas de clientes limpias con avatar único a la izquierda y acciones agrupadas a la derecha
+
+**No repetir:** apilar verticalmente el botón de venta rápida debajo del icono de avatar en la columna izquierda en modo lista, ni utilizar paletas con fondos marrones y contrastes amarillos estridentes como aspecto predeterminado de clientes.
+
+**Motivo:** el usuario expresó rechazo al diseño ("se ve feo") debido a que la columna izquierda se sentía saturada y tosca con un doble bloque vertical apretado, los tonos ocres/marrones desentonaban con el tema esmeralda de la plataforma y las acciones quedaban desarticuladas entre los extremos de la fila.
+
+**Preferir:** una fila elegante y compacta donde la columna izquierda contenga exclusivamente el avatar del cliente centrado verticalmente; la sección central presente con claridad identidad (nombre con bandera y teléfono) y dirección (con botón interactivo de mapa); y el extremo derecho agrupe ordenadamente los controles de acción (`Bitácora`, `Rápido`) y badges de estado (`Sin dest.`) con alturas consistentes (`h-8`), bordes redondeados sobrios y paleta predeterminada esmeralda armónica.
+
+### 2026-08-17 — Preferencia UI: Distribución balanceada y visualmente integrada de filas de remitentes y destinatarios en modo lista
+
+**No repetir:** amontonar todos los datos (nombre, teléfono y múltiples líneas de dirección) en una sola columna estrecha a la izquierda dejando un enorme vacío horizontal en el medio de la fila y los botones de acción aislados en el extremo derecho.
+
+**Motivo:** la información se percibe desarticulada, muy separada y con espacio desperdiciado en pantallas medianas y grandes, además de forzar una altura vertical excesiva e incómoda.
+
+**Preferir:** una estructura balanceada y armoniosa con alineación vertical centrada (`items-center`), avatar y acción rápida proporcionales en la primera columna, sección central responsiva dividida en identidad/contacto (nombre con bandera y teléfono) y bloque de dirección (botón de mapa interactivo con líneas de calle y ciudad organizadas y separador sutil en pantallas de escritorio), y grupo de acciones (Bitácora, badges de estado) alineado a la derecha.
+
+### 2026-08-17 — Preferencia UI: Botón de acceso visible a la Bitácora en tarjetas y filas de clientes
+
+**No repetir:** ocultar el acceso al historial y bitácora del cliente exclusivamente detrás del menú contextual de clic derecho.
+
+**Motivo:** dificulta descubrir la función y obliga a pasos adicionales innecesarios para consultar o anotar seguimiento de un cliente.
+
+**Preferir:** mostrar un botón directo y visible con icono `💬 Bitácora` en las filas y tarjetas de remitentes y destinatarios (junto a los badges de estado o acciones rápidas), permitiendo abrir la bitácora integral con un solo clic.
+
+### 2026-08-17 — Preferencia UI: Bitácora integral organizada por cliente con tarjetas enriquecidas de envíos y direcciones
+
+**No repetir:** mostrar bitácoras aisladas por cada invoice que no permitan ver los demás envíos ni el historial general del cliente.
+
+**Motivo:** obligaba a abrir y cerrar múltiples ventanas para reconstruir la historia de un cliente recurrente, perdiendo el hilo de acuerdos y cambios de dirección previos.
+
+**Preferir:** presentar la **Bitácora del Cliente** (`CustomerJournalDialog`) con cabecera de datos de contacto, filtros temáticos rápidos (*Todo*, *Envíos & Direcciones*, *Seguimiento & Llamadas*, *Recordatorios*, *Cambios*), tarjetas de envíos con desglose de direcciones de recolección y entrega, y formulario ágil para registrar llamadas y acuerdos con opción de asociar o no a un envío específico.
+
+### 2026-08-17 — Preferencia UI: botón de confirmación en el mapa denominado "Guardar pin"
+
+**No repetir:** usar el texto `Confirmar ubicación` en el botón principal del mapa de accesos.
+
+**Motivo:** la función operativa de esta pantalla es ubicar y guardar pines de acceso específicos (garaje, entrada, portón, etc.) y no modificar ni confirmar la ubicación postal.
+
+**Preferir:** rotular la acción como `Guardar pin` (o `Guardar pines` si hay varios), reflejando con exactitud que el operador está guardando los pines colocados en el mapa.
+
+### 2026-08-17 — Preferencia UI: icono de teclado virtual incrustado exclusivamente dentro de las cajas de texto con efecto luminoso
+
+**No repetir:** mostrar botones de teclado virtual flotantes o permanentes en la cabecera superior de la ventana cuando no hay campos de texto activos.
+
+**Motivo:** agrega elementos innecesarios a la barra superior y distrae cuando el usuario solo está observando el mapa o seleccionando pines.
+
+**Preferir:** ubicar el icono de teclado `⌨️` directamente dentro del borde derecho de la caja de texto activa (notas o nombre de punto personalizado) con un resplandor luminoso esmeralda/turquesa (`glow` / `pulse`), indicando de forma clara e intuitiva la disponibilidad del teclado en pantalla únicamente cuando se va a escribir.
+
+### 2026-08-17 — Preferencia UI: icono/botón desplegable de notas debajo del tag activo en lugar de campo inferior permanente
+
+**No repetir:** mostrar un campo de texto fijo permanente en la parte inferior de la ventana del mapa que ocupe espacio vertical constante.
+
+**Motivo:** saturaba la pantalla del mapa y ocupaba área visual útil aunque el usuario no quisiera escribir una nota.
+
+**Preferir:** mostrar un botón/icono de nota contextual (`📝 Agregar nota` / `📝 Nota: "..."`) debajo del botón del tag activo que despliega el campo de texto únicamente al hacer clic en él, manteniendo el mapa limpio y despejado.
+
+### 2026-08-17 — Preferencia UI: sin títulos redundantes ni etiquetas de entidad en cabecera de mapa
+
+**No repetir:** mostrar encabezados textuales como `UBICAR PUNTO DE ACCESO · ESTE REMITENTE` y badges de país en la barra superior del modal de mapa.
+
+**Motivo:** agrega ruido visual innecesario, ocupa espacio vertical y repite jerarquías obvias.
+
+**Preferir:** cabecera minimalista mostrando únicamente la dirección legible del contacto junto a los controles de vista (*Satélite* / *Mapa*) y botón de cierre.
+
+### 2026-08-17 — Preferencia UI: mapa enfocado con tags de acceso sin formulario de dirección
+
+**No repetir:** mostrar campos de desglose de dirección (`Calle y número`, `Unidad/Apto`, `Colonia`, `Ciudad`, `Estado`, `C.P.`) o teclado virtual ocupando la parte superior del visor de mapa de entrada exacta.
+
+**Motivo:** saturaba la pantalla emergente, reducía el espacio visual del mapa satelital y generaba confusión al mutar o mezclar la dirección postal con la ubicación de puntos de acceso operativos.
+
+**Preferir:** mapa satelital maximizado y limpio, con chips o tags rápidos de puntos de acceso (*Entrada principal*, *Garaje*, *Portón*, *Recepción*, *Muelle*, *Puerta trasera*, *Otro*), arrastre directo del pin o clic en el mapa, y nota operativa opcional.
+
+### 2026-08-17 — Preferencia UI: rediseño amigable del formulario y mapa de entrada exacta *(reemplazada)*
+
+**No repetir:** mostrar campos de dirección con bordes y textos rojos predeterminados como si fueran errores cuando están vacíos, ni usar una barra de búsqueda ficticia desconectada de los campos.
+
+**Motivo:** saturaba visualmente la pantalla con advertencias innecesarias, ocupaba demasiado espacio vertical y dificultaba buscar una dirección de forma fluida.
+
+**Preferir:** barra de búsqueda interactiva directa con autocompletado flotante de Google Places, desglose de campos compacto con tonos neutros oscuros y foco esmeralda, y teclado en pantalla integrado con la búsqueda y los campos.
+
+### 2026-08-17 — Preferencia UI: eliminación definitiva de Street View y monigote
+
+**No repetir:** incluir Street View, visor de primera persona, monigote de arrastre o capas de cobertura en el mapa de ubicación de entrada exacta.
+
+**Motivo:** el usuario determinó que no funciona satisfactoriamente para la operativa y solicitó eliminar la vista desde abajo, el monigote y todo lo relacionado.
+
+**Preferir:** conservar exclusivamente las vistas `Mapa` y `Satélite`, con el pin rojo arrastrable directo, geocodificación inversa y notas del conductor.
+
+### 2026-08-17 — Preferencia UI: cobertura de Street View en lugar de velo amarillo *(reemplazada)*
+
+**No repetir:** iluminar todo el mapa con un velo o recuadro amarillo/ámbar (`bg-amber-300/10` y borde punteado) al arrastrar el monigote de Street View.
+
+**Motivo:** alumbra y opaca el mapa, impidiendo al usuario ver claramente las calles reales y distinguir qué zonas tienen cobertura para soltar el monigote y cuáles no.
+
+**Preferir:** activar la capa nativa de líneas de cobertura (`StreetViewCoverageLayer` de Google Maps) en color azul sobre las calles transitables sin velos superpuestos, manteniendo el mapa nítido y visible en todo momento.
+
+### 2026-08-17 — Preferencia UI: monigote activado por arrastre
+
+**Contexto:** Google Maps no abre Street View al pulsar el monigote; se debe soltar sobre una zona con cobertura.
+
+**Decisión:** el icono del monigote en la barra de vistas será arrastrable y no abrirá una ubicación aproximada con un clic. Durante el arrastre, el mapa indica la zona de soltado y valida la cobertura al recibirlo.
+
+**Resultado:** la vista se abre únicamente en el punto elegido por el usuario y no salta a otra calle al pulsar accidentalmente.
+
+### 2026-08-17 — Preferencia UI: Street View en la barra de vistas *(reemplazada)*
+
+**Contexto:** el monigote nativo de Google aparecía dentro del mapa y no quedaba junto a `Mapa` y `Satélite`.
+
+**Decisión:** ocultar el control nativo dentro del mapa y mostrar un único botón compacto con el icono del monigote junto a `Mapa` y `Satélite`. El botón no lleva texto y cambia de estado al abrir la primera persona.
+
+**Resultado:** las tres vistas quedan agrupadas en una sola fila, sin iconos duplicados ni controles ocultos detrás del mapa.
+
+### 2026-08-17 — Preferencia UI: no duplicar el control de Street View *(reemplazada)*
+
+**No repetir:** colocar un botón textual `Primera persona` encima del monigote nativo de Google Maps.
+
+**Motivo:** el botón tapa el control real, crea dos acciones para la misma función y hace que el icono parezca quedar detrás.
+
+**Preferir:** dejar únicamente el monigote nativo de Google Maps, con una zona interactiva reforzada, sin texto superpuesto y ubicado en la parte superior izquierda del mapa.
+
+### 2026-08-17 — Preferencia UI: visor dedicado para primera persona *(reemplazada)*
+
+**Contexto:** el botón de respaldo quedaba enfocado, pero el mapa no cambiaba visualmente al pulsarlo.
+
+**Decisión:** `Primera persona` debe abrir un visor de Street View dedicado encima del mapa usando la panorámica encontrada. Mientras está abierto, la acción se convierte en `Cerrar vista` y permanece visible sobre el visor.
+
+**Resultado:** el usuario recibe un cambio de vista evidente al pulsar la acción, sin depender de que el mapa base cambie internamente de modo.
+
+### 2026-08-17 — Preferencia UI: acceso directo a primera persona *(reemplazada)*
+
+**Contexto:** el monigote de Google puede verse dentro de la ventana flotante, pero su zona de arrastre no siempre responde en todos los tamaños de la ventana.
+
+**Decisión:** conservar el control nativo de Street View y añadir junto al mapa una acción visible `Primera persona` que busque la panorámica exterior más cercana al pin actual antes de abrirla. La acción cambia a `Cerrar vista` mientras la panorámica está abierta.
+
+**Resultado:** la vista a nivel de calle sigue disponible con el patrón de Google, pero también tiene un acceso claro y clicable cuando el control nativo no recibe el gesto.
+
+### 2026-08-17 — Preferencia UI: Street View disponible desde el mapa de entrada
+
+**Contexto:** el usuario necesita comprobar visualmente la entrada en primera persona antes de confirmar el pin.
+
+**Decisión:** habilitar el monigote nativo de Google Maps para arrastrarlo sobre las calles con cobertura y entrar a Street View. Esta decisión reemplaza la preferencia anterior que ocultaba la vista a nivel de calle.
+
+**Resultado:** la vista conserva `Mapa` y `Satélite` como controles principales y añade Street View como consulta contextual, sin convertirlo en una pestaña adicional.
+
+### 2026-08-17 — Preferencia UI: no mostrar carga textual al mover el pin
+
+**No repetir:** mostrar `Ubicando dirección…` como una línea adicional mientras el mapa resuelve un punto.
+
+**Motivo:** agrega ruido visual en una ventana ya densa y desplaza el contenido sin aportar una acción.
+
+**Preferir:** mantener la carga de forma interna y mostrar únicamente el resultado final o un error recuperable.
+
+### 2026-08-17 — Preferencia UI: títulos descriptivos para direcciones
+
+**No repetir:** usar títulos operativos como `Dónde recoger` o `Dónde entregar` en formularios de persona.
+
+**Motivo:** describen la acción logística, pero no identifican claramente que la sección contiene los datos de una dirección.
+
+**Preferir:** `Dirección del cliente` para remitentes y `Dirección del destinatario` para destinatarios.
+
+### 2026-08-17 — Preferencia UI: una sola señal de validación de dirección
+
+**No repetir:** mostrar `Verificada` en la cabecera y volver a mostrar `Verificada con Google` dentro del formulario.
+
+**Motivo:** dos estados para la misma validación generan ruido y hacen parecer que son controles distintos.
+
+**Preferir:** conservar un único panel contextual dentro de la sección de dirección, donde el estado y el mensaje de Google aparecen juntos.
+
+### 2026-08-17 — Preferencia UI: mapa navegable sin instrucción Ctrl
+
+**No repetir:** mostrar el mapa con una capa que indique mantener Ctrl para acercar o alejar.
+
+**Motivo:** hace parecer que el mapa está bloqueado y agrega una regla innecesaria para una acción habitual.
+
+**Preferir:** controles visibles de zoom, rueda y arrastre directos, además de botones de vista `Mapa` y `Satélite` que reflejen inmediatamente el cambio.
+
+### 2026-08-17 — Preferencia UI: coincidencias de dirección con apartamento visible
+
+**Contexto:** Google devuelve la dirección base, pero el apartamento o suite se captura en un campo separado y desaparecía visualmente de la coincidencia.
+
+**Decisión:** mostrar el número de unidad escrito junto a la dirección principal, con formato `Dirección · Apto 511`.
+
+**Resultado:** la persona puede verificar la dirección completa antes de elegir una coincidencia.
+
+### 2026-08-17 — Preferencia UI: agregar contactos desde cada sección
+
+**Contexto:** las acciones con texto `Agregar correo` y `Agregar teléfono` ocupaban una fila general y separaban la acción del campo que modifican.
+
+**Decisión:** colocar un botón `+` compacto junto al título de `Correos` y `Teléfonos`, con `title` y etiqueta accesible que indiquen su función.
+
+**Resultado:** cada acción queda ubicada donde el usuario espera agregar el dato, sin una barra adicional de contacto.
+
+### 2026-08-17 — Preferencia UI: acciones explícitas para agregar contacto
+
+**No repetir:** usar un botón aislado con solo `+` para agregar correo o teléfono.
+
+**Motivo:** el usuario no puede saber qué tipo de contacto agregará el control sin abrirlo o adivinar su función.
+
+**Preferir:** mostrar acciones visibles y nombradas como `Agregar correo` y `Agregar teléfono`, con iconos de apoyo.
+
+### 2026-08-17 — Preferencia UI: no mostrar estado inicial redundante de Google
+
+**No repetir:** mostrar `Buscar y validar en Google` como una pastilla permanente cuando la dirección todavía está vacía.
+
+**Motivo:** el texto repite la función del formulario y ocupa espacio en la cabecera antes de que exista un estado que comunicar.
+
+**Preferir:** ocultar la pastilla en reposo y mostrarla solo cuando haya un estado real, como `Buscando`, `Verificando`, `Verificada` o `Revisar dirección`.
+
+### 2026-08-17 — Preferencia UI: formularios de persona con jerarquía sobria
+
+**No repetir:** usar bordes gruesos y colores intensos en todos los campos, dividir el formulario en dos mitades rígidas con espacio vacío y amontonar acciones de dirección en una cabecera sin salto.
+
+**Motivo:** la pantalla de remitente/dirección competía consigo misma: los campos parecían estados de error, la columna izquierda quedaba sobredimensionada y las acciones perdían jerarquía.
+
+**Preferir:** una superficie única con columnas proporcionales al contenido, bordes sutiles, etiquetas grises y color reservado para foco, validación y acciones. La cabecera de dirección debe poder envolver sus acciones en pantallas estrechas.
+
+### 2026-08-17 — Preferencia UI: resumen compacto de cambios sin guardar
+
+**No repetir:** volcar listas largas de ciudades o zonas dentro del diálogo de descarte de cambios.
+
+**Motivo:** el detalle completo domina el diálogo y dificulta entender rápidamente qué se modificó.
+
+**Preferir:** mostrar cada cambio en una fila compacta con su categoría y un resumen útil, por ejemplo `Quitaste Tin` o `Agregaste Tan`; si solo cambiaron zonas internas, usar `Actualizaste zonas` con el conteo como apoyo.
+
+### 2026-08-17 — Ajuste de controles de horario por día
+
+**Contexto:** el editor de horarios mostraba el selector de conductor demasiado ancho, el control de hora tenía un área clicable pequeña y faltaba la opción de ruta sin hora final.
+
+**Decisión:** usar el selector de hora compartido en salida y fin estimado, limitar el conductor a un ancho compacto comparable con los horarios y mostrar la casilla `Sin hora de fin · hasta terminar` debajo del fin estimado.
+
+**Resultado:** los tres controles mantienen una escala coherente y la modalidad de cierre de ruta vuelve a estar disponible de forma visible.
+
+### 2026-08-17 — Preferencia UI: horarios resumidos como tarjetas por día
+
+**Contexto:** el resumen de varios horarios de una ruta aparecía concatenado en una sola línea y era difícil identificar cada día o consultar su detalle.
+
+**Decisión:** representar cada día activo como una tarjeta compacta que muestre el nombre del día. Al pasar el cursor, enfocarla o pulsarla, mostrar el horario y su estado en una información contextual; la pulsación permite dejar el detalle visible.
+
+**Resultado:** los días se escanean de forma independiente sin perder la información del horario ni ocupar una franja de texto difícil de leer.
+
+### 2026-08-16 — Preferencia UI: ficha de vehículo con vista previa y modo lista ordenado
+
+**Contexto:** en modo lista la foto ocupaba demasiado espacio y los datos y acciones del camión quedaban visualmente centrados en una fila muy alta.
+
+**Decisión:** en modo lista, dar prioridad visual a una columna amplia de vista previa a la izquierda y mantener una columna de información a la derecha, con nombre, placa, capacidad, conductor y acciones agrupados de arriba hacia abajo. Los botones de fila deben ser compactos y ajustarse a su contenido. En el formulario, mostrar una vista previa de la foto y acciones explícitas `Agregar foto`, `Cambiar foto` y `Quitar foto`.
+
+**Resultado:** la foto identifica rápidamente al camión y ocupa el protagonismo de la fila; las acciones quedan en una zona estable, compacta y fácil de escanear.
+
+### 2026-08-16 — Preferencia UI: distinguir controles de vista del menú lateral
+
+**No repetir:** usar flechas izquierda/derecha para abrir u ocultar las opciones de vista y apariencia cuando el mismo espacio también contiene el control del menú lateral.
+
+**Motivo:** ambos controles se percibían como la misma acción, aunque uno despliega preferencias de la superficie y el otro contrae el menú de navegación.
+
+**Preferir:** representar vista y apariencia con el icono de controles deslizantes (`SlidersHorizontal`) y un estado activo visible al expandirlo. Mantener el menú lateral con su icono de panel (`PanelLeftOpen`/`PanelLeftClose`) y sus etiquetas específicas.
+
+### 2026-08-16 — Preferencia UI: controles de vista en todas las superficies logísticas
+
+**Contexto:** el control plegable de vista y apariencia aparecía en Tareas, pero no en Vehículos, Conductores ni Calendario y rutas.
+
+**Decisión:** cada superficie logística con un listado debe registrar su propio contexto de preferencias y mostrar el control compartido. Conductores, Vehículos y Calendario y rutas ofrecen como mínimo vista de lista y tarjetas; la preferencia queda aislada por superficie para no cambiar accidentalmente otra página.
+
+**Resultado:** el usuario puede abrir `Ocultar opciones de vista y apariencia` en las cuatro áreas y cambiar el formato del listado desde el mismo patrón.
+
+### 2026-08-16 — Preferencia UI: resumen visual de cambios sin guardar
+
+**Preferir:** cuando se cambia de ruta con un borrador pendiente, mostrar un resumen breve en bloques con etiquetas como `Nombre`, `Zona`, `Horarios y días` y `Cobertura`. Cada bloque debe comunicar el valor anterior y el nuevo, y no deben mostrarse categorías que no cambiaron.
+
+### 2026-08-16 — Preferencia UI: rutas como superficie principal del calendario
+
+**No repetir:** mostrar `Días maestros` como una superficie separada encima de `Rutas del día` y volver a pedir la activación de días dentro de cada ruta.
+
+**Motivo:** el usuario decidió que la ruta debe ser la entidad principal; la configuración de sus días debe vivir dentro de la ruta y no dividirse entre dos niveles de la pantalla.
+
+**Preferir:** mostrar directamente el maestro-detalle de `Rutas`, abrir una ruta y gestionar ahí sus días, horarios y cobertura. La configuración global de días puede conservarse internamente para compatibilidad, pero no debe competir visualmente con el catálogo de rutas.
+
+### 2026-08-16 — Preferencia UI: días maestros como única fuente y horarios contraídos *(reemplazada)*
+
+**No repetir:** mostrar otra segunda fila persistente de `Lun–Dom` dentro del editor de una ruta cuando la pantalla ya tiene la sección `Días maestros`. Tampoco mostrar todos los campos de cada horario abiertos al mismo tiempo.
+
+**Motivo:** el usuario indicó que la activación de días se veía repetida y que la vista debía aparecer contraída para mantener cada cosa en su lugar.
+
+**Preferir:** dejar `Días maestros` como la referencia global de disponibilidad. En la pestaña `Horarios`, mostrar una lista de secciones plegables por día; la cabecera enseña día, horario resumido y estado, y al expandir se editan horas, conductor y activación. `Agregar día` aparece como acción puntual para copiar un horario a un día disponible, sin mantener otra barra global duplicada.
+
+**Nota:** esta preferencia fue reemplazada inmediatamente por `Rutas como superficie principal del calendario`; los días maestros ya no se muestran en esta pantalla.
+
+### 2026-08-16 — Preferencia UI: días de ruta como conmutadores visuales
+
+**No repetir:** usar un `<select>` nativo dentro de cada horario para mezclar activación, duplicación y desactivación de días. El menú se vuelve largo, difícil de escanear y visualmente desconectado del estado real de la ruta.
+
+**Motivo:** el usuario indicó que el desplegable de días se veía horrible y no comunicaba bien qué días estaban activos.
+
+**Preferir:** mostrar una franja compacta de botones `Lun` a `Dom` con estado activo/inactivo visible. Activar un chip copia el primer horario disponible; desactivarlo conserva la ruta y deja el horario inactivo. Los campos de hora permanecen debajo, separados de la decisión de días.
+
+### 2026-08-15 — Preferencia UI: mapa de cobertura de dirección contextualizado al día preseleccionado
+
+**No repetir:** mostrar la barra conmutadora de los 7 días de logística en el diálogo de *Dirección y Coberturas* cuando el usuario ya eligió un día específico en el paso anterior.
+
+**Motivo:** el usuario indicó que en esa vista solo debe mostrarse el día que se eligió antes, no los 7 días.
+
+**Preferir:** filtrar automáticamente las rutas y coberturas exclusivamente al día preseleccionado (`selectedWeekday`), ocultando el conmutador de 7 días para evitar confusiones y mantener el diálogo enfocado y relevante.
+
+### 2026-08-15 — Preferencia UI: eliminación de pastillas flotantes de resumen en modales de programación
+
+**No repetir:** mostrar una pastilla o caja flotante de resumen (e.g. `DÍA Y HORA: Lun · 17 agosto 2026...`) entre el indicador de pasos y el contenido del formulario.
+
+**Motivo:** el usuario solicitó quitarla para evitar elementos redundantes y mantener una interfaz más limpia y directa.
+
+**Preferir:** dejar que la barra de pasos guíe el progreso y que cada paso contenga directamente sus campos sin capas intermedias de texto redundante.
+
+### 2026-08-15 — Preferencia UI: unificación en una sola tarjeta para el paso de ruta en modales de programación
+
+**No repetir:** mostrar 3 o más cajas y botones aislados apilados verticalmente (caja de selector de ruta, caja de horario, botón de continuar sin ruta y chips de resumen flotantes).
+
+**Motivo:** el usuario expresó rechazo al diseño de múltiples tarjetas y botones apilados ("toda esta parte no me gusta júntalo de otra manera").
+
+**Preferir:** unificar todo el paso de ruta en **una sola tarjeta principal** (`rounded-2xl border border-slate-800 bg-[#16201b] p-4`):
+- Cabecera integrada con etiqueta `Ruta del día` y botón de acción `Ver dirección y coberturas`.
+- Selector principal `InlineSearchPicker`.
+- Sección inferior integrada (separada por un divisor sutil) con el horario de salida (`Clock3`) y la confirmación de cobertura (`✓`).
+- Enlace sutil al pie para *¿Aún no decides la ruta? Continuar sin ruta*, eliminando botones pesados que compitan con la acción principal.
+
+### 2026-08-15 — Preferencia UI: unificación de datos de ruta y horarios en una sola pestaña
+
+**No repetir:** separar los datos generales de la ruta (color, nombre, zona) y los horarios en pestañas independientes (`Datos de ruta` y `Horarios`), multiplicando las pestañas en la barra superior.
+
+**Motivo:** el usuario solicitó expresamente juntar los datos de la ruta y los horarios en una sola vista.
+
+**Preferir:** simplificar el editor a únicamente dos pestañas: **`Horarios`** (que contiene la tarjeta con los datos de la ruta arriba y la lista de horarios abajo) y **`Cobertura`** (con el mapa interactivo full-height).
+
+### 2026-08-15 — Preferencia UI: pestaña Horarios sin textos explicativos y con botón "+ Horario" al final
+
+**No repetir:** mostrar un texto introductorio ("Define cuándo sale esta ruta") ni ubicar el botón `+ Horario` en una barra superior redundante sobre la lista de horarios.
+
+**Motivo:** el usuario solicitó eliminar el texto innecesario y colocar el botón `+ Horario` en la parte inferior del listado de horarios.
+
+**Preferir:** mostrar directamente las tarjetas de horarios y ubicar el botón `+ Horario` al pie de la lista para añadir nuevos horarios de forma limpia y directa.
+
+### 2026-08-15 — Preferencia UI: botón único de "+ Nueva ruta" en cabecera de rutas del día
+
+**No repetir:** duplicar el botón `+ Nueva ruta` en el estado vacío del panel derecho cuando ya existe el botón principal en la cabecera del panel izquierdo (*Rutas del día*).
+
+**Motivo:** el usuario señaló que el botón `+ Nueva ruta` salía dos veces en la misma pantalla al no tener una ruta seleccionada.
+
+**Preferir:** mantener el botón `+ Nueva ruta` exclusivamente en la cabecera del listado de rutas (panel izquierdo), dejando el estado vacío del panel derecho como un mensaje informativo limpio sin botones duplicados.
+
+### 2026-08-15 — Preferencia UI: estabilidad total de layout (sin saltos ni redimensionado) al seleccionar rutas
+
+**No repetir:** permitir que al seleccionar o abrir una ruta se produzcan saltos visuales, movimientos verticales o redimensionado en la página por diferencias de altura en cabeceras, animaciones de desplazamiento (`translateY` / `slide-in`), o llamadas a `scrollIntoView` en ventana.
+
+**Motivo:** el usuario rechazó que la página parezca moverse de lugar o redimensionarse al hacer clic en una ruta.
+
+**Preferir:** fijar alturas idénticas y constantes en las cabeceras de ambos paneles (`h-11 shrink-0`), eliminar traslaciones que alteren el bounding box, y restringir cualquier scroll estrictamente al contenedor interno `overflow-y-auto`, manteniendo la página 100% inmóvil y estable.
+
+### 2026-08-15 — Preferencia UI: mantener estilo idéntico en la tarjeta de ruta durante el modo Cobertura
+
+**No repetir:** cambiar el diseño, altura, padding o estructura de la tarjeta de ruta cuando pasa a modo Cobertura (por ejemplo, convirtiéndola en una mini-tarjeta con enlaces secundarios o perdiendo la línea de horario y el botón de archivar).
+
+**Motivo:** el usuario expresó que la tarjeta debe verse exactamente igual todo el tiempo, conservando su identidad, dimensiones, muestra de color, nombre, zona, botón de archivar y horario.
+
+**Preferir:** renderizar la tarjeta activa en la parte superior con la estructura y estilos exactos de la tarjeta original (`p-3.5`, `gap-2.5`, muestra de color interactiva, nombre en `text-sm font-black`, badge de zona, botón de archivar y línea de horario con `Clock3`), logrando total consistencia visual.
+
+### 2026-08-15 — Preferencia UI: vista de Cobertura lado a lado (panel izquierdo de Zonas + panel derecho de Mapa completo)
+
+**No repetir:** mostrar sub-pestañas "Zonas" y "Mapa" dentro del editor derecho forzando al usuario a alternar a ciegas entre la lista y el mapa mientras el panel izquierdo permanece ocupado con rutas secundarias irrelevantes.
+
+**Motivo:** el usuario indicó que al entrar en Cobertura de una ruta, las demás rutas deben ocultarse para aprovechar ese espacio en mostrar el listado de zonas, teniendo el mapa y el listado de zonas visibles simultáneamente.
+
+**Preferir:** un patrón de transición donde:
+- Al abrir **Cobertura**, el panel izquierdo oculta las demás rutas, ancla la ruta activa como mini-tarjeta superior y despliega fluidamente el buscador y listado de zonas (`GeographicRoutePlacesEditor`).
+- La cabecera del panel izquierdo ofrece un botón de retorno `← Rutas` para volver al listado de rutas del día.
+- El panel derecho muestra exclusivamente el **Mapa interactivo a pantalla completa** (`fillHeight`, `resizable={false}`) sincronizado en tiempo real con la lista izquierda.
+
+### 2026-08-15 — Preferencia UI: eliminación de campos de identidad redundantes en cabecera del editor de ruta
+
+**No repetir:** mostrar la muestra de color y los campos de entrada de nombre y zona en la barra superior del editor de ruta.
+
+**Motivo:** el usuario señaló que estos campos duplican exactamente lo que ya se está mostrando en la tarjeta de ruta seleccionada en el panel izquierdo (*Rutas del día*), recargando la cabecera.
+
+**Preferir:** dejar la cabecera del editor limpia únicamente con las 3 pestañas principales (`Horarios`, `Cobertura`, `Datos de ruta`) y los botones de acción (`Cancelar`, `Guardar`), gestionando la edición de nombre, zona y color dentro de la pestaña dedicada **`Datos de ruta`**.
+
+### 2026-08-15 — Preferencia UI: eliminación de barra flotante desconectada en Rutas e integración contextual de acciones
+
+**No repetir:** mostrar una franja exterior superior con el título general `Rutas` y los botones de acción (`+ Nueva ruta`, `Cancelar`, `Guardar`) flotando fuera de la superficie principal Master-Detail.
+
+**Motivo:** el usuario señaló que esa barra se siente desconectada de la interfaz y como si no tuviera que ver con el resto de cosas, además de descontextualizar las acciones (crear pertenece a la lista izquierda, guardar/cancelar al editor derecho).
+
+**Preferir:** integrar cada acción directamente dentro del panel que le corresponde:
+- `+ Nueva ruta` en la cabecera de **Rutas del día** (panel izquierdo) junto al conteo.
+- `Cancelar`, `Guardar` y la insignia `Sin guardar` en la cabecera del **Editor de ruta** (panel derecho) junto a la identidad y las pestañas.
+- Eliminar la franja superior externa para maximizar la cohesión visual y el espacio vertical útil.
+
+### 2026-08-15 — Preferencia UI: pantalla de Rutas y mapa de cobertura ajustados al viewport sin scrollbar vertical
+
+**No repetir:** permitir que al abrir la pestaña Cobertura el mapa y los paneles apilados expandan la altura de la página, forzando un scrollbar vertical y obligando al usuario a desplazarse hacia arriba y abajo para ver la barra de acciones o los días maestros.
+
+**Motivo:** el usuario expresó rechazo a tener que subir y bajar en la página para ver los elementos; todo el catálogo, listado y mapa de cobertura deben caber completamente en la vista simultáneamente.
+
+**Preferir:** un diseño *viewport-fit* donde los contenedores usen `flex h-full min-h-0 w-full flex-col` sin encabezados introductorios permanentes, la sección de Días maestros sea compacta (`shrink-0`), y el mapa de cobertura ocupe el 100% de la altura útil del panel derecho (`fillHeight`, `resizable={false}`) manteniendo los scrolls restringidos estrictamente al interior de las listas si es necesario, sin scroll vertical en la página general.
+
+### 2026-08-15 — Preferencia UI: botón de archivar integrado en cabecera de la tarjeta de ruta
+
+**No repetir:** colocar el botón de archivar aislado en una franja/pie inferior separado por un divisor en la tarjeta de ruta.
+
+**Motivo:** al eliminarse los controles redundantes del pie de la tarjeta, el botón quedaba solitario e innecesariamente ocupando espacio vertical con una línea divisoria vacía.
+
+**Preferir:** ubicar el botón de archivar compacto junto a la etiqueta de zona en la esquina superior derecha de la tarjeta de ruta, eliminando por completo la franja inferior vacía y haciendo la tarjeta más limpia y compacta.
+
+### 2026-08-15 — Preferencia UI: franja superior integrada (Color + Nombre + Zona) con pestañas Horarios y Cobertura
+
+**No repetir:** tener una pestaña separada "Datos de ruta" solo para nombre, zona y color, obligando a cambiar de pestaña para editar la identidad básica de la ruta.
+
+**Motivo:** el usuario indicó que el color y los datos deben cambiarse directamente en la cabecera/muestra de la ruta ("acá debería"), manteniendo las pestañas operativas limpias y directas.
+
+**Preferir:** integrar en la barra superior compacta del editor la muestra de color interactiva (`<input type="color">`), el nombre de la ruta y la zona en una sola línea accesible todo el tiempo, dejando únicamente 2 pestañas con iconos (`Horarios` y `Cobertura`).
+
+### 2026-08-15 — Preferencia UI: selector de color interactivo directamente en la muestra principal
+
+**No repetir:** mostrar un punto o indicador de color estático junto al nombre de la ruta y un segundo botón duplicado en el pie de la tarjeta para cambiar el color.
+
+**Motivo:** el usuario señaló que no tiene sentido tener dos círculos con el mismo color (uno de muestra y otro para hacer clic), lo cual genera redundancia visual e innecesarios controles duplicados.
+
+**Preferir:** hacer que el punto de color principal junto al nombre de la ruta sea directamente interactivo (`<input type="color">` transparente con hover zoom y tooltip), eliminando el selector repetido del pie de la tarjeta.
+
+### 2026-08-15 — Preferencia UI: denominación "Rutas" en lugar de "Subrutas"
+
+**No repetir:** usar el término "subruta" o "subrutas" en títulos, botones, tarjetas, contadores y modales de la interfaz de Logística.
+
+**Motivo:** el usuario solicitó cambiar la denominación a "Rutas" para simplificar la terminología y hacer más natural la operación.
+
+**Preferir:** emplear consistentemente "Ruta" y "Rutas" en toda la interfaz (ej: "Rutas", "Nueva ruta", "Rutas del día", "3 rutas", "Directa", "Ruta creada", etc.).
+
+### 2026-08-15 — Preferencia UI: eliminación de la cabecera superior en el editor de subrutas
+
+**No repetir:** mostrar una franja de encabezado fija (swatch, insignia "Editar subruta", nombre de la ruta, badge de zona y día) encima del editor de subrutas.
+
+**Motivo:** el usuario rechazó esa franja superior por ocupar espacio y recargar visualmente; la subruta activa ya está seleccionada en el listado lateral y sus datos se gestionan directamente dentro de las pestañas.
+
+**Preferir:** iniciar el panel de edición directamente con las pestañas de acción (`Horarios`, `Cobertura`, `Datos de ruta`) sin cabeceras intermedias.
+
+### 2026-08-15 — Preferencia UI: editor de subruta en pestañas con iconos y sin tarjetas fijas apiladas
+
+**No repetir:** apilar permanentemente la tarjeta de identidad (Nombre, Zona, Color) encima de las pestañas de Horarios y Cobertura, ocupando espacio vertical excesivo y desplazando el contenido operativo.
+
+**Motivo:** el usuario solicitó separar los elementos en pestañas con iconos para que no ocupe tanto espacio vertical y la vista sea más ágil y espaciosa.
+
+**Preferir:** organizar el editor de subruta en 3 pestañas compactas con iconos:
+- `Horarios` (con icono `Clock3` y contador).
+- `Cobertura` (con icono `MapPinned` y contador, aprovechando toda la altura de pantalla para el mapa).
+- `Datos de ruta` (con icono `SlidersHorizontal` para nombre, zona y color).
+- Encabezado superior minimalista en una sola franja con swatch de color, insignia de estado, nombre de la subruta y etiqueta del día.
+
+**Resultado:** el editor no desperdicia espacio vertical; cada sección tiene su propio espacio limpio y la cobertura cuenta con el 100% de la altura útil.
+
+### 2026-08-15 — Preferencia UI: cabecera de subrutas sin badges ni disclosures redundantes
+
+**No repetir:** colocar pastillas con el día/conteo de rutas (`Lunes · 2 subrutas configuradas`) ni botones de ayuda `CompactInfoDisclosure` junto al título principal `Subrutas`.
+
+**Motivo:** el usuario indicó que estorbaba y sobrecargaba la vista; el día y el conteo ya están claramente representados en la barra superior de Días Maestros y en la cabecera del listado de Rutas del día.
+
+**Preferir:** dejar la cabecera limpia con el título `Subrutas` y las acciones primarias (`Nueva subruta`, `Guardar`, `Cancelar`).
+
+**Resultado:** cabecera minimalista, ágil y sin información duplicada.
+
+### 2026-08-15 — Preferencia UI: contraste y elevación de tarjetas sobre el fondo
+
+**No repetir:** usar el mismo tono de fondo de la página (`#29312d` / `bg-surface-card` / `bg-surface-shell`) en las tarjetas, listados y contenedores, haciendo que los elementos se mimetizen y se sientan planos sin separación visual.
+
+**Motivo:** el usuario expresó que no le gusta que los elementos y tarjetas compartan el mismo color del fondo de la página, ya que se pierde la jerarquía, el relieve y la visibilidad de los bloques interactivos.
+
+**Preferir:** una jerarquía de superficies oscuras bien diferenciadas:
+- Contenedores de trabajo con tono profundo y grounded (`bg-[#121815]`/`bg-[#141b18]`) y bordes nítidos `border-slate-800`.
+- Tarjetas operativas elevadas y visibles (`bg-[#1e2723]` / `border-slate-700/80` / `shadow-md`), con estados hover (`hover:bg-[#27342e]`) y estados activos iluminados (`bg-emerald-950/60 border-emerald-400 ring-1 ring-emerald-400/50`).
+- Campos de entrada y chips de detalle empotrados con contraste oscuro (`bg-[#0f1412] border-slate-700`).
+
+**Resultado:** las subrutas, días maestros y horarios destacan claramente sobre el fondo general de la aplicación con profundidad, contraste y legibilidad óptima.
+
+### 2026-08-15 — Preferencia UI: rediseño integral de catálogo de subrutas y días maestros
+
+**No repetir:** contenedores negros rígidos con marcos oscuros toscos, tarjetas vacías con bordes negros pesados, acordeones anidados desarticulados y elementos sin jerarquía o iluminación visual.
+
+**Motivo:** el diseño previo se percibía tosco, oscuro, con cajas pesadas y bordes negros agresivos que dificultaban la lectura de rutas, días activos, horarios y coberturas.
+
+**Preferir:** una interfaz estructurada y moderna con una sola superficie shell integrada:
+- Selector de **Días maestros** en tarjetas cuadrícula de 7 días con anillos/glows activos, estado sutil (subrutas configuradas o ruta directa) e interruptor táctil rápido.
+- Diseño **Master-Detail** en panel dividido: a la izquierda, listado interactivo de *Rutas del día* con tarjeta visual, swatch circular de color, badge de zona, resumen de horarios, selector rápido de color y acción de archivar; a la derecha, editor de subruta con tarjeta de identidad limpia, tabs tipo píldora (`Horarios` con badges y `Cobertura` con mapa interactivo y listado de zonas raíz).
+- Estados vacíos ilustrados con iconos semánticos (`Compass`, `Route`) y llamadas a la acción directas para crear subrutas.
+
+**Resultado:** el catálogo mantiene el 100% de la funcionalidad (borradores, mapas, selector de conductores, horarios con/sin hora de fin, confirmación de descarte de cambios) con una experiencia visual fluida, luminosa y altamente legible.
+
 ### 2026-08-15 — Preferencia UI: subrutas como flujo de trabajo
 
 **No repetir:** mostrar los grupos de subrutas como tarjetas grandes y anidadas, ni abrir el formulario de nueva subruta dentro de una caja pesada con mucho espacio vacío.
@@ -3429,3 +4049,11 @@ En `Paradas`, cada fila o tarjeta identifica claramente entrega o recolección, 
 **No repetir:** usar una sola acción ambigua para abrir el mapa del cliente y revisar coberturas operativas.
 
 **Preferir:** mostrar dos acciones compactas junto a `Dónde recoger`: `Cliente verifica mapa` para confirmar la entrada exacta y `Ver rutas y coberturas` para abrir el comparador interno. El comparador identifica cada ruta por color y muestra explícitamente el día semanal de recolección.
+
+### 2026-08-17 - Preferencia UI: selector compacto de puntos de acceso
+
+**Contexto:** la lista completa de tags de acceso ocupaba demasiado espacio vertical sobre el mapa, especialmente en móvil.
+
+**Decisión:** mantener una barra compacta con `Puntos`, el tag activo y su estado; mostrar el resto de tags y sus acciones dentro de un desplegable.
+
+**Resultado:** el mapa conserva más superficie visible y el operador puede abrir la lista completa solo cuando necesita cambiar de punto o editar una nota.

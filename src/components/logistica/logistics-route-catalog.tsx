@@ -153,8 +153,8 @@ export function LogisticsRouteCatalog({
     );
     notify.success(
       result.data.defaultDriverId
-        ? "Conductor de subruta actualizado"
-        : "Conductor de subruta eliminado",
+        ? "Conductor de ruta actualizado"
+        : "Conductor de ruta eliminado",
     );
     onCatalogChange?.();
   }
@@ -564,11 +564,11 @@ export function LogisticsRouteCatalog({
       <section className="overflow-hidden rounded-xl border border-black bg-surface-panel">
         <div className="flex flex-wrap items-start justify-between gap-3 border-b border-black bg-surface-card-header px-4 py-3">
           <div>
-            <p className="text-base font-black text-[#f8fafc]">Subrutas del {weekdayNames[selectedDay]}</p>
+            <p className="text-base font-black text-[#f8fafc]">Rutas del {weekdayNames[selectedDay]}</p>
             <p className="mt-0.5 text-xs font-bold text-slate-500">
               {selectedDayEnabled
                 ? "El horario general se configura en la tarjeta del día. Aquí administra las rutas con nombre."
-                : "Aquí puedes administrar sus subrutas; no se usarán hasta activar el día."}
+                : "Aquí puedes administrar sus rutas; no se usarán hasta activar el día."}
             </p>
           </div>
           {canManage ? (
@@ -589,7 +589,7 @@ export function LogisticsRouteCatalog({
               }}
             >
               <PlusCircle className="h-4 w-4" />
-              Nueva subruta
+              Nueva ruta
             </button>
           ) : null}
         </div>
@@ -599,7 +599,7 @@ export function LogisticsRouteCatalog({
             <div className="min-w-0">
               <p className="text-xs font-black text-slate-200">Conductor de la ruta general</p>
               <p className="mt-0.5 text-[11px] font-bold text-slate-500">
-                Se usa únicamente mientras este día no tenga subrutas.
+                Se usa únicamente mientras este día no tenga rutas específicas.
               </p>
             </div>
             <InlineSearchPicker
@@ -688,7 +688,7 @@ export function LogisticsRouteCatalog({
               </div>
             ) : null}
             <button type="submit" className={`${primaryButtonClass} h-9 px-3 text-xs`} disabled={busy === "create" || !draftName.trim() || !draftStartTime || (!draftWithoutEnd && !draftEstimatedEndTime)}>
-              Crear subruta
+              Crear ruta
             </button>
             <button
               type="button"
@@ -850,11 +850,11 @@ export function LogisticsRouteCatalog({
             <div className="flex min-h-32 items-center justify-center rounded-lg border border-dashed border-black bg-surface-inset px-4 text-center md:col-span-2 xl:col-span-3">
               <div>
                 <Route className="mx-auto h-7 w-7 text-slate-600" />
-                <p className="mt-2 text-sm font-black text-slate-300">Sin subrutas para este día</p>
+                <p className="mt-2 text-sm font-black text-slate-300">Sin rutas para este día</p>
                 <p className="mt-1 text-xs font-bold text-slate-500">
                   {selectedDayEnabled
-                    ? "El día funciona como ruta general. Crea subrutas sólo si necesitas dividirlo."
-                    : "Crea una subruta aquí; quedará guardada hasta que actives el día."}
+                    ? "El día funciona como ruta general. Crea rutas sólo si necesitas dividirlo."
+                    : "Crea una ruta aquí; quedará guardada hasta que actives el día."}
                 </p>
               </div>
             </div>

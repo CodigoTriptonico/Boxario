@@ -220,6 +220,13 @@ body {
   dispositivos para evitar una barra lateral de escritorio y ancho residual.
 */
 @media (hover: none) and (pointer: coarse) {
+  .app-shell-root,
+  .app-shell-layout {
+    height: auto !important;
+    min-height: 100dvh !important;
+    overflow: visible !important;
+  }
+
   .app-shell-desktop-sidebar {
     display: none !important;
   }
@@ -230,6 +237,21 @@ body {
 
   .app-shell-mobile-nav {
     display: block !important;
+  }
+
+  /* A zoomed touch viewport can match Tailwind's `lg:` rules. Keep the
+     complete shell in its mobile geometry, including room for the fixed nav. */
+  .app-shell-content-section {
+    min-height: 0 !important;
+    overflow: visible !important;
+  }
+
+  .app-shell-mobile-content {
+    min-height: 0 !important;
+    flex: 1 0 auto !important;
+    overflow-x: hidden !important;
+    overflow-y: visible !important;
+    padding-bottom: calc(5rem + env(safe-area-inset-bottom)) !important;
   }
 }
 

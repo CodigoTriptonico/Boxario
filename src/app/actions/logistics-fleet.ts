@@ -137,6 +137,23 @@ function normalizeVehiclePhotoStoragePath(photoUrl: string, organizationId: stri
   return storagePathOwnedBy(path, organizationId) ? path : "";
 }
 
+async function removeVehiclePhotoObject(
+  admin: ReturnType<typeof createSupabaseAdminClient>,
+  photoUrl: string | null | undefined,
+  organizationId: string,
+) {
+  if (!admin) {
+    return;
+  }
+
+  const path = normalizeVehiclePhotoStoragePath(photoUrl || "", organizationId);
+  if (!path) {
+    return;
+  }
+
+  await admin.storage.from(LOGISTICS_VEHICLE_PHOTO_BUCKET).remove([path]);
+}
+
 async function resolveVehiclePhotoUrl(
   admin: ReturnType<typeof createSupabaseAdminClient>,
   photoUrl: string | null | undefined,
@@ -648,6 +665,18 @@ export async function updateLogisticsVehicleAction(input: {
       return fail(validation.error);
     }
 
+    const { data: previousVehicle, error: previousVehicleError } = await supabase
+      .from("logistics_vehicles")
+      .select("photo_url")
+      .eq("id", input.vehicleId)
+      .eq("organization_id", session.organizationId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (previousVehicleError || !previousVehicle) {
+      return fail(previousVehicleError?.message || "Vehiculo no encontrado");
+    }
+
     await assertDriverCanBeAssigned(supabase, session, validation.data.assignedDriverId);
     await clearDriverFromOtherVehicles(
       supabase,
@@ -679,6 +708,19 @@ export async function updateLogisticsVehicleAction(input: {
     }
 
     const admin = createSupabaseAdminClient();
+    const previousPhotoPath = normalizeVehiclePhotoStoragePath(
+      String(previousVehicle.photo_url || ""),
+      session.organizationId,
+    );
+    const nextPhotoPath = normalizeVehiclePhotoStoragePath(
+      validation.data.photoUrl,
+      session.organizationId,
+    );
+
+    if (previousPhotoPath && previousPhotoPath !== nextPhotoPath) {
+      await removeVehiclePhotoObject(admin, previousPhotoPath, session.organizationId);
+    }
+
     const driverById = await loadDriverLabels(
       supabase,
       session,
@@ -748,10 +790,28 @@ export async function uploadLogisticsVehiclePhotoAction(
 ): Promise<ActionResult<string>> {
   try {
     const session = await requireFleetSession();
+    const supabase = await createScopedSupabase(session);
     const admin = createSupabaseAdminClient();
 
-    if (!admin) {
+    if (!supabase || !admin) {
       return fail("Supabase no configurado");
+    }
+
+    const vehicleId = String(formData.get("vehicleId") || "").trim();
+    if (!vehicleId) {
+      return fail("Vehiculo requerido");
+    }
+
+    const { data: vehicle, error: vehicleError } = await supabase
+      .from("logistics_vehicles")
+      .select("id, name, photo_url")
+      .eq("id", vehicleId)
+      .eq("organization_id", session.organizationId)
+      .eq("is_active", true)
+      .maybeSingle();
+
+    if (vehicleError || !vehicle) {
+      return fail(vehicleError?.message || "Vehiculo no encontrado");
     }
 
     const file = formData.get("photo");
@@ -766,7 +826,7 @@ export async function uploadLogisticsVehiclePhotoAction(
     }
 
     const safeImage = await decodeAndSanitizeImage(file, { maxBytes: 4 * 1024 * 1024 });
-    const path = buildStorageObjectPath(session.organizationId, `vehicle.${safeImage.extension}`);
+    const path = buildStorageObjectPath(session.organizationId, `${vehicleId}/photo.${safeImage.extension}`);
     const { error } = await admin.storage
       .from(LOGISTICS_VEHICLE_PHOTO_BUCKET)
       .upload(path, safeImage.bytes, {
@@ -778,11 +838,33 @@ export async function uploadLogisticsVehiclePhotoAction(
       return fail(error.message);
     }
 
+    const { error: updateError } = await supabase
+      .from("logistics_vehicles")
+      .update({ photo_url: path, updated_at: new Date().toISOString() })
+      .eq("id", vehicleId)
+      .eq("organization_id", session.organizationId)
+      .eq("is_active", true);
+
+    if (updateError) {
+      await admin.storage.from(LOGISTICS_VEHICLE_PHOTO_BUCKET).remove([path]);
+      return fail(updateError.message);
+    }
+
+    await removeVehiclePhotoObject(admin, String(vehicle.photo_url || ""), session.organizationId);
+
     const previewUrl = await createStorageSignedUrl(admin, LOGISTICS_VEHICLE_PHOTO_BUCKET, path, {
       ownerId: session.organizationId,
     });
 
-    return ok(previewUrl);
+    await recordActivityHistory(supabase, session, {
+      action: "logistics.vehicle_photo_updated",
+      entityType: "logistics_vehicle",
+      entityId: vehicleId,
+      title: `Foto de vehiculo actualizada: ${String(vehicle.name || "")}`,
+      metadata: { replaced: Boolean(vehicle.photo_url) },
+    });
+
+    return ok(previewUrl || path);
   } catch (error) {
     return fail(actionErrorMessage(error));
   }

@@ -95,6 +95,7 @@ export function LogisticsRouteCoveragePreviewDialog({
   allowRouteViewSelection = true,
   allowExactEntranceEditing = true,
   coverageContext = "customer",
+  selectedWeekday = null,
 }: {
   open: boolean;
   onClose: () => void;
@@ -112,12 +113,21 @@ export function LogisticsRouteCoveragePreviewDialog({
   allowRouteViewSelection?: boolean;
   allowExactEntranceEditing?: boolean;
   coverageContext?: LogisticsRouteCoverageContext;
+  selectedWeekday?: number | null;
 }) {
   const closeButtonRef = useRef<HTMLButtonElement | null>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const initialWeekday = selectedWeekday ?? (
+    routes.find((route) => route.routeScheduleId === selectedRouteId)?.weekday
+    ?? routes[0]?.weekday
+    ?? null
+  );
+  const [weekdayFilter, setWeekdayFilter] = useState<number | null>(initialWeekday);
   const defaultRouteViewId = routes.some((route) => route.routeScheduleId === selectedRouteId)
     ? selectedRouteId
-    : "all";
+    : selectedWeekday != null
+      ? (routes.find((r) => r.weekday === selectedWeekday)?.routeScheduleId || weekdayViewId(selectedWeekday))
+      : "all";
   const [routeViewSelection, setRouteViewSelection] = useState<string | null>(null);
   const [routePickerOpen, setRoutePickerOpen] = useState(false);
   const routeViewId = allowRouteViewSelection
@@ -132,10 +142,6 @@ export function LogisticsRouteCoveragePreviewDialog({
   const [notesTab, setNotesTab] = useState<"references" | "driverNote">("references");
   const [routeSearch, setRouteSearch] = useState("");
   const isRouteConfiguration = coverageContext === "route";
-  const initialWeekday = routes.find((route) => route.routeScheduleId === selectedRouteId)?.weekday
-    ?? routes[0]?.weekday
-    ?? null;
-  const [weekdayFilter, setWeekdayFilter] = useState<number | null>(initialWeekday);
   const showOperationalNotes = addressReference !== undefined && exactEntranceNote !== undefined;
   const needsPinSave = Boolean(
     draftCustomerLocation && (pinDirty || draftCustomerLocation.source === "address"),
@@ -366,7 +372,7 @@ export function LogisticsRouteCoveragePreviewDialog({
               ) : null}
             </div>
 
-            {allowRouteViewSelection ? (
+            {allowRouteViewSelection && selectedWeekday == null ? (
               <div className="grid gap-1.5 rounded-lg border border-black bg-surface-inset p-2" aria-label="Días de logística">
                 <p className="px-1 text-[10px] font-black uppercase tracking-wide text-slate-500">Días de logística</p>
                 <div className="grid grid-cols-4 gap-1.5 sm:grid-cols-7" role="tablist" aria-label="Seleccionar día de logística">
@@ -381,6 +387,7 @@ export function LogisticsRouteCoveragePreviewDialog({
                         role="tab"
                         disabled={!enabled}
                         aria-selected={selected}
+                        aria-pressed={selected}
                         aria-label={`${label}: ${enabled ? "día activo, ver coberturas" : "día inactivo"}`}
                         title={enabled ? `Ver coberturas del ${label}` : `${label} está desactivado en Logística`}
                         onClick={() => selectRouteView(weekdayViewId(weekday))}

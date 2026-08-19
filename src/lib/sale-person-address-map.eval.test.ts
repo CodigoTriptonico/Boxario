@@ -37,4 +37,18 @@ test("el mapa intenta ubicar una dirección sin coordenadas y conserva el guarda
   assert.match(map, /setDraft\(nextDraft\)/);
   assert.match(map, /await onConfirm\(draft\)/);
   assert.match(map, /if \(!draft \|\| confirming\)/);
+  assert.match(map, /syncMapMarkers/);
+});
+
+test("parseAccessPoints, formatAccessPoints y syncMapMarkers aseguran la coexistencia y persistencia de múltiples pines", () => {
+  const file = read("src/components/sale/sale-exact-entrance-step.tsx");
+
+  assert.match(file, /export function parseAccessPoints/);
+  assert.match(file, /export function formatAccessPoints/);
+  assert.match(file, /function syncMapMarkers/);
+  assert.match(file, /pointsRef\.current/);
+  assert.match(file, /selectedTagRef\.current/);
+  assert.match(file, /syncMapMarkers\(maps, map, pointsRef\.current, selectedTagRef\.current\)/);
+  assert.match(file, /handleCustomLabelChange/);
+  assert.match(file, /Otro \(\$\{data\.customLabel/);
 });

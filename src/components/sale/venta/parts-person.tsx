@@ -49,10 +49,10 @@ export function applyAddressSuggestResult(
 }
 
 const clientFormControlShellClass =
-  "rounded-md border-2 border-emerald-400/70 bg-surface-inset shadow-[0_0_0_1px_rgba(16,185,129,0.18),0_8px_18px_rgba(0,0,0,0.22)]";
+  "rounded-lg border border-slate-700/80 bg-surface-inset shadow-sm";
 
 const clientFormInputPendingShellClass =
-  "rounded-md border-2 border-rose-500/85 bg-[#2a1a1f] shadow-[0_0_0_1px_rgba(244,63,94,0.24),0_8px_18px_rgba(0,0,0,0.22)]";
+  "rounded-lg border border-rose-500/70 bg-rose-950/20 shadow-sm";
 
 export const clientFormInputClass =
   `client-form-field h-11 w-full px-3.5 text-[15px] font-black text-[#f8fafc] outline-none transition placeholder:font-bold placeholder:text-slate-500 focus:border-sky-300 focus:ring-4 focus:ring-sky-300/30 ${clientFormControlShellClass}`;
@@ -87,7 +87,7 @@ export function clientFormAddressLabelClass(
 export const clientFormPickerShellClass =
   `${insetShellClass} box-border inline-flex h-11 w-full min-w-0 items-center gap-2 px-3 text-sm font-black text-[#f8fafc] ${clientFormControlShellClass}`;
 export const clientFormLabelClass =
-  "text-[11px] font-black uppercase tracking-[0.08em] text-emerald-200";
+  "text-[11px] font-black uppercase tracking-wide text-slate-400";
 export const noBrowserAutocomplete = {
   autoComplete: "off",
   autoCorrect: "off",

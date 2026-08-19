@@ -26,11 +26,13 @@ import {
   cancelLogisticsRouteAction,
   closeLogisticsRouteAction,
   confirmOperationalRouteFromBookingsAction,
-  listLogisticsRoutesAction,
+  getLogisticsRouteDetailAction,
+  listLogisticsRouteWorkspacePageAction,
   removeLogisticsRouteStopWithDispositionAction,
   reorderLogisticsRouteStopsAction,
   updatePublishedRouteFromBookingsAction,
 } from "@/app/actions/logistics-routes";
+import type { LogisticsRouteWorkspaceListItem, OperationalCursor } from "@/app/actions/logistics-routes";
 import type { LogisticsRouteCatalog } from "@/app/actions/logistics-routes";
 import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { AnchoredMenu } from "@/components/anchored-menu";
@@ -78,6 +80,7 @@ import {
 import { getLogisticsWeekdayIndex } from "@/lib/logistics-route-week";
 import {
   dateIsInLogisticsOperationRange,
+  logisticsOperationWeekRange,
   type LogisticsOperationRange,
 } from "@/lib/logistics-operation-range";
 import { usePageViewLayout } from "@/components/ui/ui-surface-preferences-provider";
@@ -149,6 +152,8 @@ function routeMatchesSearch(route: LogisticsRouteRow, query: string) {
   ].some((value) => String(value || "").toLocaleLowerCase().includes(query));
 }
 
+function routeListItemToRow(item: LogisticsRouteWorkspaceListItem): LogisticsRouteRow { const types = [...Array.from({ length: item.deliveryStopCount }, () => "deliver_empty_box" as const), ...Array.from({ length: item.pickupStopCount }, () => "pickup_full_box" as const)]; return { id: item.id, routeDate: item.routeDate, name: item.name, status: item.status as LogisticsRouteRow["status"], assignedTo: item.assignedTo, vehicleId: item.vehicleId, warehouseId: item.warehouseId, zoneKey: item.zoneKey, routeTemplateId: item.routeTemplateId, notes: "", createdAt: item.createdAt, updatedAt: item.createdAt, stops: Array.from({ length: item.stopCount }, (_, index) => ({ id: `${item.id}:summary:${index}`, routeId: item.id, taskId: "", order: index + 1, address: { source: "unknown", name: "", phone: "", street: "", houseNumber: "", addressReference: "", neighborhood: "", city: "", state: "", postalCode: "", country: "", formattedAddress: "", placeId: "", lat: null, lng: null }, lat: null, lng: null, postalCode: "", city: "", taskType: types[index], createdAt: item.createdAt })) }; }
+
 function bookingRouteWeekday(booking: CustomerRouteAssignmentRequestRow) {
   const weekday = Number(booking.routeWeekday);
   return booking.routeWeekday != null && Number.isInteger(weekday) && weekday >= 0 && weekday <= 6
@@ -177,7 +182,9 @@ export function LogisticsRoutesWorkspace({
   const tab = initialTab;
   const setShellConfig = useSetShellConfig();
   const viewContext: UiSurfaceContextId =
-    tab === "confirmations"
+    tab === "configuration"
+      ? "logistics.routeCatalog"
+      : tab === "confirmations"
       ? "logistics.confirmations"
       : tab === "templates" || tab === "drafts"
         ? "logistics.preparation"
@@ -186,6 +193,7 @@ export function LogisticsRoutesWorkspace({
           : "logistics.routes";
   const { layout: viewLayout } = usePageViewLayout(viewContext);
   const [routes, setRoutes] = useState(initialRoutes);
+  const [routeCursor, setRouteCursor] = useState<OperationalCursor | null>(null); const [routesHasMore, setRoutesHasMore] = useState(false); const [routesPageError, setRoutesPageError] = useState("");
   const [bookings, setBookings] = useState<CustomerRouteAssignmentRequestRow[]>(initialBookings);
   const [vehicles, setVehicles] = useState<LogisticsVehicleRow[]>([]);
   const [selectedRouteId, setSelectedRouteId] = useState("");
@@ -207,30 +215,23 @@ export function LogisticsRoutesWorkspace({
   const operationKeys = useRef(new Map<string, string>());
 
   useEffect(() => {
-    setShellConfig({ surfaceContextId: tab === "configuration" ? null : viewContext });
-    return () => setShellConfig({ surfaceContextId: undefined });
+    setShellConfig({
+      surfaceContextId: viewContext,
+      contentEdgeToEdge: true,
+    });
+    return () => setShellConfig({ surfaceContextId: undefined, contentEdgeToEdge: undefined });
   }, [setShellConfig, tab, viewContext]);
 
-  const loadOperationalData = useCallback(async () => {
-    const [routesResult, bookingsResult, vehiclesResult] = await Promise.all([
-      listLogisticsRoutesAction({ limit: 200, offset: 0 }),
-      listPendingCustomerRouteAssignmentRequestsAction(),
-      listLogisticsVehiclesAction(),
-    ]);
-
-    if (routesResult.ok) setRoutes(routesResult.data);
-    else notify.error(routesResult.error);
-    if (bookingsResult.ok) setBookings(bookingsResult.data);
-    else notify.error(bookingsResult.error);
-    if (vehiclesResult.ok) setVehicles(vehiclesResult.data);
-    else notify.error(vehiclesResult.error);
-  }, [notify]);
+  const loadOperationalData = useCallback(async (options?: { append?: boolean; cursor?: OperationalCursor | null }) => { const range = routeCustomDateRange || logisticsOperationWeekRange(routeWeekOffset); const [routesResult, bookingsResult, vehiclesResult] = await Promise.all([listLogisticsRouteWorkspacePageAction({ scope: tab === "history" ? "history" : "operational", from: range.from, to: range.to, search: routeQuery, cursor: options?.cursor || null }), listPendingCustomerRouteAssignmentRequestsAction(), listLogisticsVehiclesAction()]); if (routesResult.ok) { const next = routesResult.data.items.map(routeListItemToRow); setRoutes((current) => options?.append ? [...current, ...next] : next); setRouteCursor(routesResult.data.nextCursor); setRoutesHasMore(Boolean(routesResult.data.nextCursor)); setRoutesPageError(""); if (!options?.append) setSelectedRouteId(""); } else { setRoutesPageError(routesResult.error); notify.error(routesResult.error); } if (bookingsResult.ok) setBookings(bookingsResult.data); else notify.error(bookingsResult.error); if (vehiclesResult.ok) setVehicles(vehiclesResult.data); else notify.error(vehiclesResult.error); }, [notify, routeCustomDateRange, routeQuery, routeWeekOffset, tab]);
 
   useEffect(() => {
     startLoading(() => {
       void loadOperationalData();
     });
   }, [loadOperationalData]);
+
+  const selectRoute = useCallback(async (routeId: string) => { const result = await getLogisticsRouteDetailAction(routeId); if (!result.ok) { notify.error(result.error); return; } if (result.data) { setRoutes((current) => current.map((route) => route.id === result.data!.id ? result.data! : route)); setSelectedRouteId(result.data.id); } }, [notify]);
+  async function loadNextRoutesPage() { if (routeCursor && !loading) startLoading(() => { void loadOperationalData({ append: true, cursor: routeCursor }); }); }
 
   const operationalWeekdays = useMemo(() => {
     const weekStart = weekStartForOffset(routeWeekOffset);
@@ -830,7 +831,7 @@ export function LogisticsRoutesWorkspace({
               </span>
             </label>
           ) : null}
-          {tab === "configuration" ? <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-black text-slate-100"><Route className="h-4 w-4 text-emerald-300" />Calendario y subrutas</span> : null}
+          {tab === "configuration" ? <span className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg px-2.5 text-sm font-black text-slate-100"><Route className="h-4 w-4 text-emerald-300" />Calendario y rutas</span> : null}
           <span className="ml-auto hidden lg:inline-flex">
             <LogisticsConfigurationMenu active={tab === "configuration" ? "configuration" : "routes"} />
           </span>
@@ -906,7 +907,7 @@ export function LogisticsRoutesWorkspace({
       </div>
 
       {tab === "configuration" ? (
-        <div className="min-h-0 flex-1 overflow-y-auto pt-3">
+        <div className="flex min-h-0 flex-1 flex-col pt-1 sm:pt-2">
           <VentasRutasPanel canManage={canManage} onCatalogChange={onCatalogChange} />
         </div>
       ) : (
@@ -1129,7 +1130,7 @@ export function LogisticsRoutesWorkspace({
                 routeMembers={routeMembers}
                 query={routeQuery}
                 selectedRouteId={selectedRouteId}
-                onOpenRoute={(route) => setSelectedRouteId(route.id)}
+                onOpenRoute={(route) => void selectRoute(route.id)}
                 onWeekOffsetChange={(delta) => {
                   setRouteWeekOffset((current) => current + delta);
                   setRouteWeekday(null);
@@ -1160,7 +1161,7 @@ export function LogisticsRoutesWorkspace({
                 vehicles={vehicles}
                 selectedRouteId={selectedRouteId}
                 viewLayout={viewLayout}
-                onOpenRoute={(route) => setSelectedRouteId(route.id)}
+                onOpenRoute={(route) => void selectRoute(route.id)}
               />
             ) : tab === "history" && visibleRoutes.length ? (
               <div className="divide-y divide-black overflow-hidden rounded-xl border border-black bg-surface-panel">
@@ -1177,7 +1178,7 @@ export function LogisticsRoutesWorkspace({
                       className={`route-list-row flex w-full min-w-0 items-center gap-3 px-2 py-3 text-left transition-colors hover:bg-white/[0.035] focus-visible:outline focus-visible:outline-2 focus-visible:outline-emerald-400 ${
                         selected ? "bg-emerald-400/[0.07]" : ""
                       }`}
-                      onClick={() => setSelectedRouteId(route.id)}
+                      onClick={() => void selectRoute(route.id)}
                     >
                       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-inset text-emerald-300">
                         <Route className="h-4 w-4" />
@@ -1202,6 +1203,7 @@ export function LogisticsRoutesWorkspace({
                 })}
               </div>
             ) : tab === "history" ? <EmptyState>{routeQuery.trim() ? "No encontramos rutas con esa búsqueda." : "Todavía no hay rutas terminadas o canceladas."}</EmptyState> : null}
+            {routesHasMore ? <div className="mt-3 flex flex-wrap items-center justify-center gap-2">{routesPageError ? <p role="alert" className="text-xs font-bold text-rose-200">No se pudieron cargar más rutas: {routesPageError}</p> : null}<button type="button" className={`${primaryButtonClass} h-9 px-3 text-xs`} disabled={loading} onClick={() => void loadNextRoutesPage()}>{loading ? "Cargando…" : "Cargar más rutas"}</button></div> : null}
           </section>
 
           {showSelectedRoute ? <aside className="hidden min-h-0 overflow-hidden lg:block">{detail}</aside> : null}
@@ -1297,7 +1299,7 @@ export function LogisticsRoutesWorkspace({
               <p className="mt-1 text-sm font-black text-slate-100">{formatRouteDate(moveDraft.date)}</p>
             </div>
             <label className="mt-3 grid gap-1.5">
-              <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Subruta</span>
+              <span className="text-[10px] font-black uppercase tracking-wide text-slate-500">Ruta</span>
               {moveTemplates.length ? (
                 <select
                   value={moveDraft.routeTemplateId}

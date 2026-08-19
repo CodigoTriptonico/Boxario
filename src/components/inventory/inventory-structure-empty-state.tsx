@@ -43,7 +43,7 @@ export function InventoryStructureEmptyState({
               className="inset-shell mt-5 flex w-full max-w-md items-center gap-2 rounded-xl bg-[#111827] p-2"
             >
               <input
-                className="h-10 min-w-0 flex-1 bg-transparent px-2 text-sm font-black text-[#f8fafc] outline-none placeholder:text-slate-500"
+                className="inset-field h-10 min-w-0 flex-1 bg-transparent px-2 text-sm font-black text-[#f8fafc] placeholder:text-slate-500"
                 placeholder="Nueva categoría"
                 value={newCategoryName}
                 onChange={(event) => setNewCategoryName(event.target.value)}

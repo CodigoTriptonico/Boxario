@@ -238,7 +238,7 @@ export const UI_SURFACE_PALETTES: UiSurfacePalette[] = [
 ];
 
 export const DEFAULT_LIST_ROW_PALETTE_ID = "slate-cold";
-export const DEFAULT_PERSON_CARD_PALETTE_ID = "amber-warm";
+export const DEFAULT_PERSON_CARD_PALETTE_ID = "emerald-classic";
 
 const paletteById = new Map(UI_SURFACE_PALETTES.map((palette) => [palette.id, palette]));
 

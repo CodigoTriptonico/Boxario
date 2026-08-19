@@ -103,6 +103,7 @@ export type LogisticaClientProps = {
   initialPendingBookings?: CustomerRouteAssignmentRequestRow[];
   initialTaskAddresses?: LogisticsTaskAddressRow[];
   initialRouteCatalog?: LogisticsRouteCatalogData;
+  initialReadError?: string;
   canManageRoutes?: boolean;
   canManageLogisticsSettings?: boolean;
   agencyModuleEnabled?: boolean;

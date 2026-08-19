@@ -8,7 +8,7 @@ import {
 import {
   listRouteMembersAction,
   listSalesOwnersAction,
-  listShipmentsAction,
+  listEnviosShipmentsPageAction,
 } from "@/app/actions/shipments";
 import type {
   RouteMemberRow,
@@ -28,6 +28,7 @@ import { PageLoading } from "@/components/page-loading";
 import { SupabaseRequiredBanner } from "@/components/supabase-required-banner";
 import {
   Panel,
+  secondaryButtonClass,
 } from "@/components/ui-blocks";
 import { usePageViewLayout } from "@/components/ui/ui-surface-preferences-provider";
 import { useNotify } from "@/hooks/use-notify";
@@ -37,12 +38,8 @@ import {
   canApplyEnviosBulkReadiness,
 } from "@/lib/envios-bulk-readiness";
 import {
-  classifyEnviosReadinessBucket,
   ENVIOS_STATUS_FILTER_OPTIONS,
   filterShipmentsForEnviosMode,
-  matchesEnviosReadinessFilter,
-  matchesEnviosSearchQuery,
-  matchesEnviosStatusFilter,
   sortShipmentsByArrivalOrder,
   type EnviosClientMode,
   type EnviosReadinessFilter,
@@ -106,6 +103,8 @@ export function EnviosClient({
   // Si llega vacío, mantener la carga evita pintar el estado vacío antes de
   // conocer el resultado fresco de la primera consulta.
   const [shipmentsLoading, setShipmentsLoading] = useState(supabaseReady);
+  const [shipmentsError, setShipmentsError] = useState("");
+  const [serverReadiness, setServerReadiness] = useState({ totalCount: initialShipments?.length || 0, listosCount: 0, pendientesCount: 0 });
   const [hasMore, setHasMore] = useState(
     Boolean(initialShipments && initialShipments.length === ENVIOS_SHIPMENTS_PAGE_SIZE),
   );
@@ -137,29 +136,38 @@ export function EnviosClient({
   const isHistoryMode = activeMode === "history";
   const panelTitle = isHistoryMode ? "Historial de envíos" : "Seguimiento";
   const prevActiveModeRef = useRef(activeMode);
-  const prevQueryRef = useRef(query);
-
+  const prevFilterKeyRef = useRef("");
   const billing = useEnviosBilling({ canManageSales, setShipments });
 
   useEffect(() => {
-    if (prevActiveModeRef.current === activeMode && prevQueryRef.current === query) {
+    const nextKey = [activeMode, query, country, statusFilter, salesOwnerFilter, readinessFilter].join("\0");
+    if (prevActiveModeRef.current === activeMode && prevFilterKeyRef.current === nextKey) {
       return;
     }
 
     prevActiveModeRef.current = activeMode;
-    prevQueryRef.current = query;
+    prevFilterKeyRef.current = nextKey;
     setPage(0);
-  }, [activeMode, query]);
-
+  }, [activeMode, country, query, readinessFilter, salesOwnerFilter, statusFilter]);
   async function reloadShipmentsPage(targetPage = page) {
-    const result = await listShipmentsAction({
+    const result = await listEnviosShipmentsPageAction({
       limit: ENVIOS_SHIPMENTS_PAGE_SIZE,
       offset: targetPage * ENVIOS_SHIPMENTS_PAGE_SIZE,
+      mode: activeMode,
+      query,
+      country,
+      statusFilter,
+      salesOwnerId: salesOwnerFilter,
+      readinessFilter,
     });
 
     if (result.ok) {
-      setShipments(result.data);
-      setHasMore(result.data.length === ENVIOS_SHIPMENTS_PAGE_SIZE);
+      setShipments(result.data.items);
+      setServerReadiness(result.data.readiness);
+      setHasMore(result.data.hasMore);
+      setShipmentsError("");
+    } else {
+      setShipmentsError(result.error);
     }
 
     return result;
@@ -219,9 +227,15 @@ export function EnviosClient({
     });
 
     void (async () => {
-      const result = await listShipmentsAction({
+      const result = await listEnviosShipmentsPageAction({
         limit: ENVIOS_SHIPMENTS_PAGE_SIZE,
         offset: page * ENVIOS_SHIPMENTS_PAGE_SIZE,
+        mode: activeMode,
+        query,
+        country,
+        statusFilter,
+        salesOwnerId: salesOwnerFilter,
+        readinessFilter,
       });
 
       if (cancelled) {
@@ -229,9 +243,12 @@ export function EnviosClient({
       }
 
       if (result.ok) {
-        setShipments(result.data);
-        setHasMore(result.data.length === ENVIOS_SHIPMENTS_PAGE_SIZE);
+        setShipments(result.data.items);
+        setServerReadiness(result.data.readiness);
+        setHasMore(result.data.hasMore);
+        setShipmentsError("");
       } else {
+        setShipmentsError(result.error);
         notify.error(result.error);
       }
 
@@ -241,7 +258,7 @@ export function EnviosClient({
     return () => {
       cancelled = true;
     };
-  }, [initialShipments?.length, notify, page, supabaseReady]);
+  }, [activeMode, country, initialShipments?.length, notify, page, query, readinessFilter, salesOwnerFilter, statusFilter, supabaseReady]);
 
   useEffect(() => {
     if (!selectedAuditShipmentId) {
@@ -311,10 +328,7 @@ export function EnviosClient({
     updateWorkspaceUrl({ mode: nextMode, audit: null });
   }
 
-  const modeShipments = useMemo(
-    () => filterShipmentsForEnviosMode(shipments, activeMode),
-    [activeMode, shipments],
-  );
+  const modeShipments = shipments;
 
   useEffect(() => {
     let cancelled = false;
@@ -483,47 +497,7 @@ export function EnviosClient({
     return (memberId: string) => labels.get(memberId);
   }, [routeMembers]);
 
-  const baseFilteredShipments = useMemo(() => {
-    const cleanCountry = country.trim().toLowerCase();
-
-    return modeShipments.filter((row) => {
-      const matchesQuery = matchesEnviosSearchQuery(row, query);
-      const matchesCountry = !cleanCountry || row.country.toLowerCase().includes(cleanCountry);
-      const matchesStatus =
-        isHistoryMode || matchesEnviosStatusFilter(row, statusFilter);
-      const matchesSalesOwner =
-        !salesOwnerFilter || row.salesOwnerId === salesOwnerFilter;
-
-      return matchesQuery && matchesCountry && matchesStatus && matchesSalesOwner;
-    });
-  }, [country, isHistoryMode, modeShipments, query, salesOwnerFilter, statusFilter]);
-
-  const readinessSummary = useMemo(() => {
-    let listosCount = 0;
-    let pendientesCount = 0;
-
-    for (const row of baseFilteredShipments) {
-      const bucket = classifyEnviosReadinessBucket(row);
-
-      if (bucket === "listos") {
-        listosCount += 1;
-      } else if (bucket === "pendientes") {
-        pendientesCount += 1;
-      }
-    }
-
-    return {
-      totalCount: baseFilteredShipments.length,
-      listosCount,
-      pendientesCount,
-    };
-  }, [baseFilteredShipments]);
-
-  const filteredShipments = useMemo(
-    () =>
-      baseFilteredShipments.filter((row) => matchesEnviosReadinessFilter(row, readinessFilter)),
-    [baseFilteredShipments, readinessFilter],
-  );
+  const filteredShipments = modeShipments;
 
   const displayShipments = useMemo(
     () => sortShipmentsByArrivalOrder(filteredShipments),
@@ -705,6 +679,7 @@ export function EnviosClient({
 
       {supabaseReady ? (
         <>
+          {shipmentsError ? <div role="alert" className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-lg border border-rose-800/70 bg-rose-950/35 px-3 py-2 text-sm font-bold text-rose-100"><span>No se pudo actualizar los envíos: {shipmentsError}</span><button type="button" className={`${secondaryButtonClass} h-8 border-rose-700/70 px-2.5 text-xs text-rose-100`} onClick={() => void reloadShipmentsPage()}>Reintentar</button></div> : null}
           <EnviosFiltersToolbar
             workspaceTabs={
               unified ? (
@@ -719,9 +694,9 @@ export function EnviosClient({
             mode={activeMode}
             readinessFilter={readinessFilter}
             onReadinessFilterChange={setReadinessFilter}
-            totalCount={readinessSummary.totalCount}
-            listosCount={readinessSummary.listosCount}
-            pendientesCount={readinessSummary.pendientesCount}
+            totalCount={serverReadiness.totalCount}
+            listosCount={serverReadiness.listosCount}
+            pendientesCount={serverReadiness.pendientesCount}
             query={query}
             onQueryChange={setQuery}
             canManageShipmentOwners={canManageShipmentOwners}

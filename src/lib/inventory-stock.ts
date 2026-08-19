@@ -38,8 +38,12 @@ export const stockValueToneClass: Record<StockLevel, string> = {
 
 
 export function stockLevelForItem(
-  item: Pick<InventoryStockItem, "stock" | "minStock">,
+  item: Pick<InventoryStockItem, "stock" | "minStock" | "stockKnown">,
 ): StockLevel {
+  if (item.stockKnown === false) {
+    return "neutral";
+  }
+
   if (item.stock <= 0) {
     return "empty";
   }
@@ -86,6 +90,7 @@ export type LeafStockMetrics = {
   reserved: number;
   minStock: number;
   level: StockLevel;
+  known: boolean;
 };
 
 function inventoryItemFilterLabel(
@@ -119,6 +124,7 @@ export function inventoryItemFilterOptions(items: ReadonlyArray<InventoryStockIt
 }
 
 export function leafStockMetrics(items: InventoryStockItem[]): LeafStockMetrics {
+  const known = items.every((item) => item.stockKnown !== false);
   const warehouse = sumStock(items);
   const assigned = sumAssigned(items);
   const unavailable = sumUnavailable(items);
@@ -131,7 +137,8 @@ export function leafStockMetrics(items: InventoryStockItem[]): LeafStockMetrics 
     unavailable,
     reserved,
     minStock,
-    level: stockLevelForItem({ stock: warehouse, minStock }),
+    level: known ? stockLevelForItem({ stock: warehouse, minStock }) : "neutral",
+    known,
   };
 }
 
@@ -436,6 +443,7 @@ export function resolveCategoryStockItems(
     kind: leaf.kind,
     subcategory: leaf.subcategory,
     stock: 0,
+    stockKnown: false,
     reserved: 0,
     assigned: 0,
     unavailable: 0,
@@ -474,6 +482,7 @@ export function resolveSubcategoryStockItems(
       kind: leaf.kind,
       subcategory: leaf.subcategory,
       stock: 0,
+      stockKnown: false,
       reserved: 0,
       assigned: 0,
       unavailable: 0,

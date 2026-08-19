@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
-import { BoxSelect, Crosshair, GripHorizontal, GripVertical, Loader2, MapPin } from "lucide-react";
+import { BoxSelect, Crosshair, GripHorizontal, GripVertical, Loader2, MapPin, Search, X } from "lucide-react";
 import {
   loadCensusPlaceGeometryAction,
   loadCensusPlacesCatalogAction,
@@ -85,6 +85,8 @@ type MapsRuntime = {
     trigger: (instance: MapInstance, eventName: string) => void;
   };
   SymbolPath?: { CIRCLE: unknown };
+  Size?: new (width: number, height: number) => unknown;
+  Point?: new (x: number, y: number) => unknown;
 };
 
 function resizeMapInstance(map: MapInstance, runtime: MapsRuntime | null) {
@@ -96,6 +98,23 @@ function resizeMapInstance(map: MapInstance, runtime: MapsRuntime | null) {
     google?: { maps?: { event?: { trigger: (instance: MapInstance, eventName: string) => void } } };
   }).google?.maps;
   googleMaps?.event?.trigger(map, "resize");
+}
+
+function createSearchLocationIcon(runtime: MapsRuntime) {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="34" height="34" viewBox="0 0 34 34">
+    <circle cx="17" cy="17" r="11" fill="#0f172a" fill-opacity=".9" stroke="#ffffff" stroke-width="2.5"/>
+    <circle cx="17" cy="17" r="4" fill="#ffffff"/>
+    <path d="M17 2v7M17 25v7M2 17h7M25 17h7" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round"/>
+  </svg>`;
+  const url = `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`;
+  if (typeof runtime.Size === "function" && typeof runtime.Point === "function") {
+    return {
+      url,
+      scaledSize: new runtime.Size(34, 34),
+      anchor: new runtime.Point(17, 17),
+    };
+  }
+  return url;
 }
 
 async function waitForMapContainerSize(element: HTMLElement) {
@@ -121,6 +140,12 @@ type GeometryLike = {
 };
 
 type UserLocation = { lat: number; lng: number };
+type MapSearchSuggestion = {
+  placeId: string;
+  description: string;
+  mainText: string;
+  secondaryText: string;
+};
 export type CoverageMapFocusLocation = UserLocation & {
   label: string;
   source?: "exact_entrance" | "address";
@@ -567,6 +592,7 @@ export function GeographicRouteCoverageMap({
   const catalogLayerRef = useRef<DataLayer | null>(null);
   const markerRef = useRef<MarkerInstance | null>(null);
   const focusMarkerRef = useRef<MarkerInstance | null>(null);
+  const searchMarkerRef = useRef<MarkerInstance | null>(null);
   const rectangleRef = useRef<RectangleInstance | null>(null);
   const runtimeRef = useRef<MapsRuntime | null>(null);
   const highlightedPlaceIdRef = useRef(highlightedPlaceId);
@@ -616,6 +642,12 @@ export function GeographicRouteCoverageMap({
   const [locationBusy, setLocationBusy] = useState(false);
   const [locationError, setLocationError] = useState("");
   const [mapClickBusy, setMapClickBusy] = useState(false);
+  const [mapSearchQuery, setMapSearchQuery] = useState("");
+  const [mapSearchSuggestions, setMapSearchSuggestions] = useState<MapSearchSuggestion[]>([]);
+  const [mapSearchBusy, setMapSearchBusy] = useState(false);
+  const [mapSearchError, setMapSearchError] = useState("");
+  const mapSearchRequestRef = useRef(0);
+  const suppressMapSearchRef = useRef(false);
   const mapRootRef = useRef<HTMLDivElement | null>(null);
   const mapShellRef = useRef<HTMLDivElement | null>(null);
   const mapFrameRef = useRef<HTMLDivElement | null>(null);
@@ -1804,6 +1836,122 @@ export function GeographicRouteCoverageMap({
     }
   }
 
+  async function locateSearchSuggestion(suggestion: MapSearchSuggestion) {
+    setMapSearchBusy(true);
+    setMapSearchError("");
+    try {
+      const response = await fetch("/api/validate-address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "details", placeId: suggestion.placeId }),
+      });
+      const data = (await response.json()) as {
+        ok?: boolean;
+        error?: string;
+        address?: { lat?: number | null; lng?: number | null; formattedAddress?: string };
+      };
+      const lat = data.address?.lat;
+      const lng = data.address?.lng;
+      if (!data.ok || typeof lat !== "number" || typeof lng !== "number") {
+        throw new Error(data.error || "No se pudo ubicar esa dirección");
+      }
+      mapRef.current?.panTo({ lat, lng });
+      mapRef.current?.setZoom(14);
+      const runtime = runtimeRef.current;
+      const map = mapRef.current;
+      if (runtime && map) {
+        if (!searchMarkerRef.current) {
+          searchMarkerRef.current = new runtime.Marker({
+            map,
+            position: { lat, lng },
+            title: `Ubicación buscada: ${data.address?.formattedAddress || suggestion.description}`,
+            icon: createSearchLocationIcon(runtime),
+            zIndex: 30,
+          });
+        } else {
+          searchMarkerRef.current.setMap(map);
+          searchMarkerRef.current.setPosition({ lat, lng });
+          searchMarkerRef.current.setTitle?.(`Ubicación buscada: ${data.address?.formattedAddress || suggestion.description}`);
+        }
+      }
+      suppressMapSearchRef.current = true;
+      setMapSearchQuery(suggestion.description);
+      setMapSearchSuggestions([]);
+      setStatus(`Mapa centrado en ${data.address?.formattedAddress || suggestion.description}. La búsqueda no modifica la cobertura.`);
+    } catch (error) {
+      setMapSearchError(error instanceof Error ? error.message : "No se pudo ubicar esa dirección");
+    } finally {
+      setMapSearchBusy(false);
+    }
+  }
+
+  async function searchMapAddress() {
+    const query = mapSearchQuery.trim();
+    if (query.length < 3) {
+      setMapSearchError("Escribe al menos 3 caracteres");
+      return;
+    }
+    setMapSearchBusy(true);
+    setMapSearchError("");
+    try {
+      const suggestions = await requestMapSearchSuggestions(query);
+      if (!suggestions.length) {
+        throw new Error("No se encontraron direcciones");
+      }
+      setMapSearchSuggestions(suggestions);
+      if (suggestions.length === 1) {
+        await locateSearchSuggestion(suggestions[0]);
+      }
+    } catch (error) {
+      setMapSearchSuggestions([]);
+      setMapSearchError(error instanceof Error ? error.message : "No se encontraron direcciones");
+    } finally {
+      setMapSearchBusy(false);
+    }
+  }
+
+  async function requestMapSearchSuggestions(query: string) {
+    const requestId = mapSearchRequestRef.current + 1;
+    mapSearchRequestRef.current = requestId;
+    const response = await fetch("/api/validate-address", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ mode: "suggest", query, suggestTypes: "geocode" }),
+      });
+    const data = (await response.json()) as {
+      ok?: boolean;
+      error?: string;
+      suggestions?: MapSearchSuggestion[];
+    };
+    if (requestId !== mapSearchRequestRef.current) return [];
+    if (!data.ok) throw new Error(data.error || "No se encontraron direcciones");
+    return data.suggestions || [];
+  }
+
+  useEffect(() => {
+    const query = mapSearchQuery.trim();
+    if (suppressMapSearchRef.current) {
+      suppressMapSearchRef.current = false;
+      return;
+    }
+    if (query.length < 3) {
+      setMapSearchSuggestions([]);
+      return;
+    }
+    const timer = window.setTimeout(() => {
+      void (async () => {
+        try {
+          const suggestions = await requestMapSearchSuggestions(query);
+          if (suggestions.length) setMapSearchSuggestions(suggestions);
+          else setMapSearchSuggestions([]);
+        } catch {
+          setMapSearchSuggestions([]);
+        }
+      })();
+    }, 320);
+    return () => window.clearTimeout(timer);
+  }, [mapSearchQuery]);
+
   if (!apiKey) {
     return (
       <div className="grid h-52 place-items-center rounded-lg border border-amber-700/70 bg-amber-950/30 p-4 text-center text-[11px] font-bold text-amber-100">
@@ -1818,6 +1966,69 @@ export function GeographicRouteCoverageMap({
         className={`flex flex-wrap items-center gap-x-2 gap-y-1 ${mapWidthFill ? "w-full" : ""}`}
         style={mapWidthFill ? undefined : { width: mapWidth }}
       >
+        <form
+          className="relative order-first flex min-w-[min(100%,18rem)] flex-1 basis-full items-center sm:order-none sm:min-w-[15rem] sm:basis-auto"
+          onSubmit={(event) => {
+            event.preventDefault();
+            void searchMapAddress();
+          }}
+        >
+          <Search className="pointer-events-none absolute left-2.5 h-3.5 w-3.5 text-slate-500" aria-hidden />
+          <input
+            value={mapSearchQuery}
+            onChange={(event) => {
+              setMapSearchQuery(event.target.value);
+              setMapSearchError("");
+            }}
+            onFocus={() => setMapSearchError("")}
+            placeholder="Buscar dirección o ciudad…"
+            aria-label="Buscar dirección o ciudad en el mapa"
+            className="h-8 min-w-0 flex-1 rounded-lg border border-slate-700 bg-[#0f1412] pl-8 pr-20 text-xs font-bold text-slate-100 outline-none placeholder:text-slate-500 focus:border-sky-400"
+          />
+          {mapSearchQuery ? (
+            <button
+              type="button"
+              className="absolute right-14 grid h-6 w-6 place-items-center rounded text-slate-500 hover:bg-slate-800 hover:text-slate-200"
+              onClick={() => {
+                setMapSearchQuery("");
+                setMapSearchSuggestions([]);
+                setMapSearchError("");
+              }}
+              aria-label="Limpiar búsqueda"
+              title="Limpiar búsqueda"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          ) : null}
+          <button
+            type="submit"
+            disabled={mapSearchBusy}
+            className="absolute right-1 inline-flex h-6 items-center gap-1 rounded-md bg-sky-500 px-2 text-[10px] font-black text-slate-950 hover:bg-sky-400 disabled:cursor-wait disabled:opacity-60"
+          >
+            {mapSearchBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
+            Buscar
+          </button>
+          {mapSearchSuggestions.length > 1 ? (
+            <div className="absolute left-0 right-0 top-full z-40 mt-1 overflow-hidden rounded-lg border border-slate-700 bg-slate-950 shadow-2xl">
+              {mapSearchSuggestions.map((suggestion) => (
+                <button
+                  key={suggestion.placeId}
+                  type="button"
+                  className="flex w-full flex-col gap-0.5 border-b border-slate-800 px-3 py-2 text-left last:border-b-0 hover:bg-slate-800"
+                  onClick={() => void locateSearchSuggestion(suggestion)}
+                >
+                  <span className="truncate text-xs font-black text-slate-100">{suggestion.mainText}</span>
+                  <span className="truncate text-[10px] font-bold text-slate-400">{suggestion.secondaryText || suggestion.description}</span>
+                </button>
+              ))}
+            </div>
+          ) : null}
+          {mapSearchError ? (
+            <p className="absolute left-0 top-full z-40 mt-1 rounded-md border border-rose-500/40 bg-rose-950/95 px-2 py-1 text-[10px] font-bold text-rose-200" role="alert">
+              {mapSearchError}
+            </p>
+          ) : null}
+        </form>
         <p className="inline-flex min-w-0 max-w-full items-center gap-1.5 text-[11px] font-bold text-slate-400">
           <MapPin className="h-3.5 w-3.5 shrink-0 text-sky-300" />
           <span className="min-w-0 truncate">
@@ -1865,14 +2076,14 @@ export function GeographicRouteCoverageMap({
           </button> : null}
         </div>
       </div>
-      <div ref={mapShellRef} className={`w-full min-w-0 max-w-full overflow-x-hidden ${fillHeight ? "h-full" : ""}`}>
-        <div className={`flex max-w-full items-stretch ${mapWidthFill ? "w-full" : ""} ${fillHeight ? "h-full" : ""}`}>
+      <div ref={mapShellRef} className={`w-full min-w-0 max-w-full overflow-x-hidden ${fillHeight ? "h-full min-h-0 flex-1 flex flex-col" : ""}`}>
+        <div className={`flex max-w-full items-stretch ${mapWidthFill ? "w-full" : ""} ${fillHeight ? "h-full min-h-0 flex-1" : ""}`}>
           <div
             ref={mapFrameRef}
             className={`relative isolate min-w-0 overflow-hidden rounded-lg border border-black bg-surface-card ${mapWidthFill ? "flex-1" : ""}`}
             style={{
               height: fillHeight ? "100%" : mapHeight,
-              minHeight: fillHeight ? "16rem" : undefined,
+              minHeight: fillHeight ? "8rem" : undefined,
               width: mapWidthFill ? undefined : mapWidth,
             }}
           >

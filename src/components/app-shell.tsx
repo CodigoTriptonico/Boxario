@@ -248,11 +248,11 @@ export function AppShell({
   }
 
   return (
-    <main className="flex min-h-dvh flex-col bg-surface-shell text-[#f8fafc] lg:h-dvh lg:overflow-hidden">
+    <main className="app-shell-root flex min-h-dvh flex-col bg-surface-shell text-[#f8fafc] lg:h-dvh lg:overflow-hidden">
       <div
-        className={`flex min-h-dvh w-full bg-surface-shell lg:h-full lg:min-h-0 ${
+        className={`app-shell-layout flex min-h-dvh w-full bg-surface-shell lg:h-full lg:min-h-0 ${
           contentEdgeToEdge
-            ? "gap-3 py-3 pl-3 pr-0 sm:gap-4 sm:py-4 sm:pl-4"
+            ? "gap-3 p-3 sm:gap-4 sm:p-4"
             : "gap-4 p-3 sm:gap-5 sm:p-5"
         }`}
       >
@@ -426,7 +426,7 @@ export function AppShell({
           </div>
         </aside>
 
-        <section className="flex w-full min-w-0 flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden">
+        <section className="app-shell-content-section flex w-full min-w-0 flex-1 flex-col overflow-visible lg:min-h-0 lg:overflow-hidden">
           <div className="app-shell-mobile-header mb-3 flex w-full items-stretch gap-2 lg:hidden">
             <BoxarioBrandHeader
               session={session}
@@ -461,7 +461,7 @@ export function AppShell({
             </div>
           ) : null}
 
-          <div className="flex w-full flex-col overflow-x-hidden pb-24 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-0">
+          <div className="app-shell-mobile-content flex w-full flex-col overflow-x-hidden pb-24 lg:min-h-0 lg:flex-1 lg:overflow-y-auto lg:pb-0">
             {children}
           </div>
 

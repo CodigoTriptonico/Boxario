@@ -172,7 +172,7 @@ export function LogisticsTasksBoard({
               </div>
             )
           ) : (
-            <div className="flex min-h-40 flex-col items-center justify-center px-4 text-center">
+            <div className="flex min-h-[12rem] flex-col items-center justify-center px-4 text-center">
               <ClipboardList className="h-7 w-7 text-slate-600" />
               <p className="mt-2 text-sm font-black text-slate-300">
                 {showRouteHistory

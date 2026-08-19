@@ -62,6 +62,7 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
     newRecipientStreet,
     openContextMenu,
     openRecipientShipmentHistory,
+    openRecipientJournal,
     recipientAddressSearch,
     recipientAddressSearching,
     recipientAddressSuggestions,
@@ -277,6 +278,7 @@ export function VentaRecipientBoxSteps({ controller }: { controller: VentaContro
                 onChoose={chooseRecipient}
                 onAddressClick={activeSender ? (recipient) => addressMap.openRecipient(recipient, activeSender.id) : undefined}
                 onViewShipmentHistory={openRecipientShipmentHistory}
+                onJournalClick={openRecipientJournal}
                 onIconClick={(event, recipient) => {
                   const rect = event.currentTarget.getBoundingClientRect();
                   setCardStylePicker({

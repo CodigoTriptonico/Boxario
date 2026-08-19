@@ -325,11 +325,21 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
     }
   }
 
+  function openRecipientJournal(recipient: Recipient) {
+    setHistoryDrawer({
+      sender: selectedSender,
+      recipientId: recipient.id.startsWith("local-r-") ? undefined : recipient.id,
+      recipientName: personFullName(recipient),
+      initialTab: "journal",
+    });
+  }
+
   function openRecipientShipmentHistory(recipient: Recipient) {
     setHistoryDrawer({
       sender: selectedSender,
       recipientId: recipient.id.startsWith("local-r-") ? undefined : recipient.id,
       recipientName: personFullName(recipient),
+      initialTab: "shipments",
     });
   }
 
@@ -344,7 +354,7 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
         return;
       }
 
-      setHistoryDrawer({ sender });
+      setHistoryDrawer({ sender, initialTab: "journal" });
       setContextMenu(null);
       setActiveCopyGroup(null);
       return;
@@ -355,6 +365,7 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
         sender: selectedSender,
         recipientId: contextMenu.recipientId,
         recipientName: contextMenu.title,
+        initialTab: "journal",
       });
       setContextMenu(null);
       setActiveCopyGroup(null);
@@ -533,6 +544,7 @@ export function useVentaContextActions(context: VentaContextActionsContext) {
     requestDeleteFromContextMenu,
     confirmDeletePerson,
     openRecipientShipmentHistory,
+    openRecipientJournal,
     openCustomerHistoryFromMenu,
     copyValue,
     closeDocumentPartyEdit,

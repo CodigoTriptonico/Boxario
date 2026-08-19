@@ -1,6 +1,6 @@
 "use client";
 
-import { ChevronLeft, ChevronRight, Palette } from "lucide-react";
+import { Palette, SlidersHorizontal } from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 import { SidebarCollapseButton } from "@/components/notifications/notifications-center";
 import { ViewLayoutToggle } from "@/components/view-layout-toggle";
@@ -56,17 +56,13 @@ function CollapsibleControlsRow({
     <div className={footerRowClass(variant)}>
       <button
         type="button"
-        className={iconButtonClass[variant]}
+        className={`${iconButtonClass[variant]}${expanded ? " bg-emerald-400 text-slate-950 hover:bg-emerald-300 hover:text-slate-950" : ""}`}
         aria-expanded={expanded}
         aria-label={expanded ? collapseLabel : expandLabel}
         title={expanded ? collapseLabel : expandLabel}
         onClick={() => setExpanded((value) => !value)}
       >
-        {expanded ? (
-          <ChevronLeft className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
-        ) : (
-          <ChevronRight className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
-        )}
+        <SlidersHorizontal className="h-4 w-4 shrink-0" strokeWidth={2.25} aria-hidden />
       </button>
       {expanded ? children : null}
     </div>

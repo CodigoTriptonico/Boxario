@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { EmailDomainSuggestionsInput } from "@/components/email-domain-suggestions-input";
@@ -31,7 +31,6 @@ import {
   noBrowserAutocomplete,
   type Recipient,
 } from "@/components/sale/venta-parts";
-import { resolveAddressValidationUi, addressCardSubtitle } from "@/lib/sale-address-validation-ui";
 import {
   PERSON_NAME_MAX_LENGTH,
   formatPersonNameInput,
@@ -119,8 +118,6 @@ export function SaleRecipientForm({
   layout = "split",
 }: SaleRecipientFormProps) {
   const router = useRouter();
-  const contactMenuRef = useRef<HTMLDivElement>(null);
-  const [contactMenuOpen, setContactMenuOpen] = useState(false);
   const [addressUnverifiedAccepted, setAddressUnverifiedAccepted] = useState(false);
   const [showUnverifiedConfirm, setShowUnverifiedConfirm] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -160,36 +157,6 @@ export function SaleRecipientForm({
   useEffect(() => () => {
     if (mapHostWindow && !mapHostWindow.closed) mapHostWindow.close();
   }, [mapHostWindow]);
-
-  useEffect(() => {
-    if (!contactMenuOpen) {
-      return;
-    }
-
-    function closeFromOutside(event: PointerEvent) {
-      if (!contactMenuRef.current?.contains(event.target as Node)) {
-        setContactMenuOpen(false);
-      }
-    }
-
-    function closeFromEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setContactMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromEscape);
-    };
-  }, [contactMenuOpen]);
-
-  function addEmailContact() {
-    actions.onAddEmail();
-    setContactMenuOpen(false);
-  }
 
   const countryOptions = useMemo(() => {
     if (!meta.countries.length) {
@@ -269,28 +236,6 @@ export function SaleRecipientForm({
     .join(", ");
   const lockedClass = "pointer-events-none saturate-[0.8]";
 
-  const addressUi = resolveAddressValidationUi({
-    enabled: hasCountry,
-    disabledMessage: "Disponible al elegir pais",
-    searching: address.searching,
-    validation: address.validation,
-    suggestionsCount: address.suggestions.length,
-    unverifiedAccepted: addressUnverifiedAccepted,
-    hasRequiredAddress,
-    fullAddress,
-  });
-
-  const addressBadgeClass: Record<string, string> = {
-    disabled: "border-black bg-surface-card text-slate-300",
-    idle: "border-sky-400/45 bg-[#14262b] text-sky-100",
-    searching: "border-sky-300 bg-[#14262b] text-sky-100",
-    checking: "border-sky-300 bg-[#14262b] text-sky-100",
-    suggestions: "border-sky-400/45 bg-[#14262b] text-sky-100",
-    valid: "border-emerald-500/70 bg-[#1a2e28] text-emerald-100",
-    invalid: "border-amber-600 bg-amber-400 text-slate-950",
-    unverified: "border-amber-600 bg-amber-400 text-slate-950",
-  };
-
   function submitDetails() {
     void actions.onSubmit({
       ...(addressUnverifiedAccepted ? { skipAddressVerification: true } : {}),
@@ -339,18 +284,13 @@ export function SaleRecipientForm({
             ? "Usar existente"
             : "Guardar destinatario"}
         </button>
-        <span
-          className={`rounded-lg border px-2.5 py-1 text-[11px] font-black uppercase ${addressBadgeClass[addressUi.tone]}`}
-        >
-          {!hasCountry ? "Elige pais" : addressCardSubtitle(addressUi.tone)}
-        </span>
       </div>
 
       <form
         className={
           layout === "stack"
             ? "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card"
-            : "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card lg:grid-cols-2 lg:items-stretch"
+            : "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card lg:grid-cols-[minmax(22rem,0.82fr)_minmax(0,1.18fr)] lg:items-start"
         }
         autoComplete="off"
         onSubmit={(event) => event.preventDefault()}
@@ -364,7 +304,7 @@ export function SaleRecipientForm({
         </div>
 
         <section className="flex min-w-0 flex-col overflow-visible">
-          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950">
               <UserPlus className="h-4 w-4" />
             </span>
@@ -435,32 +375,19 @@ export function SaleRecipientForm({
                   </label>
                 </div>
 
-                <div ref={contactMenuRef} className="relative mt-3 flex w-fit items-center justify-start gap-2">
+                <div className="mt-3 flex items-center justify-between gap-2">
+                  <span className={clientFormLabelClass}>Correo</span>
                   <button
                     type="button"
-                    title="Agregar correo"
-                    aria-label="Agregar correo"
-                    aria-expanded={contactMenuOpen}
                     disabled={!hasCountry}
                     tabIndex={hasCountry ? 0 : -1}
-                    onClick={() => setContactMenuOpen((open) => !open)}
-                    className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950 disabled:cursor-not-allowed disabled:opacity-35"
+                    onClick={actions.onAddEmail}
+                    title="Agregar correo"
+                    aria-label="Agregar correo"
+                    className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-400/10 text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/20 disabled:cursor-not-allowed disabled:opacity-35"
                   >
                     <Plus className="h-4 w-4" />
                   </button>
-                  <span className={clientFormLabelClass}>Correo</span>
-                  {contactMenuOpen ? (
-                    <div className="absolute left-0 top-[calc(100%+0.4rem)] z-30 w-40 overflow-hidden rounded-lg border border-black bg-[#101820] shadow-2xl">
-                      <button
-                        type="button"
-                        onClick={addEmailContact}
-                        className="flex h-10 w-full items-center gap-2 px-3 text-left text-sm font-black text-[#f8fafc] hover:bg-surface-card-header"
-                      >
-                        <Mail className="h-4 w-4 text-emerald-300" />
-                        Correo
-                      </button>
-                    </div>
-                  ) : null}
                 </div>
 
                 <div className="mt-3 space-y-2">
@@ -527,13 +454,10 @@ export function SaleRecipientForm({
               <MapPin className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-[#f8fafc]">Dónde entregar</p>
+              <p className="text-sm font-black uppercase text-[#f8fafc]">Dirección del destinatario</p>
               <p className="text-xs font-bold text-slate-400">Dirección postal del destinatario</p>
             </div>
-            <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${address.validation.status === "valid" ? "border-emerald-400/50 bg-emerald-950/40 text-emerald-200" : "border-slate-600 bg-surface-inset text-slate-400"}`}>
-              {exactEntranceDraft ? "Entrada marcada" : hasCountry ? addressCardSubtitle(addressUi.tone) : "Elige país"}
-            </span>
-            <button type="button" disabled={!hasCountry} onClick={openMapWindow} className="ml-1 inline-flex h-9 items-center gap-2 rounded-md border border-sky-400/50 bg-sky-950/30 px-3 text-xs font-black text-sky-100 hover:border-emerald-300 disabled:opacity-40">
+            <button type="button" disabled={!hasCountry} onClick={openMapWindow} className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-950/20 px-3 text-xs font-black text-sky-100 hover:border-sky-300 hover:bg-sky-950/40 disabled:opacity-40">
               <MapPin className="h-4 w-4" /> Cliente verifica mapa
             </button>
           </div>
@@ -679,6 +603,7 @@ export function SaleRecipientForm({
               unverifiedAccepted={addressUnverifiedAccepted}
               hasRequiredAddress={hasRequiredAddress}
               fullAddress={fullAddress}
+              unitNumber={form.house}
               listboxId="recipient-address-suggestions-listbox"
               unverifiedButtonLabel="Direccion sin verificar"
               showUnverifiedOption={!meta.duplicateRecipient}
@@ -734,7 +659,7 @@ export function SaleRecipientForm({
           initialEntrance={exactEntranceDraft}
           onClose={dismissMapWindow}
           onAddressResolved={useMapAddress}
-          showOperationalNotes={false}
+          showOperationalNotes={true}
           onConfirm={(draft) => {
             setExactEntranceDraft(draft);
             dismissMapWindow();

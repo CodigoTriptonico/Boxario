@@ -50,6 +50,15 @@ export function ActionConfirmDialog({
   const cancelRef = useRef<HTMLButtonElement>(null);
   const confirmRef = useRef<HTMLButtonElement>(null);
   const previousFocusRef = useRef<HTMLElement | null>(null);
+  const confirmingRef = useRef(confirming);
+  const onCancelRef = useRef(onCancel);
+  const onConfirmRef = useRef(onConfirm);
+
+  useEffect(() => {
+    confirmingRef.current = confirming;
+    onCancelRef.current = onCancel;
+    onConfirmRef.current = onConfirm;
+  }, [confirming, onCancel, onConfirm]);
 
   useEffect(() => {
     if (!open) {
@@ -66,11 +75,11 @@ export function ActionConfirmDialog({
     }, 0);
 
     function onKeyDown(event: KeyboardEvent) {
-      if (confirming) return;
+      if (confirmingRef.current) return;
 
       if (event.key === "Escape") {
         event.preventDefault();
-        onCancel();
+        onCancelRef.current();
         return;
       }
 
@@ -84,7 +93,7 @@ export function ActionConfirmDialog({
           return;
         }
         event.preventDefault();
-        onConfirm();
+        onConfirmRef.current();
         return;
       }
 
@@ -117,9 +126,11 @@ export function ActionConfirmDialog({
     return () => {
       window.clearTimeout(focusTimer);
       document.removeEventListener("keydown", onKeyDown);
-      previousFocusRef.current?.focus?.({ preventScroll: true });
+      const previousFocus = previousFocusRef.current;
+      previousFocusRef.current = null;
+      previousFocus?.focus?.({ preventScroll: true });
     };
-  }, [open, confirming, onCancel, onConfirm]);
+  }, [open]);
 
   if (!open) {
     return null;

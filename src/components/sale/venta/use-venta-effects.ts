@@ -228,16 +228,18 @@ export function useVentaEffects(
         return;
       }
 
+      const typedUnit = isClient ? newClientHouse : newRecipientHouse;
+
       if (isClient) {
         setNewClientStreet(data.address.street || newClientStreet);
-        setNewClientHouse(data.address.houseNumber || newClientHouse);
+        setNewClientHouse(typedUnit || data.address.houseNumber || newClientHouse);
         setNewClientNeighborhood(data.address.neighborhood || newClientNeighborhood);
         setNewClientCity(data.address.city || newClientCity);
         setNewClientState(data.address.state || newClientState);
         setNewClientPostalCode(data.address.postalCode || newClientPostalCode);
       } else {
         setNewRecipientStreet(data.address.street || newRecipientStreet);
-        setNewRecipientHouse(data.address.houseNumber || newRecipientHouse);
+        setNewRecipientHouse(typedUnit || data.address.houseNumber || newRecipientHouse);
         setNewRecipientNeighborhood(data.address.neighborhood || newRecipientNeighborhood);
         setNewRecipientCity(data.address.city || newRecipientCity);
         setNewRecipientState(data.address.state || newRecipientState);
@@ -245,7 +247,6 @@ export function useVentaEffects(
       }
 
       const needsUnit = !data.address.houseNumber?.trim();
-      const typedUnit = isClient ? newClientHouse : newRecipientHouse;
 
       setValidation({
         status: "valid",

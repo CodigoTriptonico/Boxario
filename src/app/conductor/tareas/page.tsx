@@ -1,8 +1,7 @@
 import {
   getConductorTruckInventoryAction,
   getConductorRouteArrivalWorkspaceAction,
-  listConductorClosedDriverTasksAction,
-  listConductorDriverTasksAction,
+  listConductorDriverTaskPageAction,
 } from "@/app/actions/conductor-tasks";
 import { listRouteMembersAction } from "@/app/actions/shipments";
 import { ConductorTareasClient } from "@/components/conductor/conductor-tareas-client";
@@ -11,7 +10,7 @@ import {
   canPreviewConductorTasks,
   resolveConductorTasksView,
 } from "@/lib/conductor-tareas-view";
-import type { ConductorDriverTask } from "@/lib/conductor-tasks";
+import { conductorScopeDate, type ConductorDriverTask } from "@/lib/conductor-tasks";
 import type { ConductorTruckInventoryView } from "@/app/actions/conductor-tasks";
 import type { ConductorRouteArrivalWorkspace } from "@/lib/conductor-route-arrival";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
@@ -34,8 +33,11 @@ export default async function ConductorTareasPage({
   let drivers: { id: string; label: string }[] = [];
   let initialTasks: ConductorDriverTask[] = [];
   let initialCompletedTasks: ConductorDriverTask[] = [];
+  let initialTasksCursor: { sortAt: string; id: string } | null = null;
+  let initialCompletedTasksCursor: { sortAt: string; id: string } | null = null;
   let initialTruckView: ConductorTruckInventoryView | null = null;
   let initialTruckError = "";
+  let initialReadError = "";
   let initialRouteArrival: ConductorRouteArrivalWorkspace = { routes: [], warehouses: [] };
 
   if (canPreview && isSupabaseConfigured() && session) {
@@ -52,14 +54,22 @@ export default async function ConductorTareasPage({
   });
 
   if (isSupabaseConfigured() && session && view.effectiveDriverId) {
+    const scopeDate = requestedScopeDate || conductorScopeDate();
     const [tasksResult, completedResult, truckResult, arrivalResult] = await Promise.all([
-      listConductorDriverTasksAction(view.effectiveDriverId, requestedScopeDate),
-      listConductorClosedDriverTasksAction(view.effectiveDriverId, requestedScopeDate),
+      listConductorDriverTaskPageAction({ driverId: view.effectiveDriverId, scopeDate, visibility: "open" }),
+      listConductorDriverTaskPageAction({ driverId: view.effectiveDriverId, scopeDate, visibility: "closed" }),
       getConductorTruckInventoryAction(view.effectiveDriverId, requestedRouteId, requestedScopeDate),
       getConductorRouteArrivalWorkspaceAction(view.effectiveDriverId),
     ]);
-    initialTasks = tasksResult.ok ? tasksResult.data : [];
-    initialCompletedTasks = completedResult.ok ? completedResult.data : [];
+    initialTasks = tasksResult.ok ? tasksResult.data.items : [];
+    initialCompletedTasks = completedResult.ok ? completedResult.data.items : [];
+    initialTasksCursor = tasksResult.ok ? tasksResult.data.nextCursor : null;
+    initialCompletedTasksCursor = completedResult.ok ? completedResult.data.nextCursor : null;
+    initialReadError = [
+      tasksResult.ok ? "" : tasksResult.error,
+      completedResult.ok ? "" : completedResult.error,
+      arrivalResult.ok ? "" : arrivalResult.error,
+    ].filter(Boolean).join(" · ");
     if (truckResult.ok) {
       initialTruckView = truckResult.data;
     } else {
@@ -80,8 +90,12 @@ export default async function ConductorTareasPage({
       userId={session?.userId ?? ""}
       initialTasks={initialTasks}
       initialCompletedTasks={initialCompletedTasks}
+      initialTasksCursor={initialTasksCursor}
+      initialCompletedTasksCursor={initialCompletedTasksCursor}
+      scopeDate={requestedScopeDate || conductorScopeDate()}
       initialTruckView={initialTruckView}
       initialTruckError={initialTruckError}
+      initialReadError={initialReadError}
       initialWorkspaceView={initialWorkspaceView}
       initialRouteArrival={initialRouteArrival}
       agencyModuleEnabled={session?.agencyModuleEnabled ?? false}

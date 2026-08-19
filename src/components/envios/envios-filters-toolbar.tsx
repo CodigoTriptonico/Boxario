@@ -36,10 +36,10 @@ export const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
 
   return (
     <div className={`${panelToolbarClass} mb-3`}>
-      <div className="flex w-full items-center gap-2 overflow-x-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+      <div className="flex w-full min-w-0 flex-wrap items-center gap-2">
         {workspaceTabs}
 
-        <label className="min-w-[12rem] flex-[1_1_12rem] max-w-[20rem]">
+        <label className="basis-full min-w-0 flex-1 sm:basis-auto sm:min-w-[12rem] sm:max-w-[20rem]">
           <span className="sr-only">Buscar envíos</span>
           <span className={`${insetShellClass} flex h-9 min-w-0 items-center gap-2 rounded-lg border border-black bg-surface-inset px-3`}>
             <Search className="h-4 w-4 shrink-0 text-slate-500" aria-hidden />
@@ -103,7 +103,7 @@ export const EnviosFiltersToolbar = memo(function EnviosFiltersToolbar({
           />
         ) : null}
 
-        <div className="ml-auto shrink-0">
+        <div className="w-full min-w-0 sm:ml-auto sm:w-auto">
           <EnviosReadinessActions
             mode={mode}
             readinessFilter={readinessFilter}

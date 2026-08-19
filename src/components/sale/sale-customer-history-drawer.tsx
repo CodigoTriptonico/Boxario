@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, BookOpen, ChevronRight, ExternalLink, X } from "lucide-react";
+import { ArrowLeft, BookOpen, ChevronRight, ExternalLink, MessageSquareText, X } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
@@ -10,8 +10,10 @@ import {
 } from "@/app/actions/sale-customer-history";
 import { loadShipmentExpedienteAction } from "@/app/actions/shipment-expediente";
 import { finalizeShipmentInvoiceAction } from "@/app/actions/shipments";
+import { CustomerJournalDialog, CustomerJournalPanel } from "@/components/customer-journal-dialog";
 import { ShipmentCollectDialog } from "@/components/shipment-collect-dialog";
 import { historyDateLabel, personFullName, type Sender } from "@/components/sale/venta-parts";
+import { senderPhonesLabel } from "@/components/sale/venta/parts-person";
 import type { ShipmentStatus } from "@/lib/shipment-types";
 import { shipmentStatusDisplayLabel } from "@/lib/shipment-display";
 import { buildExpedienteShipmentDeepLink } from "@/lib/expediente-deep-link";
@@ -37,6 +39,7 @@ type SaleCustomerHistoryDrawerProps = {
   sender: Sender | null;
   recipientId?: string;
   recipientName?: string;
+  initialTab?: "journal" | "shipments";
   onClose: () => void;
 };
 
@@ -45,6 +48,7 @@ export function SaleCustomerHistoryDrawer({
   sender,
   recipientId,
   recipientName,
+  initialTab = "journal",
   onClose,
 }: SaleCustomerHistoryDrawerProps) {
   const [mounted, setMounted] = useState(false);
@@ -52,10 +56,17 @@ export function SaleCustomerHistoryDrawer({
   const [error, setError] = useState("");
   const [rows, setRows] = useState<CustomerSaleHistoryRow[]>([]);
   const [selectedRowId, setSelectedRowId] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<"journal" | "shipments">(initialTab);
 
   useEffect(() => {
     queueMicrotask(() => setMounted(true));
   }, []);
+
+  useEffect(() => {
+    if (open) {
+      setActiveTab(initialTab || "journal");
+    }
+  }, [open, initialTab]);
 
   useEffect(() => {
     if (!open) {
@@ -156,26 +167,39 @@ export function SaleCustomerHistoryDrawer({
       ? `Envíos de ${personFullName(sender)}`
       : "Últimos envíos";
 
-  const drawer = (
-    <div className="fixed inset-0 z-[140]">
-      <button
-        type="button"
-        aria-label="Cerrar historial"
-        className="absolute inset-0 bg-black/55"
-        onClick={onClose}
-      />
-      <aside
-        className={`absolute right-0 top-0 flex h-full w-full flex-col border-l border-black bg-[#1a221f] shadow-2xl ${
-          selectedRow ? "max-w-xl" : "max-w-md"
-        }`}
+  const customerAddress = sender
+    ? [
+        [sender.street, sender.houseNumber].filter(Boolean).join(" "),
+        sender.neighborhood,
+        [sender.city, sender.state, sender.postalCode].filter(Boolean).join(", "),
+      ]
+        .filter(Boolean)
+        .join(" · ")
+    : "";
+
+  const modal = (
+    <div
+      className="app-modal-overlay fixed inset-0 z-[140] flex items-center justify-center bg-black/75 p-2 sm:p-4 backdrop-blur-xs animate-in fade-in duration-150"
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className="app-modal-content relative flex h-[min(92vh,850px)] w-full max-w-4xl flex-col overflow-hidden rounded-2xl border border-black bg-surface-panel shadow-[0_24px_80px_rgba(0,0,0,0.55)]"
+        role="dialog"
+        aria-modal="true"
+        aria-label={selectedRow ? selectedRow.code : title}
+        onPointerDown={(event) => event.stopPropagation()}
       >
-        <div className="flex items-start justify-between gap-3 border-b border-black px-4 py-4">
-          <div className="min-w-0">
+        <div className="flex items-start justify-between gap-3 border-b border-black px-4 py-3.5 sm:px-6 sm:py-4 bg-surface-panel shrink-0">
+          <div className="min-w-0 flex-1">
             {selectedRow ? (
               <button
                 type="button"
                 onClick={() => setSelectedRowId(null)}
-                className="mb-2 inline-flex items-center gap-1.5 text-xs font-black uppercase text-emerald-300 transition hover:text-emerald-200"
+                className="mb-1.5 inline-flex items-center gap-1.5 text-xs font-black uppercase text-emerald-300 transition hover:text-emerald-200"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
                 Volver al listado
@@ -183,30 +207,102 @@ export function SaleCustomerHistoryDrawer({
             ) : (
               <p className="inline-flex items-center gap-1.5 text-xs font-black uppercase text-slate-500">
                 <BookOpen className="h-3.5 w-3.5" />
-                Libreta de envíos
+                Libreta de envíos & Bitácora
               </p>
             )}
             <h2 className="truncate text-xl font-black text-[#f8fafc]">
               {selectedRow ? selectedRow.code : title}
             </h2>
-            <p className="mt-1 text-sm font-bold text-slate-400">
+            <p className="mt-0.5 text-sm font-bold text-slate-400">
               {selectedRow ? historyDateLabel(selectedRow.createdAt) : scopeLabel}
             </p>
+            {!selectedRow && sender ? (
+              <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs font-bold text-slate-400">
+                {senderPhonesLabel(sender) ? (
+                  <p className="truncate">☎ {senderPhonesLabel(sender)}</p>
+                ) : null}
+                {customerAddress ? (
+                  <p className="flex items-start gap-1.5 truncate max-w-lg" title={customerAddress}>
+                    <span className="shrink-0 text-emerald-300">📍</span>
+                    <span className="truncate">{customerAddress}</span>
+                  </p>
+                ) : null}
+                {sender.addressReference ? (
+                  <p className="text-slate-500">Ref: {sender.addressReference}</p>
+                ) : null}
+              </div>
+            ) : null}
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card"
-          >
-            <X className="h-5 w-5" />
-          </button>
+          <div className="flex items-center gap-2 shrink-0">
+            <button
+              type="button"
+              onClick={onClose}
+              className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-black bg-surface-card text-slate-300 hover:text-white transition-colors"
+              title="Cerrar ventana"
+              aria-label="Cerrar ventana"
+            >
+              <X className="h-5 w-5" />
+            </button>
+          </div>
         </div>
 
-        <div className="min-h-0 flex-1 overflow-y-auto p-4">
+        {/* Barra de Pestañas (Pestañitas) */}
+        {!selectedRow && (
+          <div className="flex items-center gap-1 border-b border-black bg-[#151c19] px-4 sm:px-6 pt-2 shrink-0">
+            <button
+              type="button"
+              onClick={() => setActiveTab("journal")}
+              className={`relative inline-flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-black transition-all ${
+                activeTab === "journal"
+                  ? "border-emerald-400 text-emerald-300 bg-emerald-950/40 rounded-t-lg"
+                  : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30 rounded-t-lg"
+              }`}
+            >
+              <MessageSquareText className="h-4 w-4 text-emerald-400" />
+              <span>Bitácora</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => setActiveTab("shipments")}
+              className={`relative inline-flex items-center gap-2 border-b-2 px-3 py-2 text-xs font-black transition-all ${
+                activeTab === "shipments"
+                  ? "border-emerald-400 text-emerald-300 bg-emerald-950/40 rounded-t-lg"
+                  : "border-transparent text-slate-400 hover:text-slate-200 hover:bg-slate-800/30 rounded-t-lg"
+              }`}
+            >
+              <BookOpen className="h-4 w-4 text-emerald-400" />
+              <span>Libreta de envíos</span>
+              {!loading && rows.length > 0 ? (
+                <span
+                  className={`rounded-full px-1.5 py-0.5 text-[10px] font-bold ${
+                    activeTab === "shipments"
+                      ? "bg-emerald-500/20 text-emerald-300"
+                      : "bg-slate-800 text-slate-400"
+                  }`}
+                >
+                  {rows.length}
+                </span>
+              ) : null}
+            </button>
+          </div>
+        )}
+
+        <div className="min-h-0 flex-1 overflow-y-auto bg-[#0d1411]">
           {selectedRow ? (
-            <SaleHistoryDetailPanel key={selectedRow.id} row={selectedRow} onClose={onClose} />
+            <div className="p-4 sm:p-6">
+              <SaleHistoryDetailPanel key={selectedRow.id} row={selectedRow} onClose={onClose} />
+            </div>
+          ) : activeTab === "journal" ? (
+            <CustomerJournalPanel
+              customerId={sender?.id?.startsWith("local-") ? undefined : sender?.id}
+              recipientId={recipientId}
+              customerName={title}
+              showHeader={false}
+              onError={(err) => setError(err)}
+            />
           ) : (
-            <>
+            <div className="p-4 sm:p-6">
               {loading ? (
                 <p className="text-sm font-bold text-slate-400">Cargando historial...</p>
               ) : null}
@@ -220,7 +316,7 @@ export function SaleCustomerHistoryDrawer({
                   Sin envíos registrados
                 </p>
               ) : null}
-              <div className="space-y-2">
+              <div className="grid gap-2.5 sm:grid-cols-2">
                 {rows.map((row, index) => (
                   <div
                     key={row.id}
@@ -229,7 +325,7 @@ export function SaleCustomerHistoryDrawer({
                     <button
                       type="button"
                       onClick={() => setSelectedRowId(row.id)}
-                      className="w-full p-3 text-left"
+                      className="w-full p-3.5 text-left"
                     >
                       <div className="flex items-start justify-between gap-2">
                         <div className="min-w-0">
@@ -268,14 +364,14 @@ export function SaleCustomerHistoryDrawer({
                   </div>
                 ))}
               </div>
-            </>
+            </div>
           )}
         </div>
-      </aside>
+      </div>
     </div>
   );
 
-  return createPortal(drawer, document.body);
+  return createPortal(modal, document.body);
 }
 
 function SaleHistoryDetailPanel({

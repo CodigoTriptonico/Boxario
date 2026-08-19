@@ -15,7 +15,7 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { generateTemporaryPassword } from "@/lib/auth/temporary-password";
 import { formatPersonNameInput } from "@/lib/person-name";
 import {
@@ -48,6 +48,7 @@ import {
 } from "@/components/ui-blocks";
 import { useNotify } from "@/hooks/use-notify";
 import { isSupabaseConfigured } from "@/lib/supabase/env";
+import { validateVehiclePhoto } from "@/lib/logistics-fleet";
 import { settingsFieldLabelClass as fieldLabelClass } from "@/components/config/settings-panel-styles";
 import {
   compactInputClass,
@@ -61,6 +62,9 @@ import {
   type VehicleForm,
 } from "@/components/logistica/fleet/shared";
 import { useFleetFilters } from "@/components/logistica/fleet/use-fleet-filters";
+import { useSetShellConfig } from "@/components/app-frame";
+import { usePageViewLayout } from "@/components/ui/ui-surface-preferences-provider";
+import type { UiSurfaceContextId } from "@/lib/ui-surface-context";
 
 export function LogisticsFleetAdminClient({
   view,
@@ -72,6 +76,9 @@ export function LogisticsFleetAdminClient({
   initialVehicles?: LogisticsVehicleRow[];
 }) {
   const notify = useNotify();
+  const setShellConfig = useSetShellConfig();
+  const surfaceContextId: UiSurfaceContextId = view === "drivers" ? "logistics.drivers" : "logistics.vehicles";
+  const { layout: viewLayout } = usePageViewLayout(surfaceContextId);
   const supabaseReady = isSupabaseConfigured();
   const [drivers, setDrivers] = useState(initialDrivers);
   const [vehicles, setVehicles] = useState(initialVehicles);
@@ -81,7 +88,8 @@ export function LogisticsFleetAdminClient({
   const [driverForm, setDriverForm] = useState<DriverForm | null>(null);
   const [vehicleForm, setVehicleForm] = useState<VehicleForm | null>(null);
   const [resetDriver, setResetDriver] = useState<{ id: string; label: string; password: string } | null>(null);
-  const [uploadingPhoto, setUploadingPhoto] = useState(false);
+  const [vehiclePhotoFile, setVehiclePhotoFile] = useState<File | null>(null);
+  const [vehiclePhotoPreviewUrl, setVehiclePhotoPreviewUrl] = useState("");
 
   async function reload() {
     const [driversResult, vehiclesResult] = await Promise.all([
@@ -110,6 +118,28 @@ export function LogisticsFleetAdminClient({
     query,
   );
 
+  useEffect(() => {
+    setShellConfig({ surfaceContextId });
+    return () => setShellConfig({ surfaceContextId: undefined });
+  }, [setShellConfig, surfaceContextId]);
+
+  useEffect(() => {
+    return () => {
+      if (vehiclePhotoPreviewUrl.startsWith("blob:")) {
+        URL.revokeObjectURL(vehiclePhotoPreviewUrl);
+      }
+    };
+  }, [vehiclePhotoPreviewUrl]);
+
+  const listLayoutClass = viewLayout === "cards"
+    ? "grid gap-3 md:grid-cols-2 2xl:grid-cols-3"
+    : "grid gap-2";
+  const rowLayoutClass = "grid gap-3 rounded-xl border border-black bg-surface-card p-3 md:grid-cols-[minmax(20rem,36%)_minmax(0,1fr)] md:items-stretch";
+  const vehicleActionLayoutClass = viewLayout === "cards" ? "grid grid-cols-2 gap-2" : "flex flex-wrap gap-2";
+  const vehicleActionButtonClass = viewLayout === "cards"
+    ? `${secondaryButtonClass} h-9 text-xs`
+    : `${secondaryButtonClass} h-8 w-auto shrink-0 px-3 text-xs`;
+
   function openCreateDriver() {
     setDriverForm({ ...emptyDriverForm, password: generateTemporaryPassword() });
   }
@@ -125,10 +155,14 @@ export function LogisticsFleetAdminClient({
   }
 
   function openCreateVehicle() {
+    setVehiclePhotoFile(null);
+    setVehiclePhotoPreviewUrl("");
     setVehicleForm({ ...emptyVehicleForm });
   }
 
   function openEditVehicle(vehicle: LogisticsVehicleRow) {
+    setVehiclePhotoFile(null);
+    setVehiclePhotoPreviewUrl(vehicle.photoUrl);
     setVehicleForm({
       id: vehicle.id,
       name: vehicle.name,
@@ -139,6 +173,12 @@ export function LogisticsFleetAdminClient({
       notes: vehicle.notes,
       assignedDriverId: vehicle.assignedDriverId,
     });
+  }
+
+  function closeVehicleForm() {
+    setVehicleForm(null);
+    setVehiclePhotoFile(null);
+    setVehiclePhotoPreviewUrl("");
   }
 
   async function saveDriver(event: React.FormEvent) {
@@ -244,8 +284,29 @@ export function LogisticsFleetAdminClient({
       return;
     }
 
+    const photoFile = vehiclePhotoFile;
+    if (photoFile) {
+      setBusy("vehicle:photo");
+      const formData = new FormData();
+      formData.set("vehicleId", result.data.id);
+      formData.set("photo", photoFile);
+      const photoResult = await uploadLogisticsVehiclePhotoAction(formData);
+      setBusy("");
+
+      if (!photoResult.ok) {
+        setVehicleForm((current) =>
+          current
+            ? { ...current, id: result.data.id, photoUrl: result.data.photoUrl }
+            : current,
+        );
+        notify.error(`Vehiculo guardado, pero no se pudo guardar la foto: ${photoResult.error}`);
+        await reload();
+        return;
+      }
+    }
+
     notify.success(vehicleForm.id ? "Vehiculo actualizado" : "Vehiculo creado");
-    setVehicleForm(null);
+    closeVehicleForm();
     await reload();
   }
 
@@ -267,24 +328,29 @@ export function LogisticsFleetAdminClient({
     await reload();
   }
 
-  async function uploadVehiclePhoto(file: File | null) {
+  function selectVehiclePhoto(file: File | null) {
     if (!file || !vehicleForm) {
       return;
     }
 
-    const formData = new FormData();
-    formData.set("photo", file);
-    setUploadingPhoto(true);
-    const result = await uploadLogisticsVehiclePhotoAction(formData);
-    setUploadingPhoto(false);
-
-    if (!result.ok) {
-      notify.error(result.error);
+    const validation = validateVehiclePhoto(file);
+    if (!validation.ok) {
+      notify.error(validation.error);
       return;
     }
 
-    setVehicleForm((current) => (current ? { ...current, photoUrl: result.data } : current));
-    notify.success("Foto subida");
+    setVehiclePhotoFile(file);
+    setVehiclePhotoPreviewUrl(URL.createObjectURL(file));
+  }
+
+  function removeVehiclePhoto() {
+    if (!vehicleForm) {
+      return;
+    }
+
+    setVehiclePhotoFile(null);
+    setVehiclePhotoPreviewUrl("");
+    setVehicleForm((current) => (current ? { ...current, photoUrl: "" } : current));
   }
 
   if (!loaded) {
@@ -358,10 +424,10 @@ export function LogisticsFleetAdminClient({
 
         <div className="mt-4 grid min-h-0 flex-1 gap-4 content-start overflow-y-auto">
         {view === "drivers" ? (
-          <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          <section className={listLayoutClass}>
             {filteredDrivers.length ? (
               filteredDrivers.map((driver) => (
-                <article key={driver.id} className={`${cardClass} overflow-hidden`}>
+                <article key={driver.id} className={viewLayout === "cards" ? `${cardClass} overflow-hidden` : rowLayoutClass}>
                   <div className="border-b border-black bg-surface-card-header p-4">
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
@@ -441,11 +507,17 @@ export function LogisticsFleetAdminClient({
         ) : null}
 
         {view === "vehicles" ? (
-          <section className="grid gap-3 md:grid-cols-2 2xl:grid-cols-3">
+          <section className={listLayoutClass}>
             {filteredVehicles.length ? (
               filteredVehicles.map((vehicle) => (
-                <article key={vehicle.id} className={`${cardClass} overflow-hidden`}>
-                  <div className="aspect-[16/8] border-b border-black bg-surface-inset">
+                <article key={vehicle.id} className={viewLayout === "cards" ? `${cardClass} overflow-hidden` : rowLayoutClass}>
+                  <div
+                    className={
+                      viewLayout === "cards"
+                        ? "aspect-[16/8] border-b border-black bg-surface-inset"
+                        : "min-h-52 border-b border-black bg-surface-inset md:min-h-60 md:border-b-0 md:border-r"
+                    }
+                  >
                     {vehicle.photoUrl ? (
                       // Supabase vehicle photos use signed, short-lived URLs outside Next's static remote host list.
                       // eslint-disable-next-line @next/next/no-img-element
@@ -460,7 +532,7 @@ export function LogisticsFleetAdminClient({
                       </div>
                     )}
                   </div>
-                  <div className="grid gap-3 p-4">
+                  <div className={viewLayout === "cards" ? "grid gap-3 p-4" : "grid content-start gap-3 p-4 md:p-5"}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0">
                         <p className="truncate text-lg font-black text-[#f8fafc]">{vehicle.name}</p>
@@ -486,17 +558,17 @@ export function LogisticsFleetAdminClient({
                         </p>
                       </div>
                     </div>
-                    <div className="grid grid-cols-2 gap-2">
+                    <div className={vehicleActionLayoutClass}>
                       <button
                         type="button"
-                        className={`${secondaryButtonClass} h-9 text-xs`}
+                        className={vehicleActionButtonClass}
                         onClick={() => openEditVehicle(vehicle)}
                       >
                         Editar
                       </button>
                       <button
                         type="button"
-                        className={`${secondaryButtonClass} h-9 text-xs text-rose-200`}
+                        className={`${vehicleActionButtonClass} text-rose-200`}
                         disabled={busy === `vehicle:delete:${vehicle.id}`}
                         onClick={() => void deleteVehicle(vehicle)}
                       >
@@ -690,7 +762,7 @@ export function LogisticsFleetAdminClient({
               <button
                 type="button"
                 className="flex h-8 w-8 items-center justify-center rounded-lg border border-black bg-surface-inset text-slate-300"
-                onClick={() => setVehicleForm(null)}
+                onClick={closeVehicleForm}
                 aria-label="Cerrar"
               >
                 <X className="h-4 w-4" />
@@ -699,26 +771,44 @@ export function LogisticsFleetAdminClient({
             <div className="grid gap-4 p-4 lg:grid-cols-[18rem_minmax(0,1fr)]">
               <div className="grid gap-3">
                 <div className="aspect-[4/3] overflow-hidden rounded-xl border border-black bg-surface-inset">
-                  {vehicleForm.photoUrl ? (
+                  {vehiclePhotoPreviewUrl ? (
                     // Local previews and signed Supabase URLs must render before a permanent remote URL exists.
                     // eslint-disable-next-line @next/next/no-img-element
-                    <img src={vehicleForm.photoUrl} alt="Vehiculo" className="h-full w-full object-cover" />
+                    <img src={vehiclePhotoPreviewUrl} alt="Vehiculo" className="h-full w-full object-cover" />
                   ) : (
                     <div className="flex h-full items-center justify-center">
                       <Camera className="h-10 w-10 text-slate-600" />
                     </div>
                   )}
                 </div>
-                <label className={`${secondaryButtonClass} h-10 cursor-pointer`}>
-                  {uploadingPhoto ? <Loader2 className="h-4 w-4 animate-spin" /> : <Camera className="h-4 w-4" />}
-                  Subir foto
-                  <input
-                    className="sr-only"
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp"
-                    onChange={(event) => void uploadVehiclePhoto(event.target.files?.[0] || null)}
-                  />
-                </label>
+                <div className="flex flex-wrap gap-2">
+                  <label className={`${secondaryButtonClass} h-10 cursor-pointer`}>
+                    <Camera className="h-4 w-4" />
+                    {vehiclePhotoPreviewUrl ? "Cambiar foto" : "Agregar foto"}
+                    <input
+                      className="sr-only"
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onChange={(event) => {
+                        selectVehiclePhoto(event.target.files?.[0] || null);
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                  {vehiclePhotoPreviewUrl || vehicleForm.photoUrl ? (
+                    <button
+                      type="button"
+                      className={`${secondaryButtonClass} h-10 text-rose-200`}
+                      onClick={removeVehiclePhoto}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      Quitar foto
+                    </button>
+                  ) : null}
+                </div>
+                <p className="text-xs font-bold text-slate-500">
+                  JPG, PNG o WebP · máximo 4 MB. Se guarda al pulsar Guardar.
+                </p>
               </div>
 
               <div className="grid gap-3 sm:grid-cols-2">
@@ -800,11 +890,11 @@ export function LogisticsFleetAdminClient({
               </div>
             </div>
             <div className="sticky bottom-0 flex gap-2 border-t border-black bg-surface-card p-4">
-              <button type="submit" className={primaryButtonClass} disabled={busy === "vehicle:save"}>
-                {busy === "vehicle:save" ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
+              <button type="submit" className={primaryButtonClass} disabled={busy.startsWith("vehicle:")}>
+                {busy.startsWith("vehicle:") ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle2 className="h-4 w-4" />}
                 Guardar
               </button>
-              <button type="button" className={secondaryButtonClass} onClick={() => setVehicleForm(null)}>
+              <button type="button" className={secondaryButtonClass} onClick={closeVehicleForm}>
                 Cancelar
               </button>
             </div>

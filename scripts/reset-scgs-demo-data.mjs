@@ -1,5 +1,6 @@
 /**
- * Borra datos operativos de demo (envíos, clientes, inventario, precios, historial).
+ * Borra datos operativos de demo (envíos, facturación, clientes, inventario,
+ * precios, historial y auditoría) en una sola transacción.
  *
  * CONSERVA SIEMPRE:
  * - Usuarios auth y perfiles (admin, conductores, vendedores, etc.)
@@ -25,6 +26,7 @@ async function tableExists(client, table) {
     select 1
     from information_schema.tables
     where table_schema = 'public' and table_name = $1
+      and table_type = 'BASE TABLE'
     limit 1
     `,
     [table],
@@ -160,11 +162,15 @@ async function wipeOrgDemoData(client, orgId) {
 
   // Orden: hijos primero, padres al final.
   const tables = [
+    "shipment_package_invoice_events",
+    "shipment_journal_entries",
     "shipment_payments",
     "shipment_contact_logs",
     "shipment_logistics_task_attempts",
     "shipment_logistics_tasks",
     "shipment_packages",
+    "logistics_truck_inventory_events",
+    "inventory_shipment_ref_links",
     "inventory_sale_reservations",
     "agency_box_allocations",
     "agency_shipment_box_sources",
@@ -175,22 +181,30 @@ async function wipeOrgDemoData(client, orgId) {
     "agency_visits",
     "customer_route_assignment_requests",
     "customer_route_verifications",
+    "customer_payment_application_reversals",
+    "customer_payment_applications",
+    "customer_payment_balances",
+    "customer_payment_reversals",
+    "customer_credit_notes",
+    "customer_invoice_balances",
+    "customer_invoice_lines",
     "customer_payments",
     "customer_invoices",
     "sales",
     "distribution_partner_ledger",
     "financial_holds",
     "operational_exceptions",
-    "logistics_truck_inventory_events",
     "logistics_route_location_samples",
     "logistics_route_live_locations",
     "logistics_route_stops",
+    "logistics_route_change_audit",
     "warehouse_intake_sessions",
     "logistics_routes",
     "shipments",
     "customer_recipients",
     "customers",
     "activity_history",
+    "organization_invoice_reservations",
     "inventory_assignments",
   ];
 
@@ -211,6 +225,32 @@ async function wipeOrgDemoData(client, orgId) {
     () => deleteByOrg(client, "inventory_movements", orgId),
   );
 
+  deleted.security_audit_events = await withDisabledTriggers(
+    client,
+    [
+      {
+        disable:
+          "alter table public.security_audit_events disable trigger security_audit_events_immutable",
+        enable:
+          "alter table public.security_audit_events enable trigger security_audit_events_immutable",
+      },
+    ],
+    () => deleteByOrg(client, "security_audit_events", orgId),
+  );
+
+  deleted.immutable_audit_events = await withDisabledTriggers(
+    client,
+    [
+      {
+        disable:
+          "alter table public.immutable_audit_events disable trigger prevent_immutable_audit_event_change",
+        enable:
+          "alter table public.immutable_audit_events enable trigger prevent_immutable_audit_event_change",
+      },
+    ],
+    () => deleteByOrg(client, "immutable_audit_events", orgId),
+  );
+
   for (const table of [
     "inventory_bin_stock",
     "inventory_warehouse_transfers",
@@ -224,6 +264,7 @@ async function wipeOrgDemoData(client, orgId) {
     "pricing_countries",
     "organization_route_settings",
     "organization_invoice_counters",
+    "commercial_invoice_counters",
   ]) {
     deleted[table] = await deleteByOrg(client, table, orgId);
   }

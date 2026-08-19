@@ -109,6 +109,55 @@ export async function listLogisticsRoutesAction(
   }
 }
 
+/** Rich data is intentionally loaded only after a route row is selected. */
+export async function getLogisticsRouteDetailAction(routeId: string): Promise<ActionResult<LogisticsRouteRow | null>> {
+  try {
+    const session = await requireAppSession();
+    if (!sessionHasPermission(session, "routes.view") && !sessionHasPermission(session, "sales.manage")) {
+      throw new Error("FORBIDDEN");
+    }
+    const id = routeId.trim();
+    if (!id) return ok(null);
+    const supabase = await createScopedSupabase(session);
+    if (!supabase) return fail("Supabase no configurado");
+    const { data, error } = await supabase
+      .from("logistics_routes")
+      .select(ROUTE_SELECT)
+      .eq("organization_id", session.organizationId)
+      .eq("id", id)
+      .maybeSingle();
+    if (error) throw new Error(error.message);
+    return ok(data ? mapRoute(data as unknown as LogisticsRouteDbRow) : null);
+  } catch (error) {
+    return fail(actionErrorMessage(error));
+  }
+}
+
+/** Full operational route universe; never use a UI page as a planning source. */
+export async function listAllLogisticsRoutesAction(
+  options?: Omit<ListLogisticsRoutesOptions, "limit" | "offset">,
+): Promise<ActionResult<LogisticsRouteRow[]>> {
+  const routes: LogisticsRouteRow[] = [];
+  const pageSize = 200;
+
+  for (let offset = 0; ; offset += pageSize) {
+    const result = await listLogisticsRoutesAction({
+      ...options,
+      limit: pageSize,
+      offset,
+    });
+
+    if (!result.ok) {
+      return result;
+    }
+
+    routes.push(...result.data);
+    if (result.data.length < pageSize) {
+      return ok(routes);
+    }
+  }
+}
+
 export async function listLogisticsTaskAddressesAction(options?: {
   /** Si se pasan envíos ya cargados, no se vuelve a llamar listShipmentsAction. */
   shipments?: ShipmentRow[];

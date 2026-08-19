@@ -32,6 +32,7 @@ type SaleRecipientListProps = {
   onChoose: (recipient: Recipient) => void;
   onAddressClick?: (recipient: Recipient) => void;
   onViewShipmentHistory?: (recipient: Recipient) => void;
+  onJournalClick?: (recipient: Recipient) => void;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, recipient: Recipient) => void;
   onIconClick?: (event: MouseEvent<HTMLButtonElement>, recipient: Recipient) => void;
 };
@@ -67,6 +68,7 @@ export function SaleRecipientList({
   onChoose,
   onAddressClick,
   onViewShipmentHistory,
+  onJournalClick,
   onOpenContextMenu,
   onIconClick,
 }: SaleRecipientListProps) {
@@ -198,6 +200,13 @@ export function SaleRecipientList({
                           : undefined
                       }
                       onAddressClick={onAddressClick ? () => onAddressClick(recipient) : undefined}
+                      onJournalClick={
+                        onJournalClick
+                          ? () => onJournalClick(recipient)
+                          : onViewShipmentHistory
+                            ? () => onViewShipmentHistory(recipient)
+                            : undefined
+                      }
                       className={getCardClass(recipient)}
                       contextProps={recipientContextProps(recipient)}
                       onClick={() => onChoose(recipient)}
@@ -261,6 +270,13 @@ export function SaleRecipientList({
                       : undefined
                   }
                   onAddressClick={onAddressClick ? () => onAddressClick(recipient) : undefined}
+                  onJournalClick={
+                    onJournalClick
+                      ? () => onJournalClick(recipient)
+                      : onViewShipmentHistory
+                        ? () => onViewShipmentHistory(recipient)
+                        : undefined
+                  }
                   className={getCardClass(recipient)}
                   contextProps={recipientContextProps(recipient)}
                   onClick={() => onChoose(recipient)}

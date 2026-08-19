@@ -1,6 +1,6 @@
 "use client";
 
-import { Mail, MapPin, Package, Palette, Search, UserPlus } from "lucide-react";
+import { BookOpen, Mail, MapPin, Package, Palette, Search, UserPlus } from "lucide-react";
 import { type MouseEvent, useMemo } from "react";
 import type { SalePersonCardVariantId } from "@/components/sale/sale-person-card-variants";
 import { InlineSearchCombobox } from "@/components/inline-search-picker";
@@ -47,6 +47,7 @@ type SaleSenderListProps = {
   onNewClient: () => void;
   onChoose: (sender: Sender) => void;
   onAddressClick?: (sender: Sender) => void;
+  onJournalClick?: (sender: Sender) => void;
   onQuickEmptyBox: (sender: Sender) => void;
   getCardClass: (sender: Sender) => string;
   onOpenContextMenu: (event: MouseEvent<HTMLElement>, sender: Sender) => void;
@@ -84,6 +85,7 @@ export function SaleSenderList({
   onNewClient,
   onChoose,
   onAddressClick,
+  onJournalClick,
   onQuickEmptyBox,
   getCardClass,
   onOpenContextMenu,
@@ -211,6 +213,17 @@ export function SaleSenderList({
           ]}
           actions={(sender) => (
             <>
+              {onJournalClick ? (
+                <button
+                  type="button"
+                  className="inline-flex h-8 items-center gap-1 rounded-md border border-emerald-500/40 bg-emerald-950/40 px-2 text-[11px] font-black text-emerald-300 hover:bg-emerald-900/50"
+                  title={`Bitácora de ${personFullName(sender)}`}
+                  aria-label={`Bitácora de ${personFullName(sender)}`}
+                  onClick={() => onJournalClick(sender)}
+                >
+                  <BookOpen className="h-3.5 w-3.5" aria-hidden />
+                </button>
+              ) : null}
               {onIconClick && !sender.id.startsWith("local-") ? (
                 <button
                   type="button"
@@ -262,6 +275,7 @@ export function SaleSenderList({
                       contextProps={senderContextProps(sender)}
                       onClick={() => onChoose(sender)}
                       onAddressClick={onAddressClick ? () => onAddressClick(sender) : undefined}
+                      onJournalClick={onJournalClick ? () => onJournalClick(sender) : undefined}
                       onKeyDown={(event) => {
                         if (event.key === "Enter" || event.key === " ") {
                           event.preventDefault();
@@ -313,6 +327,7 @@ export function SaleSenderList({
                     contextProps={senderContextProps(sender)}
                     onClick={() => onChoose(sender)}
                     onAddressClick={onAddressClick ? () => onAddressClick(sender) : undefined}
+                    onJournalClick={onJournalClick ? () => onJournalClick(sender) : undefined}
                     onKeyDown={(event) => {
                       if (event.key === "Enter" || event.key === " ") {
                         event.preventDefault();

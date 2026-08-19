@@ -31,7 +31,7 @@ import {
 
 type UseInventoryTreeCrudParams = {
   categoryConfigs: CategoryConfig[];
-  onCategoryConfigsChange: (next: CategoryConfig[]) => void;
+  onCategoryConfigsChange: (next: CategoryConfig[]) => void | Promise<void>;
   inventoryItems: InventoryStockItem[];
   onInventoryItemsChange?: (next: InventoryStockItem[]) => void;
   movements: InventoryMovement[];
@@ -150,7 +150,7 @@ export function useInventoryTreeCrud({
     );
   }
 
-  function addCategory() {
+  async function addCategory() {
     const name = newCategoryName.trim();
     const normalizedName = normalizeInventoryName(name);
 
@@ -164,8 +164,14 @@ export function useInventoryTreeCrud({
       return;
     }
 
-    onCategoryConfigsChange([...categoryConfigs, { name, items: [] }]);
+    // Esperar a que la categoría exista en el servidor evita que el cambio de
+    // filtro dispare una recarga con la lista anterior y borre el estado local.
+    await onCategoryConfigsChange([...categoryConfigs, { name, items: [] }]);
     selectCategory(name);
+    // Una categoría nueva necesita continuar inmediatamente con su primer item.
+    // selectCategory cierra el formulario para los cambios normales de contexto;
+    // aquí lo reabrimos explícitamente para no devolver al usuario al paso anterior.
+    setShowNewItemForm(true);
     setNewCategoryName("");
     setShowNewCategoryInput(false);
   }

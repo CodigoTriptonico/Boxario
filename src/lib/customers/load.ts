@@ -278,6 +278,8 @@ export async function listRecipientsForCustomerSession(
 }
 
 function mapGeoNumber(value: number | string | null | undefined) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === "string" && !value.trim()) return null;
   const parsed = Number(value);
   return Number.isFinite(parsed) ? parsed : null;
 }
@@ -308,7 +310,7 @@ export function mapRecipientRow(row: RecipientDbRow): CustomerRecipientRow {
     state: row.state || "",
     postalCode: row.postal_code,
     addressReference: row.address_reference || "",
-    cardStyle: row.card_style || "amber-warm",
+    cardStyle: row.card_style || "emerald-classic",
     placeId: row.place_id || "",
     formattedAddress: row.formatted_address || "",
     addressVerified: Boolean(row.address_verified),
@@ -348,7 +350,7 @@ export function mapCustomerRow(row: CustomerDbRow): CustomerWithRecipientsRow {
     postalCode: row.postal_code,
     country: row.country,
     addressReference: row.address_reference || "",
-    cardStyle: row.card_style || "amber-warm",
+    cardStyle: row.card_style || "emerald-classic",
     placeId: row.place_id || "",
     formattedAddress: row.formatted_address || "",
     addressVerified: Boolean(row.address_verified),

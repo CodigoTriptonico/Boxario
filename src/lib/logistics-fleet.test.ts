@@ -6,6 +6,7 @@ import {
   normalizeVehiclePlate,
   validateLogisticsDriverInput,
   validateLogisticsVehicleInput,
+  validateVehiclePhoto,
 } from "./logistics-fleet";
 
 describe("logistics fleet", () => {
@@ -42,6 +43,12 @@ describe("logistics fleet", () => {
       }).ok,
       true,
     );
+  });
+
+  it("accepts supported vehicle photo formats within the size limit", () => {
+    assert.equal(validateVehiclePhoto({ type: "image/webp", size: 1024 }).ok, true);
+    assert.equal(validateVehiclePhoto({ type: "image/gif", size: 1024 }).ok, false);
+    assert.equal(validateVehiclePhoto({ type: "image/jpeg", size: 4 * 1024 * 1024 + 1 }).ok, false);
   });
 
   it("normalizes driver names before persistence", () => {

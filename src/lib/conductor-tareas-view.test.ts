@@ -12,6 +12,7 @@ import {
   isConductorRole,
   resolveConductorTasksView,
 } from "@/lib/conductor-tareas-view";
+import { conductorDirectTaskMatchesScope } from "@/lib/conductor-tasks";
 
 const drivers = [
   { id: "driver-1", label: "Ana Conductor" },
@@ -19,6 +20,22 @@ const drivers = [
 ];
 
 describe("conductor tareas view", () => {
+  it("keeps a driver's operational day before any presentation limit", () => {
+    assert.equal(
+      conductorDirectTaskMatchesScope(
+        { status: "scheduled", scheduledAt: "2026-08-19T09:00:00" },
+        "2026-08-19",
+      ),
+      true,
+    );
+    assert.equal(
+      conductorDirectTaskMatchesScope(
+        { status: "scheduled", scheduledAt: "2026-08-18T09:00:00" },
+        "2026-08-19",
+      ),
+      false,
+    );
+  });
   it("lets admins preview any conductor", () => {
     assert.equal(canPreviewConductorTasks("administrador"), true);
     assert.equal(canPreviewConductorTasks("conductor"), false);

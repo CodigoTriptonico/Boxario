@@ -17,7 +17,7 @@ const sections = [
 const configuration = [
   { id: "drivers" as const, label: "Conductores", href: "/logistica/conductores", Icon: Users },
   { id: "vehicles" as const, label: "Vehículos", href: "/logistica/vehiculos", Icon: Truck },
-  { id: "configuration" as const, label: "Calendario y subrutas", href: "/logistica?view=rutas&panel=configuracion", Icon: Route },
+  { id: "configuration" as const, label: "Calendario y rutas", href: "/logistica?view=rutas&panel=configuracion", Icon: Route },
 ];
 const operations = [
   { id: "confirmations" as const, label: "Por confirmar", href: "/logistica?view=rutas&tab=confirmations", Icon: Check },

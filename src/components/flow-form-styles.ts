@@ -36,7 +36,7 @@ export const flowWizardActionsClass =
 
 /** Grilla flexible para tarjetas de persona (remitente / destinatario). */
 export const flowPersonCardGridClass =
-  "grid w-full grid-cols-[repeat(auto-fit,minmax(min(100%,20rem),1fr))] items-stretch gap-3";
+  "grid w-full grid-cols-[repeat(auto-fill,minmax(min(100%,18rem),22rem))] items-stretch justify-start gap-3";
 
 /** Lista de filas de persona — mismo patrón que envíos (caja única + divide-y). */
 export const flowPersonRowListFrameClass = `${cardClass} flex flex-col`;

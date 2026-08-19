@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
-import { Mail, MapPin, Phone, Plus, Trash2, UserPlus } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Mail, MapPin, Plus, Trash2, UserPlus } from "lucide-react";
 import { ActionConfirmDialog } from "@/components/action-confirm-dialog";
 import { EmailDomainSuggestionsInput } from "@/components/email-domain-suggestions-input";
 import { PhoneCountryInput } from "@/components/phone-country-input";
@@ -25,7 +25,6 @@ import {
   personFullName,
   type Sender,
 } from "@/components/sale/venta-parts";
-import { resolveAddressValidationUi, addressCardSubtitle } from "@/lib/sale-address-validation-ui";
 import {
   PERSON_NAME_MAX_LENGTH,
   formatPersonNameInput,
@@ -95,8 +94,6 @@ export function SaleClientForm({
   meta,
   layout = "split",
 }: SaleClientFormProps) {
-  const contactMenuRef = useRef<HTMLDivElement>(null);
-  const [contactMenuOpen, setContactMenuOpen] = useState(false);
   const [addressUnverifiedAccepted, setAddressUnverifiedAccepted] = useState(false);
   const [showUnverifiedConfirm, setShowUnverifiedConfirm] = useState(false);
   const [mapOpen, setMapOpen] = useState(false);
@@ -143,41 +140,6 @@ export function SaleClientForm({
     if (mapHostWindow && !mapHostWindow.closed) mapHostWindow.close();
   }, [mapHostWindow]);
 
-  useEffect(() => {
-    if (!contactMenuOpen) {
-      return;
-    }
-
-    function closeFromOutside(event: PointerEvent) {
-      if (!contactMenuRef.current?.contains(event.target as Node)) {
-        setContactMenuOpen(false);
-      }
-    }
-
-    function closeFromEscape(event: KeyboardEvent) {
-      if (event.key === "Escape") {
-        setContactMenuOpen(false);
-      }
-    }
-
-    document.addEventListener("pointerdown", closeFromOutside);
-    document.addEventListener("keydown", closeFromEscape);
-    return () => {
-      document.removeEventListener("pointerdown", closeFromOutside);
-      document.removeEventListener("keydown", closeFromEscape);
-    };
-  }, [contactMenuOpen]);
-
-  function addEmailContact() {
-    actions.onAddEmail();
-    setContactMenuOpen(false);
-  }
-
-  function addPhoneContact() {
-    actions.onAddPhone();
-    setContactMenuOpen(false);
-  }
-
   function touchAddressField(update: () => void) {
     setAddressUnverifiedAccepted(false);
     setExactEntranceDraft(null);
@@ -198,16 +160,6 @@ export function SaleClientForm({
       message: "Direccion sin verificar",
     });
   }
-
-  const addressUi = resolveAddressValidationUi({
-    enabled: true,
-    searching: address.searching,
-    validation: address.validation,
-    suggestionsCount: address.suggestions.length,
-    unverifiedAccepted: addressUnverifiedAccepted,
-    hasRequiredAddress: Boolean(hasRequiredAddress),
-    fullAddress,
-  });
 
   function submitDetails() {
     void actions.onSubmit({
@@ -263,7 +215,7 @@ export function SaleClientForm({
         className={
           layout === "stack"
             ? "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card"
-            : "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card lg:grid-cols-2 lg:items-stretch"
+            : "relative grid overflow-hidden rounded-xl border border-white/10 bg-surface-card lg:grid-cols-[minmax(22rem,0.82fr)_minmax(0,1.18fr)] lg:items-start"
         }
         autoComplete="off"
         onSubmit={(event) => event.preventDefault()}
@@ -320,42 +272,13 @@ export function SaleClientForm({
                 </label>
               </div>
 
-              <div ref={contactMenuRef} className="relative flex w-fit items-center justify-start gap-2">
-                <button
-                  type="button"
-                  title="Agregar contacto"
-                  aria-label="Agregar contacto"
-                  aria-expanded={contactMenuOpen}
-                  onClick={() => setContactMenuOpen((open) => !open)}
-                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-emerald-400 text-slate-950"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-                <span className={clientFormLabelClass}>Contacto</span>
-                {contactMenuOpen ? (
-                  <div className="absolute left-0 top-[calc(100%+0.4rem)] z-30 w-40 overflow-hidden rounded-lg border border-black bg-[#101820] shadow-2xl">
-                    <button
-                      type="button"
-                      onClick={addEmailContact}
-                      className="flex h-10 w-full items-center gap-2 border-b border-black px-3 text-left text-sm font-black text-[#f8fafc] hover:bg-surface-card-header"
-                    >
-                      <Mail className="h-4 w-4 text-emerald-300" />
-                      Correo
-                    </button>
-                    <button
-                      type="button"
-                      onClick={addPhoneContact}
-                      className="flex h-10 w-full items-center gap-2 px-3 text-left text-sm font-black text-[#f8fafc] hover:bg-surface-card-header"
-                    >
-                      <Phone className="h-4 w-4 text-emerald-300" />
-                      Telefono
-                    </button>
-                  </div>
-                ) : null}
-              </div>
-
               <div className="space-y-2">
-                <span className={clientFormLabelClass}>Correos</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={clientFormLabelClass}>Correos</span>
+                  <button type="button" title="Agregar correo" aria-label="Agregar correo" onClick={actions.onAddEmail} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-400/10 text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/20">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
                 {form.emails.map((email, index) => (
                   <div key={`client-email-${index}`} className="flex items-start gap-2">
                     <EmailDomainSuggestionsInput
@@ -383,7 +306,12 @@ export function SaleClientForm({
               </div>
 
               <div className="space-y-2">
-                <span className={clientFormLabelClass}>Telefonos</span>
+                <div className="flex items-center justify-between gap-2">
+                  <span className={clientFormLabelClass}>Telefonos</span>
+                  <button type="button" title="Agregar teléfono" aria-label="Agregar teléfono" onClick={actions.onAddPhone} className="inline-flex h-7 w-7 items-center justify-center rounded-md border border-emerald-400/40 bg-emerald-400/10 text-emerald-200 transition hover:border-emerald-300 hover:bg-emerald-400/20">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
                 {form.phones.map((phone, index) => (
                   <div key={`client-phone-${index}`} className="flex flex-wrap items-start gap-2">
                     <PhoneCountryInput
@@ -419,18 +347,15 @@ export function SaleClientForm({
         </section>
 
         <section className="flex min-w-0 flex-col border-t border-white/10 lg:border-l lg:border-t-0">
-          <div className="flex items-center gap-3 border-b border-white/10 px-5 py-4">
+          <div className="flex flex-wrap items-center gap-3 border-b border-white/10 px-5 py-4">
             <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-sky-300 text-slate-950">
               <MapPin className="h-4 w-4" />
             </span>
             <div className="min-w-0">
-              <p className="text-sm font-black uppercase text-[#f8fafc]">Dónde recoger</p>
+              <p className="text-sm font-black uppercase text-[#f8fafc]">Dirección del cliente</p>
               <p className="text-xs font-bold text-slate-400">Dirección postal · USA</p>
             </div>
-            <span className={`ml-auto rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${address.validation.status === "valid" ? "border-emerald-400/50 bg-emerald-950/40 text-emerald-200" : "border-slate-600 bg-surface-inset text-slate-400"}`}>
-              {exactEntranceDraft ? "Entrada marcada" : addressCardSubtitle(addressUi.tone)}
-            </span>
-            <button type="button" onClick={openMapWindow} className="ml-1 inline-flex h-9 items-center gap-2 rounded-md border border-sky-400/50 bg-sky-950/30 px-3 text-xs font-black text-sky-100 hover:border-emerald-300">
+            <button type="button" onClick={openMapWindow} className="ml-auto inline-flex h-9 items-center gap-2 rounded-lg border border-sky-400/40 bg-sky-950/20 px-3 text-xs font-black text-sky-100 hover:border-sky-300 hover:bg-sky-950/40">
               <MapPin className="h-4 w-4" /> Cliente verifica mapa
             </button>
             <SaleAddressCoverageButton
@@ -573,6 +498,7 @@ export function SaleClientForm({
               unverifiedAccepted={addressUnverifiedAccepted}
               hasRequiredAddress={Boolean(hasRequiredAddress)}
               fullAddress={fullAddress}
+              unitNumber={form.house}
               listboxId="client-address-suggestions-listbox"
               onSelectSuggestion={selectSuggestedAddress}
               onUseUnverified={() => setShowUnverifiedConfirm(true)}
@@ -621,7 +547,7 @@ export function SaleClientForm({
           initialEntrance={exactEntranceDraft}
           onClose={dismissMapWindow}
           onAddressResolved={useMapAddress}
-          showOperationalNotes={false}
+          showOperationalNotes={true}
           onConfirm={(draft) => {
             setExactEntranceDraft(draft);
             dismissMapWindow();

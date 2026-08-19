@@ -29,13 +29,13 @@ export function EnviosReadinessActions({
   const isHistoryMode = mode === "history";
 
   return (
-    <div className="flex shrink-0 items-center gap-2">
-      <div className="flex h-9 shrink-0 divide-x divide-black overflow-hidden rounded-lg border border-black bg-surface-inset">
+    <div className="flex w-full min-w-0 flex-wrap items-center gap-2 sm:w-auto sm:flex-nowrap">
+      <div className="flex h-9 min-w-0 flex-1 divide-x divide-black overflow-hidden rounded-lg border border-black bg-surface-inset sm:flex-none">
         <button
           type="button"
           aria-pressed={readinessFilter === "all"}
           onClick={() => onReadinessFilterChange("all")}
-          className={`flex min-w-[3.75rem] items-center gap-1.5 px-2 transition sm:min-w-[4.5rem] ${
+          className={`flex min-w-0 flex-1 items-center gap-1.5 whitespace-nowrap px-1.5 transition sm:min-w-[4.5rem] sm:flex-none sm:px-2 ${
             readinessFilter === "all"
               ? "bg-emerald-400/15 text-emerald-200"
               : "text-slate-500 hover:bg-surface-card hover:text-slate-300"
@@ -55,7 +55,7 @@ export function EnviosReadinessActions({
               type="button"
               aria-pressed={readinessFilter === "listos"}
               onClick={() => onReadinessFilterChange("listos")}
-              className={`flex min-w-[4rem] items-center gap-1.5 px-2 transition sm:min-w-[4.75rem] ${
+              className={`flex min-w-0 flex-1 items-center gap-1.5 whitespace-nowrap px-1.5 transition sm:min-w-[4.75rem] sm:flex-none sm:px-2 ${
                 readinessFilter === "listos"
                   ? "bg-emerald-400/15 text-emerald-200"
                   : "text-slate-500 hover:bg-surface-card hover:text-slate-300"
@@ -71,7 +71,7 @@ export function EnviosReadinessActions({
               type="button"
               aria-pressed={readinessFilter === "pendientes"}
               onClick={() => onReadinessFilterChange("pendientes")}
-              className={`flex min-w-[4.75rem] items-center gap-1.5 px-2 transition sm:min-w-[5.5rem] ${
+              className={`flex min-w-0 flex-1 items-center gap-1.5 whitespace-nowrap px-1.5 transition sm:min-w-[5.5rem] sm:flex-none sm:px-2 ${
                 readinessFilter === "pendientes"
                   ? "bg-amber-400/15 text-amber-200"
                   : "text-slate-500 hover:bg-surface-card hover:text-slate-300"

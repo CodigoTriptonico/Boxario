@@ -75,7 +75,7 @@ export function InventoryItemMovementDraftModal({
     <div
       className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-black/45 p-4 pt-[8dvh] sm:pt-[12dvh]"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (event.target === event.currentTarget && !stockSaving) {
           setMovementDraft(null);
         }
       }}
@@ -422,7 +422,8 @@ export function InventoryItemMovementDraftModal({
           <button
             type="button"
             onClick={() => setMovementDraft(null)}
-            className="h-12 w-full rounded-lg border border-black bg-surface-inset px-4 text-base font-black text-slate-200 hover:bg-surface-card-hover"
+            disabled={stockSaving}
+            className="h-12 w-full rounded-lg border border-black bg-surface-inset px-4 text-base font-black text-slate-200 hover:bg-surface-card-hover disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancelar
           </button>

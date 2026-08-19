@@ -95,7 +95,7 @@ export function InventoryItemAdminModal({
     <div
       className="fixed inset-0 z-[150] flex items-start justify-center overflow-y-auto bg-black/45 p-4 pt-[5dvh]"
       onMouseDown={(event) => {
-        if (event.target === event.currentTarget) {
+        if (event.target === event.currentTarget && !saving) {
           onClose();
         }
       }}
@@ -319,7 +319,8 @@ export function InventoryItemAdminModal({
           <button
             type="button"
             onClick={onClose}
-            className="h-10 rounded-lg border border-black bg-surface-inset px-3 text-sm font-black text-slate-300"
+            disabled={saving}
+            className="h-10 rounded-lg border border-black bg-surface-inset px-3 text-sm font-black text-slate-300 disabled:cursor-not-allowed disabled:opacity-50"
           >
             Cancelar
           </button>

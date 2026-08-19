@@ -9,7 +9,8 @@ import {
 } from "@/lib/security/api-guards";
 
 type AddressInput = {
-  mode?: "validate" | "suggest" | "details" | "country-center";
+  mode?: "validate" | "suggest" | "details" | "reverse" | "country-center";
+  suggestTypes?: "address" | "geocode";
   query?: string;
   placeId?: string;
   street?: string;
@@ -19,6 +20,8 @@ type AddressInput = {
   state?: string;
   postalCode?: string;
   country?: string;
+  lat?: number;
+  lng?: number;
 };
 
 type GoogleAddressComponent = {
@@ -198,7 +201,7 @@ export async function POST(request: Request) {
       const params = new URLSearchParams({
         input: query,
         key: apiKey,
-        types: "address",
+        types: body.suggestTypes || "address",
       });
 
       if (countryCode) {
@@ -289,6 +292,51 @@ export async function POST(request: Request) {
         ok: Boolean(normalized.street && normalized.city && normalized.country),
         address: normalized,
         error: normalized.street ? "" : "Faltan partes de direccion",
+      });
+    }
+
+    if (body.mode === "reverse") {
+      if (
+        typeof body.lat !== "number" ||
+        !Number.isFinite(body.lat) ||
+        body.lat < -90 ||
+        body.lat > 90 ||
+        typeof body.lng !== "number" ||
+        !Number.isFinite(body.lng) ||
+        body.lng < -180 ||
+        body.lng > 180
+      ) {
+        return Response.json({ ok: false, error: "Coordenadas invalidas" }, { status: 400 });
+      }
+
+      const params = new URLSearchParams({
+        latlng: `${body.lat},${body.lng}`,
+        key: apiKey,
+      });
+
+      const response = await fetch(
+        `https://maps.googleapis.com/maps/api/geocode/json?${params.toString()}`,
+        { cache: "no-store" },
+      );
+      const data = (await response.json()) as {
+        status: string;
+        error_message?: string;
+        results?: GoogleGeocodeResult[];
+      };
+      const result = data.results?.find((candidate) => {
+        const normalized = normalizeAddress(candidate);
+        return Boolean(normalized.street && normalized.city && normalized.country);
+      });
+      if (!response.ok || data.status !== "OK" || !result) {
+        return Response.json({ ok: false, error: "No se encontró una dirección para ese punto" });
+      }
+
+      const normalized = normalizeAddress(result);
+      const hasMinimumParts = Boolean(normalized.street && normalized.city && normalized.country);
+      return Response.json({
+        ok: hasMinimumParts,
+        address: normalized,
+        error: hasMinimumParts ? "" : "El punto no tiene una dirección postal completa",
       });
     }
 

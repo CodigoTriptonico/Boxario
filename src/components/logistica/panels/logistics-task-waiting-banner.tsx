@@ -16,7 +16,12 @@ export function LogisticsTaskWaitingBanner({
   orderedAt: string | null | undefined;
   createdAt: string | null | undefined;
 }) {
-  const [nowMs, setNowMs] = useState(() => Date.now());
+  // El primer render debe ser idéntico en SSR y cliente. Usar el ancla como
+  // reloj inicial conserva la geometría del aviso; el efecto lo actualiza al
+  // tiempo real después de hidratar.
+  const anchorMs = Date.parse(orderedAt || createdAt || "");
+  const initialNowMs = Number.isFinite(anchorMs) ? anchorMs : 0;
+  const [nowMs, setNowMs] = useState(initialNowMs);
 
   useEffect(() => {
     const intervalId = window.setInterval(() => setNowMs(Date.now()), 60_000);
